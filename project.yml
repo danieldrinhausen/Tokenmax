@@ -1,0 +1,65 @@
+name: Tokenmax
+
+options:
+  bundleIdPrefix: com.tokenmax
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGNING_REQUIRED: "YES"
+    CODE_SIGNING_ALLOWED: "YES"
+    ENABLE_HARDENED_RUNTIME: "NO"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    SWIFT_STRICT_CONCURRENCY: complete
+
+targets:
+  Tokenmax:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Tokenmax
+    settings:
+      base:
+        INFOPLIST_FILE: Sources/Tokenmax/Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.tokenmax.Tokenmax
+        PRODUCT_NAME: Tokenmax
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: "YES"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+
+  TokenmaxTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests/TokenmaxTests
+    dependencies:
+      - target: Tokenmax
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tokenmax.TokenmaxTests
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  Tokenmax:
+    build:
+      targets:
+        Tokenmax: all
+        TokenmaxTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      # Keep test runs out of ~/Library/Application Support/Tokenmax.
+      environmentVariables:
+        TOKENMAX_SUPPORT_DIR: /tmp/tokenmax-tests
+      targets:
+        - TokenmaxTests
