@@ -289,22 +289,12 @@ enum ClaudeTaskRunner {
     ) async -> Result {
         let box = RunBox(logURL: logURL, timeout: timeout, onProgress: onProgress)
 
-        let process = Process()
-        process.executableURL = executable
-        process.arguments = arguments
-        process.currentDirectoryURL = directory
-        process.environment = environment
-
         let outputPipe = Pipe()
         let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-        // Without this the CLI can block forever waiting on stdin.
-        process.standardInput = FileHandle.nullDevice
 
         return await withTaskCancellationHandler {
             await withCheckedContinuation { (continuation: CheckedContinuation<Result, Never>) in
-                box.attach(process: process, continuation: continuation)
+                box.attach(continuation: continuation)
 
                 // Both streams are drained concurrently through their own
                 // handlers. Reading one to EOF and *then* the other — as
@@ -332,14 +322,32 @@ enum ClaudeTaskRunner {
                     }
                 }
 
-                process.terminationHandler = { finished in
-                    box.processExited(code: finished.terminationStatus)
-                }
-
                 do {
-                    try process.run()
+                    let process = try SpawnedProcess.spawn(
+                        executable: executable,
+                        arguments: arguments,
+                        directory: directory,
+                        environment: environment,
+                        standardOutput: outputPipe.fileHandleForWriting,
+                        standardError: errorPipe.fileHandleForWriting,
+                        // Without this the CLI can block forever waiting on stdin.
+                        standardInput: FileHandle.nullDevice
+                    )
+
+                    // Essential, and the one thing `Process` did for us. The
+                    // child holds its own copies of these descriptors now; if
+                    // the parent keeps its copies open, the read ends never see
+                    // EOF after the child exits and every run hangs until the
+                    // drain grace expires.
+                    try? outputPipe.fileHandleForWriting.close()
+                    try? errorPipe.fileHandleForWriting.close()
+
+                    box.attach(process: process)
+                    process.onExit { code in box.processExited(code: code) }
                     box.startTimeoutClock()
                 } catch {
+                    try? outputPipe.fileHandleForWriting.close()
+                    try? errorPipe.fileHandleForWriting.close()
                     box.failToStart("Could not start the CLI: \(error.localizedDescription)")
                 }
             }
@@ -363,7 +371,7 @@ private final class RunBox: @unchecked Sendable {
     private let timeout: TimeInterval
     private let onProgress: @Sendable (String) -> Void
 
-    private var process: Process?
+    private var process: SpawnedProcess?
     private var continuation: CheckedContinuation<ClaudeTaskRunner.Result, Never>?
     private var resolved = false
 
@@ -392,11 +400,26 @@ private final class RunBox: @unchecked Sendable {
         logHandle = try? FileHandle(forWritingTo: logURL)
     }
 
-    func attach(process: Process, continuation: CheckedContinuation<ClaudeTaskRunner.Result, Never>) {
+    func attach(continuation: CheckedContinuation<ClaudeTaskRunner.Result, Never>) {
         lock.lock()
         defer { lock.unlock() }
-        self.process = process
         self.continuation = continuation
+    }
+
+    /// Attached after the spawn rather than with the continuation: a run that
+    /// fails to start has a continuation to resolve but no process to stop.
+    ///
+    /// A cancellation that arrives in the window between the two is not lost —
+    /// `stop` records its reason, and the timeout clock has not started yet.
+    func attach(process: SpawnedProcess) {
+        lock.lock()
+        let alreadyStopping = stopReason
+        self.process = process
+        lock.unlock()
+
+        // Cancelled between spawning and attaching: honour it now rather than
+        // letting the process run on unsupervised.
+        if let alreadyStopping { stop(as: alreadyStopping) }
     }
 
     // MARK: - Output
@@ -498,29 +521,34 @@ private final class RunBox: @unchecked Sendable {
 
     /// Graceful first, forceful after a grace period.
     ///
-    /// Only the direct child is signalled. `Process` puts it in *our* process
-    /// group, so `kill(-pid, …)` would signal Tokenmax itself — the correct fix
-    /// if tool grandchildren turn out to survive a timeout is `posix_spawn`
-    /// with `POSIX_SPAWN_SETSID`, which makes the child a session leader and
-    /// makes a negative pid safe.
+    /// Signals the child's whole process group, not just the child. Claude Code
+    /// runs its tools as child processes, and stopping only the CLI leaves those
+    /// grandchildren running — invisible to the user and beyond the reach of
+    /// anything in Tokenmax. `SpawnedProcess` puts the child in its own session
+    /// precisely so the group can be signalled without touching Tokenmax; the
+    /// guard that makes a negative pid safe lives in
+    /// `SpawnedProcess.isSafeToSignalGroup`.
     func stop(as reason: TaskRunStatus) {
         lock.lock()
-        guard !resolved, let process, process.isRunning else { lock.unlock(); return }
+        guard !resolved else { lock.unlock(); return }
+        // Recorded even when there is no process yet, so a cancellation racing
+        // the spawn is honoured once `attach(process:)` arrives.
         if stopReason == nil { stopReason = reason }
-        let pid = process.processIdentifier
+        guard let process, process.isRunning else { lock.unlock(); return }
         lock.unlock()
 
-        Log.shared.write("autorun: stopping run (\(reason.rawValue)), pid \(pid)")
-        process.terminate()
+        Log.shared.write("autorun: stopping run (\(reason.rawValue)), pid \(process.pid)")
+        process.terminateGroup()
 
         DispatchQueue.global().asyncAfter(deadline: .now() + ClaudeTaskRunner.terminationGrace) { [weak self] in
             guard let self else { return }
             lock.lock()
             let stillRunning = !resolved && (self.process?.isRunning ?? false)
+            let target = self.process
             lock.unlock()
             if stillRunning {
                 Log.shared.write("autorun: SIGKILL after \(Int(ClaudeTaskRunner.terminationGrace))s grace")
-                kill(pid, SIGKILL)
+                target?.killGroup()
             }
         }
     }

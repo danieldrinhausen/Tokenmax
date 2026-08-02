@@ -53,6 +53,12 @@ struct MenuBarPopoverView: View {
                     Text("· Stale")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.orange)
+                    // The fix for staleness is one click, so offer it where the
+                    // staleness is announced rather than in the footer.
+                    Button("Refresh") { perform(.refresh) }
+                        .font(.system(size: 10))
+                        .buttonStyle(.link)
+                        .disabled(usage.isRefreshing)
                 }
             }
             Text(usage.lastUpdatedText)
@@ -105,21 +111,25 @@ struct MenuBarPopoverView: View {
             statusBlock(
                 icon: "questionmark.folder",
                 title: "Claude Code is not installed",
-                message: "Tokenmax could not find the claude CLI on this Mac."
+                message: "Tokenmax could not find the claude CLI on this Mac.",
+                recovery: [.openTerminal, .refresh]
             )
 
         case .notAuthenticated:
             statusBlock(
                 icon: "person.crop.circle.badge.exclamationmark",
                 title: "Claude Code is not authenticated",
-                message: "Run `claude` in a terminal and sign in, then refresh."
+                message: "Run `claude` in a terminal and sign in, then refresh.",
+                recovery: [.openTerminal, .refresh]
             )
 
         case .keychainAccessDenied:
             statusBlock(
                 icon: "lock.trianglebadge.exclamationmark",
                 title: "Keychain access denied",
-                message: "Tokenmax needs to read the Claude Code credentials item to fetch usage. Click Refresh and choose Always Allow."
+                message: "Tokenmax needs to read the Claude Code credentials item to fetch usage. Click Refresh and choose Always Allow.",
+                // No Open Terminal: a terminal cannot grant a keychain prompt.
+                recovery: [.refresh]
             )
 
         case let .tokenExpired(lastGood):
@@ -138,7 +148,9 @@ struct MenuBarPopoverView: View {
             statusBlock(
                 icon: "key.slash",
                 title: "Claude Code needs re-authentication",
-                message: "The stored credentials are gone and cannot be refreshed. Run `claude` and sign in again."
+                message: "The stored credentials are gone and cannot be refreshed. Run `claude` and sign in again.",
+                // Refreshing cannot help until the user has signed in again.
+                recovery: [.openTerminal]
             )
 
         case let .unavailable(lastGood, message):
@@ -146,7 +158,8 @@ struct MenuBarPopoverView: View {
                 statusBlock(
                     icon: "exclamationmark.triangle",
                     title: "Usage unavailable",
-                    message: message
+                    message: message,
+                    recovery: [.retry]
                 )
                 if let lastGood {
                     windows(for: lastGood, forceStale: true)
@@ -158,7 +171,8 @@ struct MenuBarPopoverView: View {
                 statusBlock(
                     icon: "chart.bar",
                     title: "No quota windows returned",
-                    message: "Claude did not report any usage windows for this account."
+                    message: "Claude did not report any usage windows for this account.",
+                    recovery: [.retry]
                 )
             } else {
                 windows(for: snapshot, forceStale: usage.isStale)
@@ -250,7 +264,17 @@ struct MenuBarPopoverView: View {
         }
     }
 
-    private func statusBlock(icon: String, title: String, message: String?) -> some View {
+    /// A failure state, with the actions that can actually resolve it.
+    ///
+    /// Only offered where they help: an "Open Terminal" button next to a stale
+    /// reading would do nothing about staleness, and a button that cannot work
+    /// teaches the user to ignore the ones that can.
+    private func statusBlock(
+        icon: String,
+        title: String,
+        message: String?,
+        recovery: [Recovery] = []
+    ) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: icon)
                 .font(.system(size: 13))
@@ -264,7 +288,52 @@ struct MenuBarPopoverView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if !recovery.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(recovery) { action in
+                            Button(action.title) { perform(action) }
+                        }
+                    }
+                    .font(.system(size: 11))
+                    .padding(.top, 2)
+                }
+                // A failure is exactly when "how old is this?" matters, and the
+                // header's copy of it is above the fold of the error.
+                if recovery.contains(.retry) || recovery.contains(.refresh) {
+                    Text(usage.lastUpdatedText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
             }
+        }
+    }
+
+    enum Recovery: String, Identifiable {
+        case refresh
+        case retry
+        case openTerminal
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .refresh: "Refresh"
+            case .retry: "Retry"
+            case .openTerminal: "Open Terminal"
+            }
+        }
+    }
+
+    private func perform(_ action: Recovery) {
+        switch action {
+        case .refresh, .retry:
+            Task { await usage.refresh(reason: "recovery", manual: true) }
+        case .openTerminal:
+            // All the auth and install failures are fixed by running `claude`
+            // somewhere, and somewhere is home.
+            ManualRunService.openTerminalForRecovery(
+                application: settingsStore.settings.terminalApplication
+            )
         }
     }
 

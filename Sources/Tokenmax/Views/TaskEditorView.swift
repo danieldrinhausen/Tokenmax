@@ -62,7 +62,51 @@ struct TaskEditorView: View {
         }
     }
 
+    /// Three sections, in the order the decisions are made: what the task is,
+    /// how it should run, and what it is allowed to touch.
+    ///
+    /// The grouping matters most for the third — the permissions were
+    /// previously a pair of checkboxes sitting in the same undifferentiated run
+    /// of fields as the project name, which is not the weight they deserve.
     private var editorFields: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            section("Task", "What you want done, and where.") {
+                contentFields
+            }
+
+            Divider()
+
+            section("Execution", "How Tokenmax runs it, and when it gives up.") {
+                executionFields
+            }
+
+            Divider()
+
+            section("Permissions", "What this task may do to your files while it runs.") {
+                permissionFields
+            }
+        }
+        .padding(.bottom, 4)
+    }
+
+    private func section(
+        _ title: String,
+        _ subtitle: String,
+        @ViewBuilder content: () -> some View
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+            content()
+        }
+    }
+
+    private var contentFields: some View {
         VStack(alignment: .leading, spacing: 14) {
             field("Title") {
                 TextField("Generate tests for invoice parser", text: $draft.title)
@@ -126,17 +170,12 @@ struct TaskEditorView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.orange)
             }
-
-            Divider()
-
-            automationSection
         }
-        .padding(.bottom, 4)
     }
 
-    // MARK: - Automation
+    // MARK: - Execution
 
-    private var automationSection: some View {
+    private var executionFields: some View {
         VStack(alignment: .leading, spacing: 12) {
             field("Automatic execution") {
                 Picker("", selection: $draft.executionMode) {
@@ -147,6 +186,11 @@ struct TaskEditorView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.radioGroup)
+
+                Text(executionModeExplanation)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(alignment: .top, spacing: 12) {
@@ -201,10 +245,41 @@ struct TaskEditorView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
 
-            HStack(spacing: 16) {
+    /// Says what the selected mode actually means, next to where it is picked.
+    /// Four radio labels alone leave the difference between "ask" and "allow
+    /// once" to be guessed at.
+    private var executionModeExplanation: String {
+        switch draft.executionMode {
+        case .manual:
+            "Tokenmax never starts this on its own. You can still run it yourself from the queue."
+        case .askBeforeRunning:
+            "Tokenmax notifies you when this could run, and waits for you to start it."
+        case .approvedForSession:
+            "Tokenmax may start this without asking, once, during the current session window."
+        case .automatic:
+            "Tokenmax may start this without asking whenever the queue's conditions are met."
+        }
+    }
+
+    // MARK: - Permissions
+
+    private var permissionFields: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
                 Toggle("Allow file changes", isOn: $draft.autoRun.allowFileChanges)
+                Text("Without this the task can read the project but not modify it.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+
                 Toggle("Allow shell commands", isOn: $draft.autoRun.allowShellCommands)
+                    .padding(.top, 4)
+                Text("Higher risk, and separate on purpose: shell commands are not confined to the working directory.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .font(.system(size: 11))
             .toggleStyle(.checkbox)

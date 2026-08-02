@@ -95,6 +95,20 @@ struct RunOutputView: View {
             Text(metaLine)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+            if !record.workingDirectory.isEmpty {
+                // Which copy of the project this ran against is not a detail
+                // when two checkouts of the same repo are open.
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 9))
+                    Text(record.workingDirectory)
+                        .font(.system(size: 10, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+                .foregroundStyle(.tertiary)
+                .help(record.workingDirectory)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -105,6 +119,7 @@ struct RunOutputView: View {
         if let latest { parts.append(latest.record.status.displayName) }
         if turns.count > 1 { parts.append("\(turns.count) turns") }
         parts.append(record.startedAt.formatted(date: .abbreviated, time: .shortened))
+        if let duration { parts.append(duration) }
         parts.append(TaskExecutionPolicy.modelDisplayName(record.model))
         if let cost = totalCost {
             // The thread total, not the last turn's: each turn replays the whole
@@ -112,6 +127,16 @@ struct RunOutputView: View {
             parts.append(String(format: "$%.4f", cost))
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// Wall-clock time across the whole thread, from the first turn starting to
+    /// the last one finishing. Absent while a run is still in flight rather than
+    /// counting up — the live progress line already says it is working.
+    private var duration: String? {
+        guard let first = turns.first?.record.startedAt ?? Optional(record.startedAt),
+              let last = turns.last?.record.finishedAt
+        else { return nil }
+        return RelativeTime.short(last.timeIntervalSince(first))
     }
 
     private var totalCost: Double? {
@@ -179,13 +204,23 @@ struct RunOutputView: View {
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 sectionTitle("Result")
-                Text(turn.record.status.isFinished
-                    ? "This run did not produce a final message."
-                    : "Still running…")
+                Text(emptyResultMessage(turn))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// A run with no final message is not necessarily a run with nothing to
+    /// show — the log holds everything the CLI streamed. Saying so is the
+    /// difference between "empty" and "look over there".
+    private func emptyResultMessage(_ turn: RunTurn) -> String {
+        guard turn.record.status.isFinished else { return "Still running…" }
+        if turn.record.logFileURL != nil {
+            return "This run did not produce a final message. The raw log below has everything it streamed."
+        }
+        return "This run did not produce a final message, and its log is no longer available."
     }
 
     /// Inline Markdown — bold, code spans, links — which is most of what a
