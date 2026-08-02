@@ -9,52 +9,51 @@ struct QueueView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var filter: QueueFilter = .ready
+    /// View preferences, kept in UserDefaults rather than in `tokenmax.json`.
+    /// Which filter the user last looked at is not a property of their tasks,
+    /// and writing it into the task file would mean every glance at the window
+    /// rewrote the queue.
+    @AppStorage("queue.filter") private var filter: QueueFilter = .ready
+    @AppStorage("queue.sort") private var sort: QueueSort = .queueOrder
+
+    /// Deliberately not persisted: reopening the window to a filtered list with
+    /// no obvious cause is worse than retyping four characters.
+    @State private var query = ""
+
     @State private var editingTask: TokenmaxTask?
     @State private var isCreating = false
     @State private var errorMessage: String?
     @State private var viewingRun: TaskRunRecord?
+    @State private var selection: TokenmaxTask.ID?
+    @State private var directories = DirectoryExistenceCache()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
-            automationBanner
-            filterBar
+            QueueHeaderView(
+                state: usage.state,
+                isStale: usage.isStale,
+                now: usage.tick,
+                tasks: taskStore.tasks,
+                burnOpportunity: usage.burnOpportunity,
+                highlight: settingsStore.settings.menuBarHighlightColor.color,
+                isRefreshing: usage.isRefreshing,
+                runNextBlock: autoRun.decision.skipReason,
+                canRunNext: canRunNext,
+                onNewTask: { isCreating = true },
+                onRunNext: runNext,
+                onRefresh: refresh,
+                onOpenTerminal: openTerminal
+            )
+
             Divider()
 
-            if visibleTasks.isEmpty {
-                emptyState
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(visibleTasks) { task in
-                            TaskCardView(
-                                task: task,
-                                autoRunBlock: autoRun.eligibility(for: task),
-                                runProgress: autoRun.activeRun?.taskID == task.id
-                                    ? (autoRun.progressText ?? "Running…") : nil,
-                                lastRun: autoRun.lastRun(forTask: task.id),
-                                onEdit: { editingTask = task },
-                                onCopy: { ManualRunService.copyPrompt(task) },
-                                onRun: { run(task) },
-                                onRunWithClaude: { runWithClaude(task) },
-                                onStop: { autoRun.stop() },
-                                onViewOutput: { viewOutput(task) },
-                                onComplete: { taskStore.setStatus(.completed, for: task) },
-                                onRetry: { taskStore.setStatus(.ready, for: task) },
-                                onMoveToTop: { taskStore.moveToTop(task) },
-                                onDuplicate: { taskStore.duplicate(task) },
-                                onArchive: { taskStore.setStatus(.archived, for: task) },
-                                onDelete: { taskStore.delete(task) }
-                            )
-                        }
-                    }
-                    .padding(16)
-                }
-            }
+            autoRunBanner
+            controls
+            Divider()
+
+            content
         }
-        .frame(minWidth: 560, minHeight: 460)
+        .frame(minWidth: 620, minHeight: 480)
         // The scene stays registered so the window id remains resolvable; the
         // setting is enforced here instead. Switching the queue off with this
         // window open would otherwise leave an orphaned window for a feature
@@ -65,11 +64,15 @@ struct QueueView: View {
         .sheet(isPresented: $isCreating) {
             TaskEditorView(task: TokenmaxTask(title: "", prompt: "")) { newTask in
                 taskStore.add(newTask)
+                directories.invalidate()
             }
         }
         .sheet(item: $editingTask) { task in
             TaskEditorView(task: task) { updated in
                 taskStore.update(updated)
+                // The user may have just pointed the task somewhere else, and
+                // the card should not keep reporting the old directory's state.
+                directories.invalidate()
             }
         }
         .sheet(item: $viewingRun) { run in
@@ -94,178 +97,172 @@ struct QueueView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Chrome
 
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Tokenmax").font(.system(size: 15, weight: .semibold))
-                Text(usageLine)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button {
-                isCreating = true
-            } label: {
-                Label("New Task", systemImage: "plus")
-            }
-            .keyboardShortcut("n", modifiers: .command)
-        }
-        .padding(16)
+    private var autoRunBanner: some View {
+        AutoRunStatusBannerView(
+            pendingRun: autoRun.pendingRun,
+            activeRun: autoRun.activeRun,
+            progressText: autoRun.progressText,
+            isPausedAfterFailure: autoRun.isPausedAfterFailure,
+            awaitingFreshUsage: autoRun.awaitingFreshUsage,
+            now: usage.tick,
+            onStartNow: { autoRun.startPendingNow() },
+            onCancelPending: { autoRun.cancelPending() },
+            onStop: { autoRun.stop() },
+            onResume: { autoRun.resumeAfterFailure() }
+        )
     }
 
-    private var usageLine: String {
-        guard let session = usage.state.snapshot?.sessionWindow,
-              let remaining = session.remainingPercent
-        else {
-            return "Claude Code · usage unavailable"
-        }
-        let staleSuffix = usage.isStale ? " · stale" : ""
-        guard !usage.isStale, let resetAt = session.resetAt else {
-            return "Claude Code · \(Int(remaining.rounded()))% left\(staleSuffix)"
-        }
-        let interval = resetAt.timeIntervalSince(usage.tick)
-        guard interval > 0 else { return "Claude Code · \(Int(remaining.rounded()))% left" }
-        return "Claude Code · \(Int(remaining.rounded()))% left · resets in \(RelativeTime.countdown(interval))"
-    }
-
-    /// The countdown, the live run, and the paused state — the three things
-    /// that need to be visible the moment the queue window is opened.
-    @ViewBuilder
-    private var automationBanner: some View {
-        if let pending = autoRun.pendingRun {
-            banner(icon: "timer", tint: .orange) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Starting “\(pending.taskTitle)” in \(pending.secondsRemaining(now: usage.tick))s")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Tokenmax will run this task with Claude Code.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-            } trailing: {
-                HStack(spacing: 6) {
-                    Button("Start Now") { autoRun.startPendingNow() }
-                    Button("Cancel") { autoRun.cancelPending() }
-                }
-                .font(.system(size: 11))
-            }
-        } else if let run = autoRun.activeRun {
-            banner(icon: "play.circle", tint: .accentColor) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Running “\(run.taskTitle)”")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(autoRun.progressText ?? "Working…")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            } trailing: {
-                Button("Stop") { autoRun.stop() }
-                    .font(.system(size: 11))
-            }
-        } else if autoRun.isPausedAfterFailure {
-            banner(icon: "exclamationmark.triangle", tint: .orange) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Queue paused after a failure")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("No further task will start automatically this session.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-            } trailing: {
-                Button("Resume") { autoRun.resumeAfterFailure() }
-                    .font(.system(size: 11))
-            }
-        } else if autoRun.awaitingFreshUsage {
-            banner(icon: "clock.arrow.circlepath", tint: .secondary) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Waiting for a fresh quota reading")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("The last task finished. Nothing else starts until the numbers catch up.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-            } trailing: { EmptyView() }
-        }
-    }
-
-    private func banner(
-        icon: String,
-        tint: Color,
-        @ViewBuilder content: () -> some View,
-        @ViewBuilder trailing: () -> some View
-    ) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundStyle(tint)
-            content()
+    private var controls: some View {
+        HStack(alignment: .bottom, spacing: 12) {
+            QueueNavigationView(filter: $filter, tasks: taskStore.tasks)
             Spacer(minLength: 8)
-            trailing()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(tint.opacity(0.10))
-    }
-
-    private var filterBar: some View {
-        HStack(spacing: 6) {
-            ForEach(QueueFilter.allCases) { option in
-                Button {
-                    filter = option
-                } label: {
-                    Text("\(option.displayName)\(countSuffix(for: option))")
-                        .font(.system(size: 11, weight: filter == option ? .semibold : .regular))
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(
-                            filter == option ? Color.accentColor.opacity(0.18) : Color.clear,
-                            in: Capsule()
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
+            QueueSearchAndSortView(query: $query, sort: $sort, canReorder: canReorder)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
     }
 
-    private func countSuffix(for option: QueueFilter) -> String {
-        let count = QueueListModel.count(taskStore.tasks, option)
-        return count > 0 ? " \(count)" : ""
+    // MARK: - Content
+
+    @ViewBuilder
+    private var content: some View {
+        if visibleTasks.isEmpty {
+            QueueEmptyStateView(
+                filter: filter,
+                query: query,
+                isFirstRun: isFirstRun,
+                onNewTask: { isCreating = true },
+                onClearSearch: { query = "" },
+                onOpenTerminal: openTerminal,
+                onRefresh: refresh
+            )
+        } else {
+            taskList
+        }
     }
+
+    private var taskList: some View {
+        // Only offered where it means something: reordering a list sorted by
+        // priority would either be discarded on the next redraw or quietly
+        // rewrite the priority the user set.
+        var moveHandler: ((IndexSet, Int) -> Void)?
+        if canReorder {
+            moveHandler = { offsets, destination in
+                taskStore.move(fromOffsets: offsets, toOffset: destination)
+            }
+        }
+
+        return List(selection: $selection) {
+            ForEach(visibleTasks) { task in
+                card(for: task)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+                    .listRowBackground(Color.clear)
+                    .tag(task.id)
+            }
+            .onMove(perform: moveHandler)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    private func card(for task: TokenmaxTask) -> some View {
+        let isRunningHere = autoRun.activeRun?.taskID == task.id
+        let progress: String? = isRunningHere ? (autoRun.progressText ?? "Running…") : nil
+
+        return TaskCardView(
+            task: task,
+            autoRunBlock: eligibility[task.id],
+            directoryExists: directories.exists(task, now: usage.tick),
+            isRunningHere: isRunningHere,
+            runProgress: progress,
+            lastRun: autoRun.lastRun(forTask: task.id),
+            now: usage.tick,
+            canReorder: canReorder,
+            onEdit: { editingTask = task },
+            onCopy: { ManualRunService.copyPrompt(task) },
+            onOpenInTerminal: { openInTerminal(task) },
+            onRunWithClaude: { runWithClaude(task) },
+            onStop: { autoRun.stop() },
+            onViewOutput: { viewOutput(task) },
+            onComplete: { taskStore.setStatus(.completed, for: task) },
+            onRetry: { taskStore.setStatus(.ready, for: task) },
+            onRestore: { taskStore.setStatus(.ready, for: task) },
+            onMoveToTop: { taskStore.moveToTop(task) },
+            onDuplicate: { taskStore.duplicate(task) },
+            onArchive: { taskStore.setStatus(.archived, for: task) },
+            onDelete: { taskStore.delete(task) }
+        )
+    }
+
+    // MARK: - Derived
 
     private var visibleTasks: [TokenmaxTask] {
-        QueueListModel.visible(tasks: taskStore.tasks, filter: filter)
+        QueueListModel.visible(tasks: taskStore.tasks, filter: filter, query: query, sort: sort)
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 8) {
-            Spacer()
-            Image(systemName: "tray")
-                .font(.system(size: 28))
-                .foregroundStyle(.tertiary)
-            Text(filter == .ready ? "No tasks ready" : "Nothing in \(filter.displayName)")
-                .font(.system(size: 13, weight: .medium))
-            if filter == .ready {
-                Text("Add prompts through the day so leftover quota has somewhere to go.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+    /// One eligibility snapshot for the whole list rather than one per card —
+    /// see `QueueAutoRunCoordinator.eligibilityMap`. Only the Ready band shows
+    /// it, so nothing else pays for it.
+    private var eligibility: [UUID: QueueAutoRunDecision.SkipReason] {
+        guard filter == .ready else { return [:] }
+        return autoRun.eligibilityMap(for: visibleTasks)
+    }
+
+    private var canReorder: Bool {
+        filter == .ready && sort.supportsManualReordering && query.isEmpty
+    }
+
+    /// Disabled while anything is in flight. The coordinator would refuse a
+    /// second run anyway; the button should not invite the click.
+    private var canRunNext: Bool {
+        autoRun.activeRun == nil && autoRun.pendingRun == nil && taskStore.readyCount > 0
+    }
+
+    /// Nothing has ever been read and nothing has been queued — so the window
+    /// has room to explain what Tokenmax is for instead of showing an empty box.
+    private var isFirstRun: Bool {
+        usage.state.snapshot == nil && taskStore.tasks.isEmpty
+    }
+
+    // MARK: - Actions
+
+    private func refresh() {
+        directories.invalidate()
+        Task { await usage.refresh(reason: "queue window", manual: true) }
+    }
+
+    /// Backs "Run Next".
+    ///
+    /// The eligibility logic is not reimplemented here: the coordinator decides,
+    /// re-checking every gate including the ones that cost a subprocess, and
+    /// hands back the reason when it refuses.
+    private func runNext() {
+        if let reason = autoRun.runNextEligibleNow() {
+            errorMessage = reason.explanation
         }
-        .frame(maxWidth: .infinity)
     }
 
-    private func run(_ task: TokenmaxTask) {
-        do {
-            try ManualRunService.run(task, terminalApplication: settingsStore.settings.terminalApplication)
-            taskStore.setStatus(.running, for: task)
-        } catch {
-            errorMessage = error.localizedDescription
-            taskStore.markNeedsAttention(task, message: error.localizedDescription)
+    /// The 0.1 behaviour, kept: copy the prompt and open a terminal so the user
+    /// drives the session themselves.
+    ///
+    /// The task is marked `.running` only after the terminal is confirmed open.
+    /// A misconfigured terminal used to leave a task marked running against a
+    /// session that never started.
+    private func openInTerminal(_ task: TokenmaxTask) {
+        Task {
+            do {
+                try await ManualRunService.run(
+                    task,
+                    terminalApplication: settingsStore.settings.terminalApplication
+                )
+                taskStore.setStatus(.running, for: task)
+            } catch {
+                errorMessage = error.localizedDescription
+                taskStore.markNeedsAttention(task, message: error.localizedDescription)
+            }
         }
     }
 
@@ -283,5 +280,13 @@ struct QueueView: View {
 
     private func viewOutput(_ task: TokenmaxTask) {
         viewingRun = autoRun.lastRun(forTask: task.id)
+    }
+
+    /// Opens the user's configured terminal at their home directory, as a
+    /// recovery action for the states that are fixed by running `claude`.
+    private func openTerminal() {
+        ManualRunService.openTerminalForRecovery(
+            application: settingsStore.settings.terminalApplication
+        )
     }
 }

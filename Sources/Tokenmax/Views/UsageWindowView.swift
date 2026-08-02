@@ -91,24 +91,14 @@ struct UsageWindowView: View {
         }
     }
 
+    // Shared with the queue header's compact bars, so the two cannot end up
+    // describing the same snapshot differently — see `UsageWindowPresentation`.
     private var remainingText: String {
-        guard let remaining else { return "Unknown" }
-        if window.isExhausted { return "Limit reached" }
-        return "\(Int(remaining.rounded()))% left"
+        UsageWindowPresentation.remainingText(for: window)
     }
 
-    /// A stale snapshot must never present its countdown as authoritative.
     private var resetText: String {
-        // An idle session window has no countdown because no clock is running,
-        // which is a different statement from "we could not read the reset
-        // time" and must not be shown as though something were missing.
-        if window.hasNotStarted { return "No window running" }
-        guard let resetAt = window.resetAt else { return "Reset time unknown" }
-        guard !isStale else { return "Countdown unavailable" }
-
-        let interval = resetAt.timeIntervalSince(now)
-        guard interval > 0 else { return "Resetting…" }
-        return "Resets in \(RelativeTime.countdown(interval))"
+        UsageWindowPresentation.resetText(for: window, isStale: isStale, now: now)
     }
 
     // MARK: - Projection
