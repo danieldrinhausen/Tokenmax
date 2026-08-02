@@ -24,7 +24,6 @@ struct QueueView: View {
     @State private var isCreating = false
     @State private var errorMessage: String?
     @State private var viewingRun: TaskRunRecord?
-    @State private var selection: TokenmaxTask.ID?
     @State private var directories = DirectoryExistenceCache()
 
     var body: some View {
@@ -114,14 +113,38 @@ struct QueueView: View {
         )
     }
 
+    /// Navigation and search on one row when there is room, stacked when there
+    /// is not.
+    ///
+    /// `ViewThatFits` rather than a fixed layout because the two filter groups
+    /// and the search field together want about 830pt, and the window can be
+    /// narrower than that. Left to an HStack, the overflow does not compress —
+    /// it renders off the leading edge and takes the header's alignment with
+    /// it, because the widest row is what the enclosing column sizes to.
     private var controls: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            QueueNavigationView(filter: $filter, tasks: taskStore.tasks)
-            Spacer(minLength: 8)
-            QueueSearchAndSortView(query: $query, sort: $sort, canReorder: canReorder)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .bottom, spacing: 12) {
+                navigation
+                Spacer(minLength: 12)
+                searchAndSort
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                navigation
+                searchAndSort
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    private var navigation: some View {
+        QueueNavigationView(filter: $filter, tasks: taskStore.tasks)
+    }
+
+    private var searchAndSort: some View {
+        QueueSearchAndSortView(query: $query, sort: $sort, canReorder: canReorder)
     }
 
     // MARK: - Content
@@ -154,13 +177,19 @@ struct QueueView: View {
             }
         }
 
-        return List(selection: $selection) {
+        // Deliberately no `selection:` binding. A plain List paints the selected
+        // row edge-to-edge in the accent colour, and `.listRowBackground` does
+        // not override it — the card, which is the whole point of the redesign,
+        // disappears under a blue slab the moment a row is clicked. Row-level
+        // arrow-key navigation is the cost; the buttons inside each card remain
+        // reachable by Tab, which is the keyboard path that actually does
+        // something. See the deferred note in the summary.
+        return List {
             ForEach(visibleTasks) { task in
                 card(for: task)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
                     .listRowBackground(Color.clear)
-                    .tag(task.id)
             }
             .onMove(perform: moveHandler)
         }

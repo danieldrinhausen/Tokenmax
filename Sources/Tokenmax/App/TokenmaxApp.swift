@@ -79,7 +79,10 @@ struct TokenmaxApp: App {
                 .onAppear { appDelegate.windowDidOpen() }
                 .onDisappear { appDelegate.windowDidClose() }
         }
-        .defaultSize(width: 640, height: 520)
+        // Wide enough for both filter groups and the search field to sit on one
+        // row without the queue opening in a state the user has to resize their
+        // way out of.
+        .defaultSize(width: 860, height: 620)
 
         Window("Tokenmax Settings", id: TokenmaxWindow.settings) {
             SettingsView()
