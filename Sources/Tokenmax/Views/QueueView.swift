@@ -1,26 +1,6 @@
 import AppKit
 import SwiftUI
 
-enum QueueFilter: String, CaseIterable, Identifiable {
-    case all = "All"
-    case ready = "Ready"
-    case running = "Running"
-    case completed = "Completed"
-    case needsAttention = "Needs Attention"
-
-    var id: String { rawValue }
-
-    var status: TaskStatus? {
-        switch self {
-        case .all: nil
-        case .ready: .ready
-        case .running: .running
-        case .completed: .completed
-        case .needsAttention: .needsAttention
-        }
-    }
-}
-
 struct QueueView: View {
     @EnvironmentObject private var taskStore: TaskStore
     @EnvironmentObject private var usage: UsageRefreshCoordinator
@@ -235,7 +215,7 @@ struct QueueView: View {
                 Button {
                     filter = option
                 } label: {
-                    Text("\(option.rawValue)\(countSuffix(for: option))")
+                    Text("\(option.displayName)\(countSuffix(for: option))")
                         .font(.system(size: 11, weight: filter == option ? .semibold : .regular))
                         .padding(.horizontal, 9)
                         .padding(.vertical, 4)
@@ -253,19 +233,12 @@ struct QueueView: View {
     }
 
     private func countSuffix(for option: QueueFilter) -> String {
-        guard let status = option.status else { return "" }
-        let count = taskStore.tasks(withStatus: status).count
+        let count = QueueListModel.count(taskStore.tasks, option)
         return count > 0 ? " \(count)" : ""
     }
 
     private var visibleTasks: [TokenmaxTask] {
-        guard let status = filter.status else {
-            return taskStore.tasks
-                .filter { $0.status != .archived }
-                .sorted { $0.sortIndex < $1.sortIndex }
-        }
-        if status == .ready { return taskStore.readyTasks }
-        return taskStore.tasks(withStatus: status).sorted { $0.updatedAt > $1.updatedAt }
+        QueueListModel.visible(tasks: taskStore.tasks, filter: filter)
     }
 
     private var emptyState: some View {
@@ -274,7 +247,7 @@ struct QueueView: View {
             Image(systemName: "tray")
                 .font(.system(size: 28))
                 .foregroundStyle(.tertiary)
-            Text(filter == .ready ? "No tasks ready" : "Nothing in \(filter.rawValue)")
+            Text(filter == .ready ? "No tasks ready" : "Nothing in \(filter.displayName)")
                 .font(.system(size: 13, weight: .medium))
             if filter == .ready {
                 Text("Add prompts through the day so leftover quota has somewhere to go.")

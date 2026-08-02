@@ -632,6 +632,33 @@ final class QueueAutoRunCoordinator: ObservableObject {
         )
     }
 
+    /// The same answer as `eligibility(for:)`, for a whole list, from one
+    /// snapshot of the inputs.
+    ///
+    /// Called per card, `eligibility(for:)` rebuilds `Input` every time — and
+    /// building it re-sorts `taskStore.readyTasks`. The queue redraws once a
+    /// second, so a five-task queue was doing five sorts a second to answer a
+    /// question whose inputs had not changed between them. Same gates, same
+    /// pure function, one snapshot.
+    ///
+    /// Absent from the result means eligible; a value is the reason it is not.
+    func eligibilityMap(for tasks: [TokenmaxTask]) -> [UUID: QueueAutoRunDecision.SkipReason] {
+        guard !tasks.isEmpty else { return [:] }
+
+        let input = makeInput()
+        let remainingWindowRuntime = QueueAutoRun.remainingWindowRuntime(input)
+
+        return tasks.reduce(into: [:]) { result, task in
+            result[task.id] = QueueAutoRun.eligibility(
+                for: task,
+                resetAt: input.sessionWindow?.resetAt,
+                settings: input.settings,
+                remainingWindowRuntime: remainingWindowRuntime,
+                now: input.now
+            )
+        }
+    }
+
     func lastRun(forTask taskID: UUID) -> TaskRunRecord? {
         state.mostRecentRun(forTask: taskID)
     }

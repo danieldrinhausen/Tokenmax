@@ -80,6 +80,25 @@ final class TaskStore: ObservableObject {
         persist()
     }
 
+    /// Applies a drag reorder of the ready queue.
+    ///
+    /// Only ready tasks are renumbered — a completed task's `sortIndex` is
+    /// meaningless to the runner, and rewriting it would silently reshuffle
+    /// history. The arithmetic itself lives in `QueueListModel.reordered`.
+    func move(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        let updates = QueueListModel.reordered(readyTasks, fromOffsets: offsets, toOffset: destination)
+        guard !updates.isEmpty else { return }
+
+        let now = Date()
+        for (id, sortIndex) in updates {
+            guard let index = tasks.firstIndex(where: { $0.id == id }) else { continue }
+            tasks[index].sortIndex = sortIndex
+            tasks[index].updatedAt = now
+        }
+
+        persist()
+    }
+
     func setStatus(_ status: TaskStatus, for task: TokenmaxTask) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
         tasks[index].status = status
