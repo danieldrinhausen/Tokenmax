@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    # Must be a macOS runner: the app is AppKit/SwiftUI and the tests link the
+    # app target. If the default image ever ships an Xcode too old for Swift
+    # Testing, pin the image (macos-15, macos-26, …) rather than the toolchain.
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Test
+        run: make test
+
+      # `make test` is quiet by design, so on failure the log is the only way to
+      # see which case broke.
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: .build/Logs/Test/*.xcresult
+          retention-days: 7

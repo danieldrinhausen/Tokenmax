@@ -3,3 +3,10 @@
 .DS_Store
 xcuserdata/
 *.xcworkspace
+
+# Local Claude Code state — permission allowlists and machine-specific paths.
+.claude/settings.local.json
+
+# Release artefacts built by `make dmg`.
+dist/
+*.dmg

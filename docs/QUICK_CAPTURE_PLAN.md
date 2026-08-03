@@ -1,14 +1,16 @@
 # Quick Capture — Implementation Plan
 
+> **Status: not implemented.** A design note kept for reference, not a description of
+> anything the app currently does. Nothing here ships in 0.1.
+
 Folding the Copper/PasteFlow double-shift capture gesture into Tokenmax instead of
 shipping it as a separate app.
 
 ## Decision
 
-`/Users/daniel/Documents/Git Repositories/PasteFlow/COPPER_PLAN.md` describes a
-standalone menu-bar app whose core is a global Left-Shift double-tap that captures the
-current text selection into a local queue. Roughly two thirds of that plan already
-exists in Tokenmax:
+A separate (unpublished) plan describes a standalone menu-bar app whose core is a global
+Left-Shift double-tap that captures the current text selection into a local queue.
+Roughly two thirds of that plan already exists in Tokenmax:
 
 | Copper component | Tokenmax equivalent |
 |---|---|

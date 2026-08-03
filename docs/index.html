@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tokenmax — see your Claude Code quota in the menu bar</title>
+<meta name="description" content="A macOS menu bar app that shows remaining Claude Code quota, counts down to reset, and tells you when leftover quota is about to evaporate.">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+
+  :root {
+    --paper:   #F4F5F8;
+    --surface: #FFFFFF;
+    --ink:     #15171D;
+    --muted:   #6E7386;
+    --rule:    #DFE2EA;
+    --signal:  #C8721B;
+    --signal-soft: rgba(200, 114, 27, 0.12);
+    --bar-track: #D7DAE3;
+    --bar-fill:  #3A3F4E;
+    --chrome:  #22252E;
+    --chrome-ink: #E9EBF1;
+
+    --display: -apple-system, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+    --measure: 66ch;
+    --gutter: clamp(1.25rem, 5vw, 3rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:   #0E1014;
+      --surface: #171A21;
+      --ink:     #E8EAF0;
+      --muted:   #969CB0;
+      --rule:    #262A34;
+      --signal:  #F0A340;
+      --signal-soft: rgba(240, 163, 64, 0.14);
+      --bar-track: #2C313D;
+      --bar-fill:  #C3C8D6;
+      --chrome:  #05060A;
+      --chrome-ink: #E9EBF1;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:   #0E1014;
+    --surface: #171A21;
+    --ink:     #E8EAF0;
+    --muted:   #969CB0;
+    --rule:    #262A34;
+    --signal:  #F0A340;
+    --signal-soft: rgba(240, 163, 64, 0.14);
+    --bar-track: #2C313D;
+    --bar-fill:  #C3C8D6;
+    --chrome:  #05060A;
+    --chrome-ink: #E9EBF1;
+  }
+
+  :root[data-theme="light"] {
+    --paper:   #F4F5F8;
+    --surface: #FFFFFF;
+    --ink:     #15171D;
+    --muted:   #6E7386;
+    --rule:    #DFE2EA;
+    --signal:  #C8721B;
+    --signal-soft: rgba(200, 114, 27, 0.12);
+    --bar-track: #D7DAE3;
+    --bar-fill:  #3A3F4E;
+    --chrome:  #22252E;
+    --chrome-ink: #E9EBF1;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--display);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: calc(var(--measure) + 14rem);
+    margin: 0 auto;
+    padding: 0 var(--gutter);
+  }
+
+  /* ---- The label rail ------------------------------------------------ */
+
+  .band { border-top: 1px solid var(--rule); }
+  .band:first-of-type { border-top: 0; }
+
+  .band-inner {
+    display: grid;
+    grid-template-columns: 8rem minmax(0, 1fr);
+    gap: 0 3rem;
+    padding: clamp(2.75rem, 6vw, 4.5rem) 0;
+  }
+
+  .rail {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 0.5rem;
+  }
+
+  .col { max-width: var(--measure); }
+
+  @media (max-width: 720px) {
+    .band-inner { grid-template-columns: 1fr; gap: 0.75rem; }
+    .rail { padding-top: 0; }
+  }
+
+  /* ---- Type ---------------------------------------------------------- */
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+
+  h1 {
+    font-size: clamp(2.5rem, 6.5vw, 4rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    font-weight: 700;
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 3vw, 1.875rem);
+    line-height: 1.15;
+    letter-spacing: -0.022em;
+    font-weight: 650;
+  }
+
+  h3 {
+    font-size: 1.0625rem;
+    letter-spacing: -0.01em;
+    font-weight: 650;
+  }
+
+  p { margin: 0; }
+  .col > * + * { margin-top: 1.15rem; }
+  .col > h2 + p { margin-top: 0.85rem; }
+
+  .lede {
+    font-size: clamp(1.125rem, 2.2vw, 1.3125rem);
+    line-height: 1.5;
+    color: var(--muted);
+    letter-spacing: -0.011em;
+  }
+
+  strong { font-weight: 650; }
+  em { font-style: normal; color: var(--signal); }
+
+  a { color: var(--ink); text-underline-offset: 0.2em; text-decoration-color: var(--muted); }
+  a:hover { text-decoration-color: var(--signal); }
+  a:focus-visible, button:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  code, .num {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Hero ---------------------------------------------------------- */
+
+  .hero { padding: clamp(3.5rem, 9vw, 6rem) 0 clamp(2.5rem, 5vw, 3.5rem); }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero h1 { max-width: 15ch; }
+  .hero .lede { max-width: 46ch; margin-top: 1.5rem; }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.625rem;
+    margin-top: 2.25rem;
+  }
+
+  .btn {
+    font-family: var(--display);
+    font-size: 0.9375rem;
+    font-weight: 550;
+    letter-spacing: -0.005em;
+    padding: 0.6rem 1.15rem;
+    border-radius: 7px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn--primary {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .btn:hover { border-color: var(--signal); }
+  .btn--primary:hover { background: var(--signal); border-color: var(--signal); color: #fff; }
+
+  .meta {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 1.25rem;
+    letter-spacing: 0.01em;
+  }
+
+  /* ---- The menu bar instrument --------------------------------------- */
+
+  .instrument { margin-top: clamp(2.5rem, 6vw, 4rem); }
+
+  .menubar {
+    background: var(--chrome);
+    color: var(--chrome-ink);
+    border-radius: 11px 11px 4px 4px;
+    padding: 0.5rem 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 1.1rem;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 12px 32px rgba(10, 12, 20, 0.16);
+    overflow-x: auto;
+  }
+
+  .menubar__spacer { flex: 1 1 auto; min-width: 1.5rem; }
+
+  .glyph { width: 15px; height: 11px; opacity: 0.5; flex: none; }
+  .glyph rect, .glyph path, .glyph circle { fill: currentColor; }
+
+  .tmx {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 5px;
+    flex: none;
+    transition: background 240ms ease;
+  }
+  .tmx.is-lit { background: rgba(240, 163, 64, 0.16); }
+
+  .meters { display: flex; flex-direction: column; gap: 3px; width: 44px; }
+
+  .meter { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.22); overflow: hidden; }
+
+  .meter i {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--chrome-ink);
+    width: 0;
+    transition: width 1100ms cubic-bezier(0.22, 0.7, 0.25, 1), background 240ms ease;
+  }
+
+  .tmx.is-lit .meter i { background: #F0A340; }
+
+  .tmx__time {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    min-width: 4.25rem;
+  }
+  .tmx.is-lit .tmx__time { color: #F5B961; }
+
+  .clock {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    opacity: 0.62;
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .desktop {
+    height: 0.5rem;
+    border-radius: 0 0 11px 11px;
+    background: linear-gradient(180deg, rgba(120,128,150,0.22), rgba(120,128,150,0));
+  }
+
+  .caption {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: var(--muted);
+    margin-top: 1rem;
+    max-width: 58ch;
+  }
+  .caption b { color: var(--signal); font-weight: 500; }
+
+  /* ---- Beats --------------------------------------------------------- */
+
+  .beats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: 1.75rem 2.5rem;
+    margin-top: 2rem;
+  }
+
+  .beat__n {
+    font-family: var(--mono);
+    font-size: 1.75rem;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--signal);
+    display: block;
+  }
+
+  .beat p { font-size: 0.9375rem; line-height: 1.55; color: var(--muted); margin-top: 0.35rem; }
+
+  /* ---- Feature list -------------------------------------------------- */
+
+  .features { margin-top: 1.75rem; display: flex; flex-direction: column; gap: 1.5rem; }
+  .feature { display: grid; grid-template-columns: 1fr; gap: 0.3rem; }
+  .feature p { color: var(--muted); font-size: 0.9375rem; line-height: 1.55; }
+
+  /* ---- Table --------------------------------------------------------- */
+
+  .scroll { overflow-x: auto; margin-top: 1.75rem; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.875rem; min-width: 34rem; }
+
+  th, td {
+    text-align: left;
+    padding: 0.7rem 1rem 0.7rem 0;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  thead th {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+    padding-bottom: 0.5rem;
+  }
+
+  td.mono { font-family: var(--mono); font-size: 0.8125rem; }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    background: var(--signal-soft);
+    color: var(--signal);
+    white-space: nowrap;
+  }
+  .tag--calm { background: transparent; color: var(--muted); border: 1px solid var(--rule); }
+
+  /* ---- Steps --------------------------------------------------------- */
+
+  ol.steps { margin: 1.5rem 0 0; padding: 0; list-style: none; counter-reset: step; }
+
+  ol.steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 1.75rem 1fr;
+    gap: 0 0.75rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--rule);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+
+  ol.steps li::before {
+    content: counter(step);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    padding-top: 0.2rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  pre {
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 7px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    margin: 1.25rem 0 0;
+    line-height: 1.6;
+  }
+
+  .note {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--muted);
+    border-left: 2px solid var(--signal);
+    padding-left: 1.1rem;
+    margin-top: 1.75rem;
+  }
+
+  /* ---- Footer -------------------------------------------------------- */
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 2.5rem 0 4rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    line-height: 1.9;
+  }
+
+  footer a { color: var(--muted); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="hero">
+    <p class="eyebrow">macOS menu bar · Claude Code</p>
+    <h1>Quota you can see, before it evaporates.</h1>
+    <p class="lede">
+      Claude Code gives you a five-hour window. Whatever is left in it when the clock
+      runs out is simply gone. Tokenmax puts what remains, and how long there is to
+      spend it, in your menu bar.
+    </p>
+
+    <div class="actions">
+      <a class="btn btn--primary" href="https://github.com/danieldrinhausen/Tokenmax/releases/latest">Download for macOS</a>
+      <a class="btn" href="https://github.com/danieldrinhausen/Tokenmax">Source on GitHub</a>
+    </div>
+    <p class="meta">macOS 14 or later · free · MIT licensed · no account, no telemetry</p>
+
+    <div class="instrument">
+      <div class="menubar">
+        <span class="menubar__spacer"></span>
+
+        <svg class="glyph" viewBox="0 0 15 11" aria-hidden="true"><rect x="0" y="3" width="11" height="5" rx="1"></rect><rect x="12" y="4.5" width="2" height="2" rx="0.6"></rect></svg>
+        <svg class="glyph" viewBox="0 0 15 11" aria-hidden="true"><path d="M7.5 9.6 3 5.2a6.4 6.4 0 0 1 9 0z"></path></svg>
+
+        <div class="tmx" id="tmx">
+          <div class="meters" aria-hidden="true">
+            <div class="meter"><i id="bar-session"></i></div>
+            <div class="meter"><i id="bar-weekly"></i></div>
+          </div>
+          <span class="tmx__time" id="countdown">1h 16m</span>
+        </div>
+
+        <span class="clock">Sat 21:04</span>
+      </div>
+      <div class="desktop"></div>
+
+      <p class="caption">
+        Two meters — session over weekly — and the time left in the window. The bars
+        carry how much is left; the countdown carries how long there is to spend it.
+        Inside your reminder lead time, with quota still worth using, they turn
+        <b>amber</b>: now is a good moment to spend this.
+      </p>
+    </div>
+  </header>
+
+  <section class="band">
+    <div class="band-inner">
+      <p class="rail">The problem</p>
+      <div class="col">
+        <h2>Windows reset whether you used them or not.</h2>
+        <p>
+          There is no <code>usage</code> subcommand in the Claude Code CLI, and session
+          transcripts carry no rate-limit state. So the two things you actually need to
+          plan around — how much is left, and how long you have — are invisible until you
+          hit a wall.
+        </p>
+
+        <div class="beats">
+          <div class="beat">
+            <span class="beat__n">5h</span>
+            <p>The session window. It refills from zero, on a schedule you didn't pick.</p>
+          </div>
+          <div class="beat">
+            <span class="beat__n">0%</span>
+            <p>What carries over to the next window. Unspent quota does not bank.</p>
+          </div>
+          <div class="beat">
+            <span class="beat__n">60s</span>
+            <p>How often the menu bar updates, so the countdown is honest to the minute.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-inner">
+      <p class="rail">What it does</p>
+      <div class="col">
+        <h2>Six things, all of them local.</h2>
+
+        <div class="features">
+          <div class="feature">
+            <h3>Meters and a countdown</h3>
+            <p>Session over weekly, plus time to reset. Choose bars, countdown, or both.</p>
+          </div>
+          <div class="feature">
+            <h3>Pace projection</h3>
+            <p>Tells you whether your current rate runs out early or leaves quota on the table.</p>
+          </div>
+          <div class="feature">
+            <h3>A highlight you can't miss</h3>
+            <p>The bars light up when the window is closing and quota is still worth using. Pick the colour; because menu bar contrast follows your wallpaper rather than your light/dark setting, the settings pane previews it against both extremes and warns about a colour that would disappear.</p>
+          </div>
+          <div class="feature">
+            <h3>Reminders before reset</h3>
+            <p>A notification at your chosen lead time, with a minimum-quota floor so it stays quiet when there is nothing left to save. Optional quiet hours.</p>
+          </div>
+          <div class="feature">
+            <h3>A prompt queue</h3>
+            <p>Park work you want done, and let it run unattended into quota that would otherwise expire. One task per window by default, stop on first failure.</p>
+          </div>
+          <div class="feature">
+            <h3>Session opener</h3>
+            <p>Off by default. Sends one tiny request after a window ends so a fresh one starts, guarded by a weekly-quota floor and a refusal to run if paid credits could be charged.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-inner">
+      <p class="rail">The numbers</p>
+      <div class="col">
+        <h2>Where the data comes from.</h2>
+        <p>
+          Worth being upfront about, because one of the two sources is not a public API.
+        </p>
+
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Source</th><th>Endpoint</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Primary</td>
+                <td class="mono">GET api.anthropic.com/api/oauth/usage</td>
+                <td><span class="tag">Undocumented</span></td>
+              </tr>
+              <tr>
+                <td>Fallback</td>
+                <td class="mono">Claude Code statusLine hook</td>
+                <td><span class="tag tag--calm">Documented</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="note">
+          The primary reads the OAuth token Claude Code already keeps in your login
+          keychain — macOS asks your permission once. Tokenmax never writes credentials
+          to disk and never refreshes that token itself, because racing Claude Code's own
+          refresh risks invalidating it. Requests are floored at one every 180 seconds
+          inside the client no matter what the interface asks for.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-inner">
+      <p class="rail">Install</p>
+      <div class="col">
+        <h2>Two minutes, no developer account.</h2>
+
+        <ol class="steps">
+          <li>Download the disk image and drag Tokenmax to Applications.</li>
+          <li>The first launch is refused — the app is signed but not notarized, which needs a paid Apple account. Open <strong>System Settings → Privacy &amp; Security</strong>, find the message about Tokenmax, and click <strong>Open Anyway</strong>.</li>
+          <li>Allow the keychain prompt. That is Tokenmax reading your quota; choose <strong>Always Allow</strong> so it only asks once.</li>
+        </ol>
+
+        <p style="margin-top:1.75rem">Or build it yourself:</p>
+        <pre><code>git clone https://github.com/danieldrinhausen/Tokenmax
+cd Tokenmax
+brew install xcodegen
+make install &amp;&amp; make run</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-inner">
+      <p class="rail">Privacy</p>
+      <div class="col">
+        <h2>Nothing leaves your Mac.</h2>
+        <p>
+          No telemetry, no analytics, no server. The only network requests Tokenmax makes
+          go to Anthropic, with a token that was already on your machine.
+        </p>
+        <p>
+          Your queued prompts, working directories and run transcripts stay in
+          <code>~/Library/Application&nbsp;Support/Tokenmax/</code> and are never
+          transmitted — worth knowing before you paste a log into a bug report.
+        </p>
+        <p>
+          Unattended runs are deliberately cautious: file tools are confined to the task's
+          working directory, shell access is a separate opt-in, every run carries a budget
+          cap, and <code>--dangerously-skip-permissions</code> is never used.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-inner">
+      <p class="rail">Disclaimer</p>
+      <div class="col">
+        <h2>Read this part.</h2>
+        <p>
+          Tokenmax is <strong>not affiliated with, endorsed by, or supported by
+          Anthropic</strong>. "Claude" and "Claude Code" are their trademarks, used here
+          only to describe what this tool works with.
+        </p>
+        <p>
+          The primary data source is undocumented. It may change shape, start refusing
+          requests, or disappear at any time — nothing about it is a stability promise.
+        </p>
+        <p>
+          The session opener and queue automation <em>spend real quota on your plan on
+          purpose</em>. That is what they are for. Review their settings before enabling
+          either, and satisfy yourself that how you use this fits Anthropic's terms for
+          your account. Provided as is, without warranty.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Tokenmax · MIT licensed · <a href="https://github.com/danieldrinhausen/Tokenmax">github.com/danieldrinhausen/Tokenmax</a><br>
+    An independent tool. Not an Anthropic product.
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var session = 62, weekly = 41;
+
+    requestAnimationFrame(function () {
+      document.getElementById('bar-session').style.width = session + '%';
+      document.getElementById('bar-weekly').style.width = weekly + '%';
+    });
+
+    // A real countdown, ticking at real speed, from the same 1h 16m the app shows
+    // in its own documentation. The lit state below one hour is the app's actual
+    // rule, so the demo crosses into it on its own.
+    var endsAt = Date.now() + (76 * 60 + 12) * 1000;
+    var readout = document.getElementById('countdown');
+    var badge = document.getElementById('tmx');
+    var leadMinutes = 60;
+
+    function tick() {
+      var left = Math.max(0, endsAt - Date.now());
+      var mins = Math.floor(left / 60000);
+      var hrs = Math.floor(mins / 60);
+
+      readout.textContent = hrs > 0 ? hrs + 'h ' + (mins % 60) + 'm' : (mins % 60) + 'm';
+      badge.classList.toggle('is-lit', mins < leadMinutes && session > 15);
+
+      if (left === 0) { endsAt = Date.now() + 5 * 3600 * 1000; }
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+
+</body>
+</html>

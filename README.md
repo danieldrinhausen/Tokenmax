@@ -17,12 +17,38 @@ banner in the popover. Because menu bar contrast follows your *wallpaper* rather
 light/dark setting, the pane previews the lit icon against both extremes and warns about a colour
 that would disappear into one of them.
 
+> **Not affiliated with Anthropic.** Tokenmax is an independent tool that reads quota data
+> Claude Code already holds on your Mac. See [Disclaimer](#disclaimer) — the primary data source
+> is an undocumented endpoint and can change or stop working without notice.
+
+## Install
+
+**From a release.** Download the `.dmg` from
+[Releases](../../releases), drag Tokenmax to Applications, and launch it.
+
+The app is signed but *not* notarized — that needs a paid Apple Developer account — so the first
+launch is refused with "Apple could not verify … is free of malware". To allow it:
+
+1. Open **System Settings → Privacy & Security**.
+2. Scroll to the message about Tokenmax being blocked, and click **Open Anyway**.
+3. Confirm. macOS remembers the choice for that copy, so ordinary launches are never asked about
+   again — though a newly downloaded version arrives freshly quarantined and needs the same one-time
+   confirmation.
+
+Terminal equivalent, if you prefer: `xattr -dr com.apple.quarantine /Applications/Tokenmax.app`.
+
+macOS will then prompt once for access to the `Claude Code-credentials` keychain item — that is
+Tokenmax reading your quota. Choose **Always Allow**; see
+[Where the quota data comes from](#where-the-quota-data-comes-from).
+
+**From source.**
+
 ```
+brew install xcodegen
 make install && make run
 ```
 
-Requires Xcode 26+ and `xcodegen` (`brew install xcodegen`). No Apple Developer account —
-the app is ad-hoc signed.
+Requires macOS 14+ to run, Xcode 26+ to build. No Apple Developer account needed.
 
 ## Where the quota data comes from
 
@@ -270,12 +296,78 @@ until a usage reading newer than the first one lands.
 Sequential multi-task execution · per-task MCP config · git-state guards · Codex adapter ·
 multiple accounts.
 
+## Privacy and security
+
+Everything stays on your Mac. Tokenmax has **no telemetry, no analytics and no server**; the only
+network requests it ever makes are to `api.anthropic.com`, with the OAuth token Claude Code already
+stored in your login keychain. It never writes credentials to disk and never refreshes the token
+itself.
+
+What it does hold locally, in `~/Library/Application Support/Tokenmax/`: your queued prompt text,
+the working directories you pointed tasks at, run transcripts, and quota history. Nothing there is
+transmitted anywhere — but it is worth knowing before you paste a log into a bug report.
+
+Unattended runs are deliberately conservative. `--dangerously-skip-permissions` is never used, file
+tools are confined to the task's working directory by path scoping, shell access is a separate
+opt-in, and each run carries a budget cap. The session opener runs with every tool disabled, refuses
+to run under an API key, and stops on any quota guard it cannot verify.
+
+## Building a release
+
+```
+make dmg                        # dist/Tokenmax-0.1.0.dmg
+```
+
+Ad-hoc signing (the default) is fine for local use with one catch: there is no certificate, so the
+bundle has no stable designated requirement and the keychain ACL falls back to the raw code
+hash — which changes on every rebuild. macOS then re-asks for the Claude credentials after each
+install and **"Always Allow" never sticks**.
+
+A self-signed code-signing certificate fixes that, free and without an Apple Developer account:
+
+1. **Keychain Access → Certificate Assistant → Create a Certificate…** — name it `Tokenmax Dev`,
+   Identity Type **Self Signed Root**, Certificate Type **Code Signing**. Override the defaults to
+   push the expiry well past the 365-day default.
+2. Build with it: `make dmg SIGN_ID="Tokenmax Dev"`.
+3. On first launch, click **Always Allow** once more — the new identity is unknown to the existing
+   ACL. From then on the requirement is certificate-based and survives rebuilds and updates.
+
+Keep `PRODUCT_BUNDLE_IDENTIFIER` stable or the requirement changes and the prompting starts again.
+
+The image still is not notarized, so recipients get the Gatekeeper prompt described under
+[Install](#install). Notarization is the only way to remove that step, and it needs the $99/year
+Apple Developer Program.
+
+## Disclaimer
+
+Tokenmax is **not affiliated with, endorsed by, or supported by Anthropic**. "Claude" and "Claude
+Code" are trademarks of Anthropic, used here only to describe what this tool works with.
+
+The primary data source, `GET api.anthropic.com/api/oauth/usage`, is **undocumented**. It may change
+shape, start refusing requests, or disappear at any time, and nothing about it is a stability
+promise. The statusline fallback is documented and will outlive it.
+
+Tokenmax reads the OAuth token Claude Code stores in your login keychain, and the session opener and
+queue automation **spend real quota on your plan on purpose** — that is what they are for. Review
+the safety settings before enabling either, and satisfy yourself that how you use this fits
+Anthropic's terms for your account. The software is provided as is, without warranty; see
+[LICENSE](LICENSE).
+
 ## Development
 
 ```
 make build     # compile
-make test      # 284 tests
-make install   # build, ad-hoc sign, install to /Applications
+make test      # 343 tests
+make install   # build, sign, install to /Applications
+make dmg       # build a distributable disk image
 make logs      # tail the log
 make clean
 ```
+
+`Tokenmax.xcodeproj` is generated from `project.yml` by `xcodegen` and is not tracked — edit
+`project.yml`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the patterns worth keeping, and
+[docs/RELEASING.md](docs/RELEASING.md) the checklist for cutting a release.
+
+## License
+
+[MIT](LICENSE) © 2026 Daniel Drinhausen
