@@ -251,6 +251,14 @@ final class UsageRefreshCoordinator: ObservableObject {
         return snapshot.isStale(now: tick, threshold: settingsStore.settings.staleAfterSeconds)
     }
 
+    /// True while the only thing wrong is an access token Claude Code has yet to
+    /// rotate. Worth distinguishing from staleness in general because it is the
+    /// one failure a Claude Code run cures — which is what the session opener is.
+    var isAwaitingTokenRenewal: Bool {
+        if case .tokenExpired = state { return true }
+        return false
+    }
+
     var lastUpdatedText: String {
         guard let snapshot = state.snapshot else { return "Never updated" }
         let elapsed = tick.timeIntervalSince(snapshot.fetchedAt)

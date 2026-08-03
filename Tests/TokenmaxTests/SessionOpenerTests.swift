@@ -84,6 +84,8 @@ struct SessionOpenerTests {
         weeklyRemaining: Double? = 80,
         extraUsageEnabled: Bool? = false,
         isStale: Bool = false,
+        awaitingTokenRenewal: Bool = false,
+        dataAge: TimeInterval = 0,
         cliInstalled: Bool = true,
         state: SessionOpenerState? = nil,
         now: Date? = nil
@@ -95,6 +97,8 @@ struct SessionOpenerTests {
             weeklyWindow: weeklyRemaining.map { weekly(remaining: $0) },
             extraUsageEnabled: extraUsageEnabled,
             isStale: isStale,
+            awaitingTokenRenewal: awaitingTokenRenewal,
+            dataAge: dataAge,
             cliInstalled: cliInstalled,
             state: state ?? stateWithExpiredWindow(),
             now: now ?? self.now
@@ -146,14 +150,80 @@ struct SessionOpenerTests {
         #expect(decision.cycleID == SessionOpener.cycleID(expiredResetAt: expiredResetAt))
     }
 
+    /// The deadlock this exists to break: the staleness is an access token only
+    /// a Claude Code run can renew, and the opener is a Claude Code run. Refusing
+    /// would leave the user to fix it from a terminal by hand.
+    @Test("Opens on a stale reading when the token is merely awaiting renewal")
+    func opensThroughTokenRenewalStaleness() {
+        let decision = SessionOpener.decide(input(
+            isStale: true, awaitingTokenRenewal: true, dataAge: 3600
+        ))
+        #expect(decision.cycleID == SessionOpener.cycleID(expiredResetAt: expiredResetAt))
+    }
+
+    @Test("A reading too old to bound the weekly figure blocks even so")
+    func staleTokenRenewalIsAgeBounded() {
+        let tooOld = SessionOpener.maxStaleAgeAwaitingTokenRenewal + 1
+        #expect(skipReason(input(
+            isStale: true, awaitingTokenRenewal: true, dataAge: tooOld
+        )) == .dataStale)
+        // Exactly at the bound is still allowed.
+        #expect(SessionOpener.decide(input(
+            isStale: true,
+            awaitingTokenRenewal: true,
+            dataAge: SessionOpener.maxStaleAgeAwaitingTokenRenewal
+        )).cycleID != nil)
+    }
+
+    /// Only the staleness check is relaxed. Everything that protects the user's
+    /// money still runs, against the last good reading.
+    @Test("Acting on a stale reading still applies every spending guard")
+    func staleOpeningStillRespectsSpendingGuards() {
+        func reason(_ spoil: (inout SessionOpener.Input) -> Void) -> SessionOpenerDecision.SkipReason? {
+            var input = input(isStale: true, awaitingTokenRenewal: true, dataAge: 3600)
+            spoil(&input)
+            return SessionOpener.decide(input).skipReason
+        }
+
+        #expect(reason { $0.extraUsageEnabled = true } == .extraUsageEnabled)
+        #expect(reason { $0.extraUsageEnabled = nil } == .extraUsageUnknown)
+        #expect(reason { $0.weeklyWindow = self.weekly(remaining: 5) } == .weeklyQuotaLow)
+        #expect(reason { $0.weeklyWindow = nil } == .weeklyQuotaUnknown)
+        #expect(reason { $0.sessionWindow = self.activeSession() } == .windowAlreadyActive)
+    }
+
+    @Test("Any other cause of staleness still blocks")
+    func otherStalenessStillBlocks() {
+        #expect(skipReason(input(isStale: true, awaitingTokenRenewal: false, dataAge: 60))
+            == .dataStale)
+    }
+
     @Test("Stays silent while a window is already running")
     func skipsWhileWindowActive() {
         #expect(skipReason(input(session: activeSession())) == .windowAlreadyActive)
+        // Also once the reading has gone stale — the frozen snapshot is no
+        // longer evidence a window is live, so this must not be the answer.
+        #expect(skipReason(input(session: activeSession(), isStale: true)) != .windowAlreadyActive)
     }
 
     @Test("Nothing to open before any window has been seen to end")
     func skipsWithNoExpiredWindow() {
         #expect(skipReason(input(state: SessionOpenerState())) == .noExpiredWindow)
+    }
+
+    /// The bug behind a forced refresh being spent 94 minutes before its cycle
+    /// was due: a live window's reset time is in the *future*, and reporting
+    /// that as `dataStale` made the coordinator burn the cycle's one allowance
+    /// on it. A window that has not ended has nothing to wait for.
+    @Test("A window still running is not a cycle waiting on fresh data")
+    func liveWindowIsNotStale() {
+        var state = SessionOpenerState()
+        state.lastKnownSessionResetAt = now.addingTimeInterval(3600)
+
+        #expect(skipReason(input(session: activeSession(), isStale: true, state: state))
+            == .noExpiredWindow)
+        #expect(skipReason(input(session: activeSession(), state: state))
+            == .windowAlreadyActive)
     }
 
     @Test("Waits out the configured delay")

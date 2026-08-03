@@ -115,6 +115,12 @@ enum SessionOpener {
     static let maxAttemptsPerCycle = 3
     static let retryInterval: TimeInterval = 300
 
+    /// How old the last good reading may be and still be acted on when the only
+    /// thing wrong is a token awaiting renewal. One session window: past that,
+    /// more than a full window's spending could have happened unobserved and the
+    /// weekly figure the reading carries stops being a bound on anything.
+    static let maxStaleAgeAwaitingTokenRenewal: TimeInterval = 5 * 3600
+
     struct Input {
         var settings: SessionOpenerSettings
         var quietHours: QuietHours
@@ -122,6 +128,12 @@ enum SessionOpener {
         var weeklyWindow: UsageWindow?
         var extraUsageEnabled: Bool?
         var isStale: Bool
+        /// The one cause of staleness the opener may act through — see
+        /// `mayOpenOnStaleData`.
+        var awaitingTokenRenewal: Bool
+        /// Age of the reading the other fields came from. Only consulted when
+        /// the reading is stale.
+        var dataAge: TimeInterval
         var cliInstalled: Bool
         var state: SessionOpenerState
         var now: Date
@@ -133,6 +145,8 @@ enum SessionOpener {
             weeklyWindow: UsageWindow?,
             extraUsageEnabled: Bool? = nil,
             isStale: Bool = false,
+            awaitingTokenRenewal: Bool = false,
+            dataAge: TimeInterval = 0,
             cliInstalled: Bool = true,
             state: SessionOpenerState = .init(),
             now: Date = Date()
@@ -143,6 +157,8 @@ enum SessionOpener {
             self.weeklyWindow = weeklyWindow
             self.extraUsageEnabled = extraUsageEnabled
             self.isStale = isStale
+            self.awaitingTokenRenewal = awaitingTokenRenewal
+            self.dataAge = dataAge
             self.cliInstalled = cliInstalled
             self.state = state
             self.now = now
@@ -165,23 +181,32 @@ enum SessionOpener {
 
     /// Every guard that can be decided from data already in hand.
     ///
-    /// Ordering matters in one place: `dataStale` comes before anything that
-    /// reads a quota number, because the whole point of the check is that those
-    /// numbers cannot currently be trusted.
+    /// The order is not cosmetic. The guards that read only persisted state and
+    /// the clock come first, then `dataStale`, then everything that reads a
+    /// number off the last reading — because the whole point of the staleness
+    /// check is that those numbers cannot currently be trusted, and because a
+    /// cycle that is not due yet must not present as one waiting on fresh data.
+    /// (It used to: a live window, whose reset time is still in the future, was
+    /// reported as `dataStale`, and the coordinator spent that cycle's one
+    /// forced refresh on it hours before the window even ended.)
     static func decide(_ input: Input) -> SessionOpenerDecision {
         guard input.settings.enabled else { return .skip(reason: .disabled) }
         guard input.cliInstalled else { return .skip(reason: .cliNotInstalled) }
-        guard !input.isStale else { return .skip(reason: .dataStale) }
 
-        guard let session = input.sessionWindow else { return .skip(reason: .noSessionWindow) }
-        // `hasNotStarted` is the endpoint's way of saying no window is running:
-        // no reset time and nothing used. Anything else means one is live, and
-        // there is nothing to open.
-        guard session.hasNotStarted else { return .skip(reason: .windowAlreadyActive) }
-
-        guard let expiredResetAt = input.state.lastKnownSessionResetAt else {
-            return .skip(reason: .noExpiredWindow)
+        // Named up here because it is the overwhelmingly common case and the
+        // most useful thing to show the user — but only a current reading may
+        // conclude it. A frozen snapshot would go on reporting a window that
+        // ended hours ago as still running, and the opener would wait on it
+        // forever without ever asking for fresh data.
+        if !input.isStale, let session = input.sessionWindow, !session.hasNotStarted {
+            return .skip(reason: .windowAlreadyActive)
         }
+
+        // A reset time still in the future is a window that has not ended, so
+        // there is nothing to open and nothing to wait on.
+        guard let expiredResetAt = input.state.lastKnownSessionResetAt,
+              expiredResetAt <= input.now
+        else { return .skip(reason: .noExpiredWindow) }
 
         let cycle = cycleID(expiredResetAt: expiredResetAt)
 
@@ -203,6 +228,16 @@ enum SessionOpener {
             return .skip(reason: .quietHours)
         }
 
+        // Every remaining guard reads a number off the last reading, so from
+        // here on the reading has to be one worth trusting.
+        if input.isStale, !mayOpenOnStaleData(input) { return .skip(reason: .dataStale) }
+
+        guard let session = input.sessionWindow else { return .skip(reason: .noSessionWindow) }
+        // `hasNotStarted` is the endpoint's way of saying no window is running:
+        // no reset time and nothing used. Anything else means one is live, and
+        // there is nothing to open.
+        guard session.hasNotStarted else { return .skip(reason: .windowAlreadyActive) }
+
         // The real protection against an unexpected charge: the five-hour and
         // weekly allowances share one budget, so an opener is never free.
         guard let weeklyRemaining = input.weeklyWindow?.remainingPercent else {
@@ -221,6 +256,23 @@ enum SessionOpener {
         }
 
         return .open(cycleID: cycle)
+    }
+
+    /// The one staleness the opener is allowed to act through.
+    ///
+    /// An expired Claude Code access token is renewed by running Claude Code —
+    /// and the opener *is* a Claude Code run. Treating that staleness as a
+    /// blocker makes the opener refuse to perform the only action that would
+    /// clear the condition stopping it, and the user has to open a terminal by
+    /// hand, which is the entire thing the feature exists to avoid. Nothing else
+    /// is relaxed: every other guard still runs, against the last good reading.
+    ///
+    /// The age bound is what keeps that honest. Within one session window the
+    /// weekly figure cannot have moved by more than a window's worth of
+    /// spending, so a reading that comfortably cleared the threshold still
+    /// clears it. Beyond that the drift is unbounded, and staleness wins.
+    static func mayOpenOnStaleData(_ input: Input) -> Bool {
+        input.awaitingTokenRenewal && input.dataAge <= maxStaleAgeAwaitingTokenRenewal
     }
 
     // MARK: - Gates needing the outside world

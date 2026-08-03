@@ -103,6 +103,8 @@ final class SessionOpenerCoordinator: ObservableObject {
             weeklyWindow: snapshot?.weeklyWindow,
             extraUsageEnabled: snapshot?.extraUsageEnabled,
             isStale: usage.isStale,
+            awaitingTokenRenewal: usage.isAwaitingTokenRenewal,
+            dataAge: snapshot.map { now.timeIntervalSince($0.fetchedAt) } ?? .greatestFiniteMagnitude,
             cliInstalled: cliInstalled(),
             state: state,
             now: now
@@ -146,8 +148,14 @@ final class SessionOpenerCoordinator: ObservableObject {
         // unlike a reminder. Spend one backoff-bypassing refresh per cycle
         // trying to unstick it, then leave the ordinary cadence to it rather
         // than hammering past the backoff that exists to prevent exactly that.
-        if outcome.skipReason == .dataStale, settingsStore.settings.sessionOpener.enabled {
-            await forceRefreshOnceIfStale()
+        //
+        // An imminent `.open` gets the same treatment: current numbers always
+        // beat the last good ones, so the stale-data path never spends anything
+        // without having tried once for something better first.
+        if input.isStale, outcome.skipReason == .dataStale || outcome.cycleID != nil {
+            if await forceRefreshOnceIfStale() {
+                outcome = SessionOpener.decide(makeInput())
+            }
         }
 
         if case .open = outcome, let gate = expensiveGate() {
@@ -157,7 +165,8 @@ final class SessionOpenerCoordinator: ObservableObject {
         publish(outcome)
 
         guard case let .open(cycleID) = outcome else { return }
-        await open(cycleID: cycleID, reason: "automatic")
+        // Worth recording in the log which reading the spend was authorised on.
+        await open(cycleID: cycleID, reason: usage.isStale ? "automatic, last good reading" : "automatic")
     }
 
     private func publish(_ outcome: SessionOpenerDecision) {
@@ -174,15 +183,18 @@ final class SessionOpenerCoordinator: ObservableObject {
         }
     }
 
-    private func forceRefreshOnceIfStale() async {
-        guard let expiredResetAt = state.lastKnownSessionResetAt else { return }
+    /// Returns whether a refresh was actually issued, so the caller knows there
+    /// is a new reading worth deciding against.
+    private func forceRefreshOnceIfStale() async -> Bool {
+        guard let expiredResetAt = state.lastKnownSessionResetAt else { return false }
         let cycleID = SessionOpener.cycleID(expiredResetAt: expiredResetAt)
-        guard !state.hasForcedRefresh(cycleID) else { return }
+        guard !state.hasForcedRefresh(cycleID) else { return false }
 
         state.markForcedRefresh(cycleID)
         persist()
         Log.shared.write("opener: forcing refresh (stale) for \(cycleID)")
         await usage.refresh(reason: "opener", manual: true)
+        return true
     }
 
     /// The two checks that need a subprocess or a file read. Run only once the
