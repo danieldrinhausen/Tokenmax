@@ -31,6 +31,10 @@ enum SessionOpenerDecision: Equatable, Sendable {
         case quietHours
         case weeklyQuotaUnknown
         case weeklyQuotaLow
+        /// The plan-wide weekly allowance is fine, but the one belonging to the
+        /// model the opener would actually run is not. Exhausting that is
+        /// billable in exactly the same way.
+        case modelWeeklyQuotaLow
         case extraUsageEnabled
         case extraUsageUnknown
         // Gates that need a subprocess or a file read, applied by the coordinator.
@@ -78,6 +82,8 @@ enum SessionOpenerDecision: Equatable, Sendable {
                 "The weekly quota is unknown, so spending cannot be checked."
             case .weeklyQuotaLow:
                 "Weekly quota is below your threshold."
+            case .modelWeeklyQuotaLow:
+                "The weekly quota for the opener's model is below your threshold."
             case .extraUsageEnabled:
                 "Extra paid usage is enabled on this account."
             case .extraUsageUnknown:
@@ -126,6 +132,10 @@ enum SessionOpener {
         var quietHours: QuietHours
         var sessionWindow: UsageWindow?
         var weeklyWindow: UsageWindow?
+        /// Every `.modelSpecificWeekly` window the endpoint reported. Only the
+        /// one matching the configured model is consulted — see
+        /// `modelWeeklyWindow(for:in:)`.
+        var modelWeeklyWindows: [UsageWindow]
         var extraUsageEnabled: Bool?
         var isStale: Bool
         /// The one cause of staleness the opener may act through — see
@@ -143,6 +153,7 @@ enum SessionOpener {
             quietHours: QuietHours = .init(),
             sessionWindow: UsageWindow?,
             weeklyWindow: UsageWindow?,
+            modelWeeklyWindows: [UsageWindow] = [],
             extraUsageEnabled: Bool? = nil,
             isStale: Bool = false,
             awaitingTokenRenewal: Bool = false,
@@ -155,6 +166,7 @@ enum SessionOpener {
             self.quietHours = quietHours
             self.sessionWindow = sessionWindow
             self.weeklyWindow = weeklyWindow
+            self.modelWeeklyWindows = modelWeeklyWindows
             self.extraUsageEnabled = extraUsageEnabled
             self.isStale = isStale
             self.awaitingTokenRenewal = awaitingTokenRenewal
@@ -247,6 +259,17 @@ enum SessionOpener {
             return .skip(reason: .weeklyQuotaLow)
         }
 
+        // Some models carry their own weekly allowance on top of the plan-wide
+        // one, and running past *that* is billable just the same. Checking only
+        // the plan-wide figure left a hole: a model whose own week is spent
+        // while the shared week still has room would have been waved through.
+        if let modelWeekly = modelWeeklyWindow(for: input.settings.model, in: input.modelWeeklyWindows),
+           let modelRemaining = modelWeekly.remainingPercent,
+           modelRemaining < input.settings.minimumWeeklyRemainingPercent
+        {
+            return .skip(reason: .modelWeeklyQuotaLow)
+        }
+
         if input.settings.skipWhenExtraUsageEnabled {
             // Silence is not consent. Unknown is refused rather than assumed
             // off — and because that would otherwise be an invisible dead end,
@@ -256,6 +279,19 @@ enum SessionOpener {
         }
 
         return .open(cycleID: cycle)
+    }
+
+    /// The model-specific weekly window belonging to `model`, if the endpoint
+    /// reported one.
+    ///
+    /// Matched on the id the provider builds — `claude.weekly.<model>` — so a
+    /// model that gains its own weekly allowance later is picked up without a
+    /// change here. Absence is not "unknown": Haiku simply has no separate
+    /// weekly allowance, and treating that as a reason to refuse would block the
+    /// default configuration outright.
+    static func modelWeeklyWindow(for model: String, in windows: [UsageWindow]) -> UsageWindow? {
+        let wanted = "claude.weekly." + model.lowercased()
+        return windows.first { $0.id.lowercased() == wanted }
     }
 
     /// The one staleness the opener is allowed to act through.

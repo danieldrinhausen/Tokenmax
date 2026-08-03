@@ -141,8 +141,15 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
     /// A window opened at 03:00 expires before the user wakes up.
     var respectQuietHours: Bool = true
     /// Extra usage lets spending continue past the plan allowance as a real
-    /// charge. Fail closed unless the user says otherwise.
-    var skipWhenExtraUsageEnabled: Bool = true
+    /// charge — but only *past* it, and the opener only ever runs into a window
+    /// that has just reset with the weekly allowance above the threshold above.
+    /// Reaching a charge from there is not possible, so this defaults off: as a
+    /// blanket refusal it disabled the whole feature for anyone who happens to
+    /// have credits switched on, which is a normal thing to have.
+    ///
+    /// Kept as an option because it is categorical where the threshold is
+    /// numeric — it holds even if the reported percentages are wrong.
+    var skipWhenExtraUsageEnabled: Bool = false
     var verifyAfterRun: Bool = true
 
     static let modelOptions = ["haiku", "sonnet"]

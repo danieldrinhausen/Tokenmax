@@ -356,7 +356,11 @@ struct PersistenceCompatibilityTests {
         #expect(!settings.sessionOpener.enabled)
         #expect(settings.sessionOpener.delaySeconds == 60)
         #expect(settings.sessionOpener.model == "haiku")
-        #expect(settings.sessionOpener.skipWhenExtraUsageEnabled)
+        // The weekly threshold is what guards spending; the blanket
+        // extra-usage refusal is opt-in, since it only ever duplicated that
+        // guard and disabled the feature outright for anyone with credits on.
+        #expect(!settings.sessionOpener.skipWhenExtraUsageEnabled)
+        #expect(settings.sessionOpener.minimumWeeklyRemainingPercent == 10)
     }
 
     @Test("A partially-written session opener block keeps its defaults")

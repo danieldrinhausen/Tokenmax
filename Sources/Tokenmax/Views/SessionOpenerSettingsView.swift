@@ -146,7 +146,7 @@ struct SessionOpenerSettingsView: View {
 
     private var extraUsageBlockedExplanation: String {
         if usage.state.snapshot?.extraUsageEnabled == true {
-            return "The opener will not run while this is on, because spending past your plan allowance would be charged. Your minimum weekly quota threshold already guards against that — switch off “Skip when usage credits may be charged” if you would rather rely on it."
+            return "“Skip when usage credits may be charged” is on, so the opener will not run while this account has credits enabled. It is off by default because the opener only ever runs into a window that has just reset, with the weekly quota above your threshold — a charge cannot be reached from there. Switch it off to rely on that threshold, or leave it on for a guard that holds even if the reported percentages are wrong."
         }
         return "The opener will not run until this is known, because an unreported setting is treated as unsafe. Switch off “Skip when usage credits may be charged” to proceed on the weekly quota threshold alone."
     }

@@ -101,6 +101,7 @@ final class SessionOpenerCoordinator: ObservableObject {
             quietHours: settingsStore.settings.quietHours,
             sessionWindow: snapshot?.sessionWindow,
             weeklyWindow: snapshot?.weeklyWindow,
+            modelWeeklyWindows: snapshot?.windows.filter { $0.kind == .modelSpecificWeekly } ?? [],
             extraUsageEnabled: snapshot?.extraUsageEnabled,
             isStale: usage.isStale,
             awaitingTokenRenewal: usage.isAwaitingTokenRenewal,

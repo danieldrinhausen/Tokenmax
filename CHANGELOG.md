@@ -5,7 +5,24 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **"Skip when usage credits may be charged" now defaults to off.** Credits only
+  bill *past* the plan allowance, and the opener only ever runs into a window
+  that has just reset with weekly quota above your threshold — a charge cannot
+  be reached from there, so the check duplicated a guard that was already doing
+  the work while disabling the whole feature for anyone who has credits enabled.
+  It remains available: it is categorical where the threshold is numeric, so it
+  holds even if the reported percentages are wrong. Existing settings keep
+  whatever you already chose.
+
 ### Fixed
+
+- **The opener now checks the weekly allowance of the model it will actually
+  run.** Only the plan-wide weekly figure was consulted, so with the model set
+  to Sonnet a spent `seven_day_sonnet` allowance was waved through while the
+  shared week still looked healthy — the one case where running could genuinely
+  be billed. Reported as its own skip reason.
 
 - **Session opener no longer deadlocks on an expired token.** The opener refused
   to run on stale data, but the staleness was an expired Claude Code access

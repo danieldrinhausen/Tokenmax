@@ -53,6 +53,21 @@ struct SessionOpenerTests {
         )
     }
 
+    /// A model-specific weekly window, in the shape the endpoint reports for
+    /// `seven_day_sonnet` / `seven_day_opus`.
+    private func modelWeekly(_ model: String, remaining: Double) -> UsageWindow {
+        UsageWindow(
+            id: "claude.weekly.\(model)",
+            kind: .modelSpecificWeekly,
+            label: "Weekly (\(model))",
+            usedPercent: 100 - remaining,
+            resetAt: now.addingTimeInterval(86400),
+            observedAt: now,
+            source: .claudeOAuth,
+            confidence: .authoritative
+        )
+    }
+
     private func settings(
         enabled: Bool = true,
         delaySeconds: Int = 60,
@@ -82,6 +97,7 @@ struct SessionOpenerTests {
         quietHours: QuietHours = .init(),
         session: UsageWindow? = nil,
         weeklyRemaining: Double? = 80,
+        modelWeeklyWindows: [UsageWindow] = [],
         extraUsageEnabled: Bool? = false,
         isStale: Bool = false,
         awaitingTokenRenewal: Bool = false,
@@ -95,6 +111,7 @@ struct SessionOpenerTests {
             quietHours: quietHours,
             sessionWindow: session ?? idleSession(),
             weeklyWindow: weeklyRemaining.map { weekly(remaining: $0) },
+            modelWeeklyWindows: modelWeeklyWindows,
             extraUsageEnabled: extraUsageEnabled,
             isStale: isStale,
             awaitingTokenRenewal: awaitingTokenRenewal,
@@ -242,6 +259,61 @@ struct SessionOpenerTests {
         #expect(skipReason(input(weeklyRemaining: nil)) == .weeklyQuotaUnknown)
         // Exactly at the threshold is allowed, matching the reminder rule.
         #expect(SessionOpener.decide(input(weeklyRemaining: 10)).cycleID != nil)
+    }
+
+    /// The plan-wide weekly figure is not the whole story: a model with its own
+    /// weekly allowance can be spent out while the shared week still looks
+    /// healthy, and running past that allowance is billable just the same.
+    @Test("Checks the weekly allowance of the model the opener will actually run")
+    func modelWeeklyQuotaGuard() {
+        var sonnet = settings()
+        sonnet.model = "sonnet"
+
+        // Plan-wide weekly is fine; Sonnet's own week is not.
+        #expect(skipReason(input(
+            settings: sonnet,
+            weeklyRemaining: 80,
+            modelWeeklyWindows: [modelWeekly("sonnet", remaining: 4)]
+        )) == .modelWeeklyQuotaLow)
+
+        // Above the threshold, it runs.
+        #expect(SessionOpener.decide(input(
+            settings: sonnet,
+            modelWeeklyWindows: [modelWeekly("sonnet", remaining: 40)]
+        )).cycleID != nil)
+
+        // Another model's exhausted week is none of this run's business.
+        #expect(SessionOpener.decide(input(
+            settings: sonnet,
+            modelWeeklyWindows: [modelWeekly("opus", remaining: 0), modelWeekly("sonnet", remaining: 40)]
+        )).cycleID != nil)
+
+        // Haiku has no weekly allowance of its own. Absence is not "unknown" —
+        // treating it as a refusal would block the default configuration.
+        #expect(SessionOpener.decide(input(
+            modelWeeklyWindows: [modelWeekly("opus", remaining: 0)]
+        )).cycleID != nil)
+    }
+
+    @Test("Resolves the model window by the id the provider builds")
+    func modelWeeklyWindowLookup() {
+        let windows = [modelWeekly("opus", remaining: 50), modelWeekly("sonnet", remaining: 20)]
+        #expect(SessionOpener.modelWeeklyWindow(for: "sonnet", in: windows)?.id == "claude.weekly.sonnet")
+        #expect(SessionOpener.modelWeeklyWindow(for: "Sonnet", in: windows)?.id == "claude.weekly.sonnet")
+        #expect(SessionOpener.modelWeeklyWindow(for: "haiku", in: windows) == nil)
+        #expect(SessionOpener.modelWeeklyWindow(for: "sonnet", in: []) == nil)
+    }
+
+    /// Extra usage only bills *past* the plan allowance, and the opener only
+    /// runs into a freshly reset window with the weekly figure above the
+    /// threshold — so the blanket refusal is off by default now.
+    @Test("The extra-usage refusal is opt-in, not the default")
+    func extraUsageSkipIsOptIn() {
+        #expect(!SessionOpenerSettings().skipWhenExtraUsageEnabled)
+        #expect(SessionOpener.decide(input(
+            settings: settings(skipWhenExtraUsage: false),
+            extraUsageEnabled: true
+        )).cycleID != nil)
     }
 
     @Test("Refuses when extra paid usage is on, or unreported")

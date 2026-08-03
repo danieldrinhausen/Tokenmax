@@ -190,7 +190,12 @@ The opener sends only when every one of these holds:
 - the latest usage reading is fresh;
 - weekly quota is above your threshold — the five-hour and weekly allowances share one budget, so an
   opener is never free;
-- extra paid usage is reported *disabled* (not merely unreported);
+- the weekly allowance of the *model the opener will run* is also above that threshold, where the
+  endpoint reports one (Sonnet has its own; Haiku does not);
+- extra paid usage is reported *disabled*, **if** you switched that check on. It is off by default:
+  credits only bill past the plan allowance, and the opener only runs into a window that has just
+  reset with weekly quota above your threshold, so a charge cannot be reached from there. The check
+  remains available as a categorical guard for anyone who would rather not trust the percentages;
 - `claude auth status` reports a first-party **claude.ai** subscription;
 - `~/.claude/settings.json` carries no `apiKeyHelper` and no API key in `env`;
 - it is outside quiet hours;
