@@ -58,8 +58,10 @@ schemes:
       config: Debug
     test:
       config: Debug
-      # Keep test runs out of ~/Library/Application Support/Tokenmax.
+      # Keep test runs out of ~/Library/Application Support/Tokenmax, and well
+      # away from the real ~/.claude the statusline installer writes to.
       environmentVariables:
         TOKENMAX_SUPPORT_DIR: /tmp/tokenmax-tests
+        TOKENMAX_CLAUDE_DIR: /tmp/tokenmax-tests/claude
       targets:
         - TokenmaxTests

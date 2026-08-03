@@ -13,8 +13,12 @@ enum StatuslineShimInstaller {
 
         var errorDescription: String? {
             switch self {
-            case .cannotReadSettings: "Could not read ~/.claude/settings.json."
-            case let .cannotWriteSettings(message): "Could not update ~/.claude/settings.json: \(message)"
+            case .cannotReadSettings:
+                "~/.claude/settings.json could not be parsed, so Tokenmax will not touch it — "
+                    + "rewriting it from here would discard everything already in it. Fix the JSON "
+                    + "and try again."
+            case let .cannotWriteSettings(message):
+                "Could not update ~/.claude/settings.json: \(message)"
             }
         }
     }
@@ -74,7 +78,13 @@ enum StatuslineShimInstaller {
     }
 
     static func install() throws {
-        var settings = readClaudeSettings() ?? [:]
+        // `?? [:]` here would have been a config-shredder: a settings.json that
+        // fails to parse — a truncated write, or the `//` comments people add
+        // because other tools accept them — read as "empty", and the write below
+        // would then replace the user's permissions, env, hooks and MCP servers
+        // with a file containing nothing but `statusLine`. An unparseable file
+        // is a reason to stop, not to start from scratch.
+        guard var settings = readClaudeSettings() else { throw InstallError.cannotReadSettings }
 
         // Preserve any existing statusline so we can chain to it.
         var previousCommand: String?
@@ -106,7 +116,9 @@ enum StatuslineShimInstaller {
     }
 
     static func uninstall() throws {
-        guard var settings = readClaudeSettings() else { return }
+        // Same reasoning as `install`, plus: returning quietly here would leave
+        // the shim wired up with the button that removes it doing nothing.
+        guard var settings = readClaudeSettings() else { throw InstallError.cannotReadSettings }
         guard let statusLine = settings["statusLine"] as? [String: Any],
               let command = statusLine["command"] as? String,
               command.contains("tokenmax-statusline")
@@ -120,12 +132,30 @@ enum StatuslineShimInstaller {
 
     // MARK: - settings.json IO
 
+    /// The user's Claude Code settings, or `nil` when the file exists but does
+    /// not parse.
+    ///
+    /// A *missing* file is an empty dictionary — there is nothing to lose and
+    /// creating it is correct. A *malformed* file is `nil`, and callers must
+    /// treat that as a stop: the distinction is the whole point, because the two
+    /// look identical to a caller that collapses them with `?? [:]`.
     private static func readClaudeSettings() -> [String: Any]? {
         guard let data = try? Data(contentsOf: FileLocations.claudeSettingsFile) else { return [:] }
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
+    /// Keeps the last pre-Tokenmax copy next to the original, so a user whose
+    /// settings this mangles has something to restore by hand. Best-effort: a
+    /// failed backup is not a reason to refuse an edit the user asked for.
+    private static func backupClaudeSettings() {
+        let url = FileLocations.claudeSettingsFile
+        guard let data = try? Data(contentsOf: url) else { return }
+        let backup = url.appendingPathExtension("tokenmax-backup")
+        try? data.write(to: backup, options: .atomic)
+    }
+
     private static func writeClaudeSettings(_ settings: [String: Any]) throws {
+        backupClaudeSettings()
         do {
             let data = try JSONSerialization.data(
                 withJSONObject: settings,

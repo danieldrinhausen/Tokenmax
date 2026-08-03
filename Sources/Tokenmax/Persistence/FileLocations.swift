@@ -55,8 +55,19 @@ enum FileLocations {
 
     static var logFile: URL { logsDirectory.appendingPathComponent("tokenmax.log") }
 
+    /// Claude Code's own configuration directory.
+    ///
+    /// Overridable for the same reason as `supportDirectory`, and more urgently:
+    /// anything exercising the statusline installer writes here, and without an
+    /// override a test run would edit the developer's real Claude Code setup.
+    static var claudeDirectory: URL {
+        if let override = ProcessInfo.processInfo.environment["TOKENMAX_CLAUDE_DIR"] {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude")
+    }
+
     static var claudeSettingsFile: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/settings.json")
+        claudeDirectory.appendingPathComponent("settings.json")
     }
 }
