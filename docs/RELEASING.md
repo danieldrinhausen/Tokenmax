@@ -89,13 +89,10 @@ update** and "Always Allow" never sticks.
 
 ### Repo settings
 
-- [ ] **Settings → Pages** → Source `main`, folder `/docs`. Publishes
-      `docs/index.html` at `danieldrinhausen.github.io/Tokenmax`.
 - [ ] Add the repo **description** and **topics**: `macos`, `menubar`,
       `claude-code`, `swiftui`, `quota`.
 - [ ] Confirm the README and info-page links resolve once public — both link to
       `github.com/danieldrinhausen/Tokenmax` and `../../releases`.
-- [ ] Consider linking the Pages URL from the repo's About panel and README.
 
 ### Last look before public
 
@@ -106,6 +103,19 @@ update** and "Always Allow" never sticks.
 - [ ] Skim the log for anything personal before sharing one in an issue — it
       records queue task text and working directory paths.
 - [ ] **Settings → General → Change visibility → Public.**
+
+### After going public
+
+**Pages only works on a public repository** under a free account — on a private
+one GitHub offers an upgrade instead of the setting, which is why this comes
+last rather than with the other repo settings. Nothing needs paying for; it just
+has to happen in this order. (The "publish privately" option advertised on that
+screen is a GitHub Enterprise feature for access-restricted sites, and is not
+what this page wants to be.)
+
+- [ ] **Settings → Pages** → Source `main`, folder `/docs`. Publishes
+      `docs/index.html` at `danieldrinhausen.github.io/Tokenmax`.
+- [ ] Link that URL from the repo's About panel and from the README.
 
 ---
 
