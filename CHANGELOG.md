@@ -18,6 +18,17 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **The statusline installer no longer wipes Claude Code's settings.** A
+  `~/.claude/settings.json` that failed to parse was read as empty and then
+  written back containing only `statusLine`, discarding the user's permissions,
+  env, hooks and MCP servers — silently, while reporting success. Install and
+  uninstall now stop on an unparseable file, and every write takes a backup
+  alongside the original.
+- **Run transcripts and the app log are now bounded.** Transcripts in
+  `run-logs/` were never deleted, even after their run fell out of the 40-entry
+  history, and `tokenmax.log` was append-only with no ceiling. Both hold prompt
+  text and working directory paths. Orphaned transcripts are swept whenever
+  queue state is saved, and the log rotates at 1 MB keeping one generation.
 - **The opener now checks the weekly allowance of the model it will actually
   run.** Only the plan-wide weekly figure was consulted, so with the model set
   to Sonnet a spent `seven_day_sonnet` allowance was waved through while the

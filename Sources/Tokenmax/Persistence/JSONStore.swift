@@ -50,6 +50,13 @@ enum JSONStore {
 final class Log: @unchecked Sendable {
     static let shared = Log()
 
+    /// Rotate past this, keeping one previous file. The log is append-only and
+    /// the app runs all day, so without a ceiling it grows for as long as
+    /// Tokenmax is installed — and it records queue task text and working
+    /// directory paths, which is not something to accumulate indefinitely.
+    /// Two files at this size still cover weeks of ordinary use.
+    static let maximumBytes = 1_000_000
+
     private let queue = DispatchQueue(label: "com.tokenmax.log")
     private let formatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
@@ -61,6 +68,7 @@ final class Log: @unchecked Sendable {
         let line = "[\(formatter.string(from: Date()))] \(message)\n"
         queue.async {
             let url = FileLocations.logFile
+            self.rotateIfNeeded(url)
             if let handle = try? FileHandle(forWritingTo: url) {
                 defer { try? handle.close() }
                 _ = try? handle.seekToEnd()
@@ -69,5 +77,21 @@ final class Log: @unchecked Sendable {
                 try? Data(line.utf8).write(to: url)
             }
         }
+    }
+
+    /// Moves the current log aside once it is too big, keeping exactly one
+    /// previous generation. Called on the same serial queue as the write, so it
+    /// cannot interleave with one.
+    ///
+    /// Renaming beats truncating: a reader holding the old file keeps a
+    /// consistent view, and the most recent history survives the rotation
+    /// instead of being thrown away at the moment it is usually wanted.
+    private func rotateIfNeeded(_ url: URL) {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        guard let size = attributes?[.size] as? Int, size > Self.maximumBytes else { return }
+
+        let previous = url.appendingPathExtension("1")
+        try? FileManager.default.removeItem(at: previous)
+        try? FileManager.default.moveItem(at: url, to: previous)
     }
 }

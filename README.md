@@ -94,6 +94,11 @@ logs/tokenmax.log        refresh timing and scheduling decisions
 
 All writes are atomic (temp file → `replaceItem`), so a crash mid-write cannot corrupt them.
 
+Nothing here grows without bound. Run transcripts are deleted once the run they belong to falls out
+of the last-40 history, and `tokenmax.log` rotates at 1 MB keeping one previous generation
+(`tokenmax.log.1`). Both hold your own content — prompt text, working directory paths, CLI
+output — so neither is allowed to accumulate indefinitely.
+
 ## Projected pace
 
 Under each meter Tokenmax compares your spending against an **even burn** of the window:

@@ -701,5 +701,12 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     private func persist() {
         JSONStore.save(state, to: FileLocations.queueAutoRunStateFile)
+
+        // Tied to the save rather than to trimming `runs`, so the state stays a
+        // pure value type and the sweep also catches transcripts orphaned before
+        // this existed. Only a run the state still lists is reachable from the
+        // UI; the rest are dead weight holding prompt text and CLI output.
+        let removed = FileLocations.pruneRunLogs(keeping: Set(state.runs.map(\.id)))
+        if removed > 0 { Log.shared.write("queue: pruned \(removed) orphaned run log(s)") }
     }
 }

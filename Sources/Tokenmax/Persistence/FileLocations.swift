@@ -42,6 +42,35 @@ enum FileLocations {
         runLogsDirectory.appendingPathComponent("\(runID.uuidString).log")
     }
 
+    /// Deletes every run log that no surviving run refers to.
+    ///
+    /// `QueueAutoRunState` keeps the last 40 runs and drops the rest, but the
+    /// transcripts themselves were never removed with them — so they accumulated
+    /// without bound, unreachable from the UI and holding whatever the task
+    /// prompted and the CLI printed. Driving this from the live run IDs rather
+    /// than a count also clears anything a previous version orphaned.
+    ///
+    /// Returns the number of files removed, for the log line.
+    @discardableResult
+    static func pruneRunLogs(keeping liveRunIDs: Set<UUID>) -> Int {
+        let directory = runLogsDirectory
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else {
+            return 0
+        }
+
+        var removed = 0
+        for name in names where name.hasSuffix(".log") {
+            // Anything not named after a run id is not ours to delete.
+            guard let id = UUID(uuidString: String(name.dropLast(4))), !liveRunIDs.contains(id) else {
+                continue
+            }
+            if (try? FileManager.default.removeItem(at: directory.appendingPathComponent(name))) != nil {
+                removed += 1
+            }
+        }
+        return removed
+    }
+
     /// Written by the statusline shim, read by `StatuslineUsageReader`.
     static var statuslineFile: URL { supportDirectory.appendingPathComponent("statusline-latest.json") }
 
