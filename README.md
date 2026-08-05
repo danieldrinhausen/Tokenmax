@@ -143,16 +143,10 @@ Requires macOS 14+ to run, Xcode 26+ to build. No Apple Developer account needed
   <img src="docs/images/settings-data-source.png" width="700" alt="Settings → Data Source: the usage endpoint, keychain credentials, the status line fallback, and the fetched model catalog">
 </p>
 
-### Codex
+Each provider is read a completely different way, which is why one can be stale while the other is
+fine.
 
-Tokenmax reads Codex quota through the local `codex app-server` JSON-RPC interface. It reuses the
-login already managed by the Codex CLI and never reads or stores its credentials. ChatGPT-managed
-Codex login reports the session and weekly quota windows; API-key login is labelled as billed and
-unmetered, so Tokenmax will not start quota-gated automatic Codex tasks for it. Codex tasks run
-through the same App Server protocol with a per-task read-only or workspace-write sandbox.
-
-Codex does not offer Tokenmax a Claude-style per-run USD cap or independent no-shell permission;
-the task editor states those limits explicitly. Codex Session Opener is intentionally not available.
+### Claude Code
 
 The Claude Code CLI has **no** `usage` subcommand, and session transcripts carry no rate-limit
 state. Tokenmax uses two real sources instead:
@@ -177,6 +171,22 @@ cache.
 The fallback is opt-in from **Settings → Data Source**. It writes a shim script and sets
 `statusLine` in `~/.claude/settings.json`, wrapping any status line you already use. Remove the
 `statusLine` key to uninstall.
+
+### Codex
+
+No endpoint and no keychain read. Tokenmax starts a short-lived local `codex app-server` and speaks
+JSON-RPC to it, then lets it exit rather than holding an agent process open. The login stays the
+Codex CLI's business — Tokenmax reuses it and never reads or stores those credentials.
+
+A **ChatGPT-managed** login reports quota windows. An **API-key** login is billed and unmetered, so
+there is no window to report: Tokenmax labels it as billed rather than drawing an empty meter, and
+will not start quota-gated automatic Codex tasks against it. Where an account reports no session
+window, you get *"Not reported for this account"* — deliberately distinct from a meter reading zero.
+
+Codex tasks run through that same App Server protocol, under a per-task **read-only** or
+**workspace-write** sandbox. Codex offers Tokenmax no equivalent of Claude's per-run USD cap or its
+independent no-shell permission, so the task editor states those limits rather than showing controls
+that would not work. The session opener is intentionally Claude-only.
 
 ### The model catalog
 
