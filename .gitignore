@@ -7,6 +7,13 @@ xcuserdata/
 # Local Claude Code state — permission allowlists and machine-specific paths.
 .claude/settings.local.json
 
+# Agent operating notes. Kept local rather than published: they are working
+# instructions for whoever's agent is driving this repo, not documentation the
+# project owes its readers. Human-facing equivalents live in CONTRIBUTING.md and
+# docs/ARCHITECTURE.md.
+AGENTS.md
+CLAUDE.md
+
 # Release artefacts built by `make dmg`.
 dist/
 *.dmg
