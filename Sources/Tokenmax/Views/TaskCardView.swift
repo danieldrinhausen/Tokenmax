@@ -192,10 +192,14 @@ struct ReadyTaskCardView: View {
     private var runtimeItems: [String] {
         var items: [String] = []
         items.append(task.estimatedMinutes.map { "~\($0) min" } ?? "no estimate")
-        items.append("\(task.autoRun.maximumRuntimeMinutes) min limit")
-        items.append(task.autoRun.allowShellCommands
-            ? "Shell access enabled"
-            : (task.autoRun.allowFileChanges ? "Can change files" : "Read-only"))
+        items.append("\(task.maximumRuntimeMinutes) min limit")
+        if task.provider == .codex {
+            items.append(task.codex.sandbox.displayName)
+        } else {
+            items.append(task.autoRun.allowShellCommands
+                ? "Shell access enabled"
+                : (task.autoRun.allowFileChanges ? "Can change files" : "Read-only"))
+        }
         return items
     }
 
@@ -308,8 +312,8 @@ struct RunningTaskCardView: View {
             items.append("running \(RelativeTime.short(now.timeIntervalSince(startedAt)))")
         }
         if isRunningHere {
-            items.append(TaskExecutionPolicy.modelDisplayName(lastRun?.model ?? task.autoRun.model))
-            items.append("\(task.autoRun.maximumRuntimeMinutes) min limit")
+            items.append(lastRun?.model ?? task.selectedModel)
+            items.append("\(task.maximumRuntimeMinutes) min limit")
         }
         return items
     }

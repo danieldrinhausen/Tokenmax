@@ -15,40 +15,56 @@ struct QueueQuotaSummaryView: View {
     let isStale: Bool
     let now: Date
 
+    /// Which provider these numbers belong to. Every status string below is
+    /// built from it — they used to say "Claude Code" even when rendering
+    /// Codex's failures.
+    var provider: TokenmaxProvider = .claudeCode
+
+    /// Narrows the fixed column widths so two of these fit side by side in the
+    /// queue window. Same rows, same words — just less room reserved.
+    var isCompact = false
+
     /// Shown when the state carries a recovery action worth offering.
     var onRefresh: (() -> Void)?
     var onOpenTerminal: (() -> Void)?
+
+    private var name: String { provider.displayName }
+    private var command: String { provider.commandName }
+
+    private var labelWidth: CGFloat { isCompact ? 44 : 48 }
+    private var barWidth: CGFloat { isCompact ? 72 : 120 }
+    private var remainingWidth: CGFloat { isCompact ? 62 : 78 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             switch state {
             case .loading:
-                message("Reading Claude Code usage…", icon: "arrow.triangle.2.circlepath")
+                message("Reading \(name) usage…", icon: "arrow.triangle.2.circlepath")
 
             case .claudeCodeNotInstalled:
                 problem(
-                    "Claude Code is not installed",
-                    detail: "Tokenmax could not find the claude CLI.",
+                    "\(name) is not installed",
+                    detail: "Tokenmax could not find the \(command) CLI.",
                     actions: [.openTerminal, .refresh]
                 )
 
             case .notAuthenticated:
                 problem(
-                    "Claude Code is not signed in",
-                    detail: "Run claude in a terminal and sign in.",
+                    "\(name) is not signed in",
+                    detail: "Run \(command) in a terminal and sign in.",
                     actions: [.openTerminal, .refresh]
                 )
 
             case .keychainAccessDenied:
                 problem(
                     "Keychain access denied",
-                    detail: "Refresh and choose Always Allow so Tokenmax can read the Claude Code credentials.",
+                    detail: "Refresh and choose Always Allow so Tokenmax can read the \(name) credentials.",
                     actions: [.refresh]
                 )
 
             case .needsReauthentication:
                 problem(
-                    "Claude Code needs signing in again",
+                    "\(name) needs signing in again",
                     detail: "The stored credentials cannot be refreshed.",
                     actions: [.openTerminal]
                 )
@@ -58,7 +74,7 @@ struct QueueQuotaSummaryView: View {
                 // runs, so this is a note rather than something to act on.
                 degraded(
                     lastGood,
-                    note: "Waiting for Claude Code to refresh its token.",
+                    note: "Waiting for \(name) to refresh its token.",
                     actions: []
                 )
 
@@ -69,7 +85,7 @@ struct QueueQuotaSummaryView: View {
                 if snapshot.windows.isEmpty {
                     problem(
                         "No quota windows reported",
-                        detail: "Claude did not return any usage windows for this account.",
+                        detail: "\(name) did not return any usage windows for this account.",
                         actions: [.refresh]
                     )
                 } else {
@@ -109,15 +125,15 @@ struct QueueQuotaSummaryView: View {
             Text(window.label)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .frame(width: 48, alignment: .leading)
+                .frame(width: labelWidth, alignment: .leading)
 
             bar(window, isStale: isStale)
-                .frame(width: 120)
+                .frame(width: barWidth)
 
             Text(UsageWindowPresentation.remainingText(for: window))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(isStale ? .secondary : .primary)
-                .frame(width: 78, alignment: .leading)
+                .frame(width: remainingWidth, alignment: .leading)
 
             Text(UsageWindowPresentation.compactResetText(for: window, isStale: isStale, now: now))
                 .font(.system(size: 11))
@@ -171,7 +187,7 @@ struct QueueQuotaSummaryView: View {
             Text(label)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-                .frame(width: 48, alignment: .leading)
+                .frame(width: labelWidth, alignment: .leading)
             Text("Not reported for this account")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)

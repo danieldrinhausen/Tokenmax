@@ -89,7 +89,7 @@ enum SessionOpenerDecision: Equatable, Sendable {
             case .extraUsageUnknown:
                 "Anthropic did not report the extra-usage setting for this account."
             case .notSubscriptionAuth:
-                "Claude Code is not signed in to a Claude subscription."
+                "Claude Code is not signed in to a Claude subscription. Run ‘claude login’, then refresh."
             case .apiKeyConfigured:
                 "An API key is configured in ~/.claude/settings.json, so a run would be billed."
             }
@@ -290,8 +290,23 @@ enum SessionOpener {
     /// weekly allowance, and treating that as a reason to refuse would block the
     /// default configuration outright.
     static func modelWeeklyWindow(for model: String, in windows: [UsageWindow]) -> UsageWindow? {
-        let wanted = "claude.weekly." + model.lowercased()
+        let wanted = "claude.weekly." + modelFamily(model)
         return windows.first { $0.id.lowercased() == wanted }
+    }
+
+    /// The family alias a model belongs to, as the window ids name it.
+    ///
+    /// The picker can hold a full id (`claude-opus-5`) as well as an alias, and
+    /// the ids the provider builds are always the alias — so a literal match
+    /// would silently miss. That miss would be invisible: absence is read as
+    /// "no separate allowance" above, i.e. permissive, so the guard would go
+    /// dark rather than fail loudly.
+    static func modelFamily(_ model: String) -> String {
+        let lowered = model.lowercased()
+        for family in ["opus", "sonnet", "haiku", "fable"] where lowered.contains(family) {
+            return family
+        }
+        return lowered
     }
 
     /// The one staleness the opener is allowed to act through.

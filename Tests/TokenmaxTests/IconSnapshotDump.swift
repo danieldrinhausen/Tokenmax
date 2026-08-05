@@ -19,8 +19,9 @@ struct IconSnapshotDump {
         var unlit = NSImage()
         var lit = NSImage()
         appearance.performAsCurrentDrawingAppearance {
-            unlit = MenuBarIconRenderer.image(session: 40, weekly: 70, isStale: false, isReady: false)
-            lit = MenuBarIconRenderer.image(session: 40, weekly: 70, isStale: false, isReady: true)
+            let bars: [MenuBarIconRenderer.Bar] = [.init(fraction: 40), .init(fraction: 70)]
+            unlit = MenuBarIconRenderer.image(bars: bars, isStale: false, isReady: false)
+            lit = MenuBarIconRenderer.image(bars: bars, isStale: false, isReady: true)
         }
 
         let pad: CGFloat = 12 * scale
@@ -61,6 +62,85 @@ struct IconSnapshotDump {
             return
         }
         try png.write(to: directory.appendingPathComponent(name))
+    }
+
+    /// The layouts and states that only exist since the bars became
+    /// configurable: three bars in the same 16pt, and a single alerting bar
+    /// beside neutral ones (the case that forces the icon out of templating).
+    private func layouts(scale: CGFloat, background: NSColor) -> NSImage {
+        let brightness = background.usingColorSpace(.deviceRGB)?.brightnessComponent ?? 0.5
+        let appearance = NSAppearance(named: brightness < 0.5 ? .darkAqua : .aqua)!
+
+        var rendered: [NSImage] = []
+        appearance.performAsCurrentDrawingAppearance {
+            rendered = [
+                // Two bars, neutral — the shipping default.
+                MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false),
+                // Three bars, neutral.
+                MenuBarIconRenderer.image(
+                    bars: [.init(fraction: 40), .init(fraction: 70), .init(fraction: 90)], isStale: false
+                ),
+                // Three bars, middle one alerting: neutrals fall back to grey.
+                MenuBarIconRenderer.image(
+                    bars: [
+                        .init(fraction: 40),
+                        .init(fraction: 70, isAlerting: true),
+                        .init(fraction: 90),
+                    ],
+                    isStale: false
+                ),
+                // Alerting *and* a burn opportunity: the alert must still win
+                // on its own bar while the others take the highlight colour.
+                MenuBarIconRenderer.image(
+                    bars: [
+                        .init(fraction: 40),
+                        .init(fraction: 70, isAlerting: true),
+                        .init(fraction: 90),
+                    ],
+                    isStale: false,
+                    isReady: true
+                ),
+            ]
+        }
+
+        let pad: CGFloat = 12 * scale
+        let iconSize = NSSize(
+            width: MenuBarIconRenderer.size.width * scale,
+            height: MenuBarIconRenderer.size.height * scale
+        )
+        let total = NSSize(
+            width: pad * CGFloat(rendered.count + 1) + iconSize.width * CGFloat(rendered.count),
+            height: iconSize.height + pad * 2
+        )
+
+        let output = NSImage(size: total)
+        output.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = scale > 3 ? .none : .high
+        background.setFill()
+        NSRect(origin: .zero, size: total).fill()
+
+        for (index, image) in rendered.enumerated() {
+            image.draw(in: NSRect(
+                x: pad * CGFloat(index + 1) + iconSize.width * CGFloat(index),
+                y: pad,
+                width: iconSize.width,
+                height: iconSize.height
+            ))
+        }
+        output.unlockFocus()
+        return output
+    }
+
+    @Test("Dump bar layouts and alert states")
+    func dumpLayouts() throws {
+        let dark = NSColor(calibratedWhite: 0.13, alpha: 1)
+        let light = NSColor(calibratedWhite: 0.93, alpha: 1)
+
+        try write(layouts(scale: 2, background: dark), to: "layouts-dark-2x.png")
+        try write(layouts(scale: 8, background: dark), to: "layouts-dark-8x.png")
+        try write(layouts(scale: 8, background: light), to: "layouts-light-8x.png")
+
+        #expect(FileManager.default.fileExists(atPath: "/tmp/tokenmax-icons/layouts-dark-8x.png"))
     }
 
     @Test("Dump unlit vs lit at realistic sizes")

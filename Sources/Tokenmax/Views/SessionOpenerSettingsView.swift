@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionOpenerSettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var modelCatalog: ModelCatalogStore
     @EnvironmentObject private var usage: UsageRefreshCoordinator
     @EnvironmentObject private var opener: SessionOpenerCoordinator
 
@@ -29,12 +30,23 @@ struct SessionOpenerSettingsView: View {
                         Text(delayLabel(seconds)).tag(seconds)
                     }
                 }
+                // Only the cheap families: the opener exists to consume one
+                // token, and an expensive model here is money for nothing.
                 Picker("Model", selection: openerSettings.model) {
-                    ForEach(SessionOpenerSettings.modelOptions, id: \.self) { model in
+                    ForEach(modelCatalog.aliases.filter(SessionOpenerSettings.modelOptions.contains), id: \.self) { model in
                         Text(SessionOpenerSettings.modelDisplayName(model)).tag(model)
                     }
                 }
-                Text("Haiku is the cheapest model, so it opens the window for the least quota.")
+                Picker("Thinking", selection: Binding(
+                    get: { openerSettings.effort.wrappedValue ?? "" },
+                    set: { openerSettings.effort.wrappedValue = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("Default").tag("")
+                    ForEach(modelCatalog.effortLevels(for: openerSettings.model.wrappedValue), id: \.self) { level in
+                        Text(TaskExecutionPolicy.effortDisplayName(level)).tag(level)
+                    }
+                }
+                Text("Haiku on the lowest thinking grade is the cheapest combination, so it opens the window for the least quota. The opener does no work — it exists only to consume a token.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -161,7 +173,24 @@ struct SessionOpenerSettingsView: View {
     }
 
     private var statusText: String {
-        if opener.isRunning { return "Sending the opener…" }
+        switch opener.activity {
+        case .sending:
+            return "Sending the opener…"
+        case .verifying:
+            // The send is already done and paid for. Saying "sending" here for
+            // another three minutes invites a second click on a button that
+            // would spend again.
+            return "Sent. Confirming the new window — this takes up to 3 minutes."
+        case .idle:
+            break
+        }
+        // The OAuth reader can retain a last good quota snapshot while Claude
+        // Code's token is waiting to be renewed. Do not make that look like a
+        // scheduling problem: an opener cannot safely act on an old weekly
+        // number, and the user needs the concrete recovery step.
+        if usage.isAwaitingTokenRenewal {
+            return "Claude Code’s access token expired. Open Claude Code or run ‘claude login’, then refresh."
+        }
         guard let reason = opener.decision.skipReason else {
             return "Ready to open the next window."
         }

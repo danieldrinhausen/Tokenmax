@@ -50,6 +50,18 @@ enum ReminderStatus: Equatable, Sendable {
         return false
     }
 
+    /// The reminder for this window has gone off, and the window has not reset
+    /// since. That stretch — not the instant of delivery — is what the menubar
+    /// bar colours, so a notification missed while away is still visible on the
+    /// icon when the user comes back.
+    var hasFiredForCurrentWindow: Bool {
+        switch self {
+        case .justDelivered: true
+        case let .suppressed(reason, _): reason == .alreadyFiredForWindow
+        case .scheduled: false
+        }
+    }
+
     /// Suppressions the user chose are normal; the rest are worth highlighting.
     var isNoteworthy: Bool {
         guard case let .suppressed(reason, _) = self else { return false }

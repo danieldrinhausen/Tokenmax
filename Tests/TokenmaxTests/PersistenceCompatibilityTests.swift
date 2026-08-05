@@ -60,6 +60,107 @@ struct PersistenceCompatibilityTests {
         // start in the mode that cannot spend anything.
         #expect(!settings.queueAutoRun.enabled)
         #expect(settings.queueAutoRun.mode == .previewOnly)
+        #expect(settings.menuBarProviderID == TokenmaxProvider.claudeCode.rawValue)
+        #expect(!settings.codexAutoRunEnabled)
+        // Both data sources default to on: an upgrade must not silently stop
+        // monitoring a provider the user was already watching.
+        #expect(settings.claudeCodeEnabled)
+        #expect(settings.codexEnabled)
+    }
+
+    // MARK: - Model and thinking grade
+
+    /// nil is "leave the flag off", which is the only value that keeps an
+    /// existing task invoking the CLI exactly as it did.
+    @Test("A task written before the thinking grade existed has none")
+    func taskWithoutEffortDecodesToNil() throws {
+        let task = try decode(TokenmaxTask.self, """
+        {
+          "title": "Old task", "prompt": "Do it",
+          "autoRun": { "model": "opus", "maximumBudgetUSD": 1.0 },
+          "codex": { "model": "gpt-test", "sandbox": "read-only" }
+        }
+        """)
+
+        #expect(task.autoRun.model == "opus")
+        #expect(task.autoRun.effort == nil)
+        #expect(task.codex.reasoningEffort == nil)
+        #expect(task.selectedEffort == nil)
+    }
+
+    @Test("A pinned model id and thinking grade survive a round trip")
+    func pinnedModelAndEffortRoundTrip() throws {
+        var task = TokenmaxTask(title: "Pinned", prompt: "Do it")
+        task.autoRun.model = "claude-opus-5"
+        task.autoRun.effort = "xhigh"
+        task.codex.reasoningEffort = "minimal"
+
+        let data = try JSONStore.makeEncoder().encode(task)
+        let decoded = try JSONStore.makeDecoder().decode(TokenmaxTask.self, from: data)
+
+        #expect(decoded.autoRun.model == "claude-opus-5")
+        #expect(decoded.autoRun.effort == "xhigh")
+        #expect(decoded.codex.reasoningEffort == "minimal")
+        // A pinned id is shown as typed, not run through `capitalized`.
+        #expect(TaskExecutionPolicy.modelDisplayName("claude-opus-5") == "claude-opus-5")
+    }
+
+    /// The opener spends quota to open a window and nothing else, so it defaults
+    /// to the cheapest grade rather than the CLI's own default.
+    @Test("An opener written before the thinking grade takes the cheap default")
+    func openerWithoutEffortTakesCheapDefault() throws {
+        let settings = try decode(AppSettings.self, """
+        { "sessionOpener": { "enabled": true, "model": "haiku" } }
+        """)
+
+        #expect(settings.sessionOpener.model == "haiku")
+        #expect(settings.sessionOpener.effort == "low")
+    }
+
+    // MARK: - Data sources
+
+    /// Zero enabled sources leaves nothing to draw and no clickable menu bar
+    /// item to reach Settings through, so a hand-edited file has to be caught.
+    @Test("A file with every data source switched off restores one")
+    func allDataSourcesOffRestoresDefault() throws {
+        let settings = try decode(AppSettings.self, """
+        { "claudeCodeEnabled": false, "codexEnabled": false }
+        """)
+
+        #expect(settings.claudeCodeEnabled)
+        #expect(!settings.codexEnabled)
+        #expect(!settings.enabledProviders.isEmpty)
+    }
+
+    /// These two flags gate the whole app, so an undecodable value must cost
+    /// the flag rather than throwing and resetting every other setting.
+    @Test("A non-boolean data-source flag falls back instead of throwing")
+    func malformedDataSourceFlagFallsBack() throws {
+        let settings = try decode(AppSettings.self, """
+        { "codexEnabled": "yes", "terminalApplication": "Ghostty" }
+        """)
+
+        #expect(settings.codexEnabled)
+        #expect(settings.terminalApplication == "Ghostty")
+    }
+
+    /// Disabling hides rather than deletes: the rule has to be waiting when the
+    /// provider is switched back on.
+    @Test("Disabling a provider keeps its reminder rule")
+    func disabledProviderKeepsItsReminderRule() throws {
+        let settings = try decode(AppSettings.self, """
+        {
+          "codexEnabled": false,
+          "codexWeeklyReminder": {
+            "enabled": true, "leadTimeMinutes": 1440, "minimumRemainingPercent": 12,
+            "notifyOncePerWindow": true, "onlyWhenTasksQueued": false
+          }
+        }
+        """)
+
+        #expect(!settings.codexEnabled)
+        #expect(settings.codexWeeklyReminder.minimumRemainingPercent == 12)
+        #expect(settings.reminderRule(for: .codex, kind: .weekly).leadTimeMinutes == 1440)
     }
 
     // MARK: - Queue automation
@@ -92,6 +193,24 @@ struct PersistenceCompatibilityTests {
         #expect(!task.autoRun.allowShellCommands)
         #expect(task.autoRun.allowFileChanges)
         #expect(task.autoRun.maximumRuntimeMinutes == 15)
+        #expect(task.provider == .claudeCode)
+        #expect(task.codex.sandbox == .workspaceWrite)
+    }
+
+    @Test("A Codex task keeps its provider-specific sandbox policy")
+    func preservesCodexPolicy() throws {
+        let task = try decode(TokenmaxTask.self, """
+        {
+          "title": "Inspect app-server output", "prompt": "Inspect it.", "providerID": "codex",
+          "codex": { "maximumRuntimeMinutes": 30, "model": "gpt-test", "sandbox": "read-only" }
+        }
+        """)
+
+        #expect(task.provider == .codex)
+        #expect(task.codex.maximumRuntimeMinutes == 30)
+        #expect(task.codex.model == "gpt-test")
+        #expect(task.codex.sandbox == .readOnly)
+        #expect(task.maximumRuntimeMinutes == 30)
     }
 
     @Test("An unreadable execution mode degrades to manual")

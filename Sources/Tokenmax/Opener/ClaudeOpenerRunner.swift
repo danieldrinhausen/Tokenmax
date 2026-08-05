@@ -36,10 +36,15 @@ enum ClaudeOpenerRunner {
         }
     }
 
-    static func arguments(model: String) -> [String] {
-        [
+    static func arguments(model: String, effort: String? = nil) -> [String] {
+        var arguments = [
             "--print",
             "--model", model,
+        ]
+        if let effort, !effort.isEmpty {
+            arguments += ["--effort", effort]
+        }
+        arguments += [
             "--output-format", "json",
             // "" disables every built-in tool. The opener must never touch the
             // user's machine — it exists to consume a token, not to do work.
@@ -57,6 +62,7 @@ enum ClaudeOpenerRunner {
             "--permission-mode", "manual",
             prompt,
         ]
+        return arguments
     }
 
     /// Deliberately *not* the parent environment.
@@ -102,7 +108,7 @@ enum ClaudeOpenerRunner {
     /// Spawns the CLI in a fresh empty directory and returns what it said.
     ///
     /// Blocking, so callers run it off the main actor.
-    static func run(model: String) -> Result {
+    static func run(model: String, effort: String? = nil) -> Result {
         guard let cli = ClaudeCLIClient.locate() else {
             return Result(
                 succeeded: false, text: nil, sessionID: nil, costUSD: nil,
@@ -126,7 +132,7 @@ enum ClaudeOpenerRunner {
 
         let process = Process()
         process.executableURL = cli
-        process.arguments = arguments(model: model)
+        process.arguments = arguments(model: model, effort: effort)
         process.currentDirectoryURL = workingDirectory
         process.environment = environment(from: ProcessInfo.processInfo.environment)
 

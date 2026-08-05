@@ -2,7 +2,8 @@ import SwiftUI
 
 struct QueueAutomationSettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
-    @EnvironmentObject private var usage: UsageRefreshCoordinator
+    @EnvironmentObject private var modelCatalog: ModelCatalogStore
+    @EnvironmentObject private var usage: ProviderUsageCoordinator
     @EnvironmentObject private var taskStore: TaskStore
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
 
@@ -104,6 +105,35 @@ struct QueueAutomationSettingsView: View {
             }
             .disabled(!isEnabled)
 
+            // Not gated on `isEnabled`: these seed the task editor, which is
+            // useful whether or not automatic execution is switched on.
+            Section("New task defaults") {
+                Picker("Model", selection: $settingsStore.settings.defaultTaskModel) {
+                    ForEach(modelCatalog.aliases, id: \.self) { alias in
+                        Text(TaskExecutionPolicy.modelDisplayName(alias)).tag(alias)
+                    }
+                    if !modelCatalog.models.isEmpty {
+                        Divider()
+                        ForEach(modelCatalog.models) { model in
+                            Text(model.displayName).tag(model.id)
+                        }
+                    }
+                }
+                Picker("Thinking", selection: Binding(
+                    get: { settingsStore.settings.defaultTaskEffort ?? "" },
+                    set: { settingsStore.settings.defaultTaskEffort = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("Default").tag("")
+                    ForEach(modelCatalog.effortLevels(for: settingsStore.settings.defaultTaskModel), id: \.self) {
+                        Text(TaskExecutionPolicy.effortDisplayName($0)).tag($0)
+                    }
+                }
+                Text("What a new task starts with. Both are overridable per task, and changing them here leaves existing tasks alone. An alias like Opus always resolves to the newest model of that family; the list itself is fetched from Anthropic, so a new model appears without updating Tokenmax.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Section("Safety") {
                 Toggle("Only run tasks explicitly marked for automation", isOn: auto.onlyRunApprovedTasks)
                 Toggle("Pause the queue after the first failure", isOn: auto.pauseAfterFailure)
@@ -130,6 +160,7 @@ struct QueueAutomationSettingsView: View {
             statusSection
         }
         .formStyle(.grouped)
+        .onAppear { modelCatalog.refreshIfStale() }
         .confirmationDialog(
             "Run the next eligible task now?",
             isPresented: $confirmingRun,
@@ -221,7 +252,7 @@ struct QueueAutomationSettingsView: View {
             lines.append("Session resets in \(RelativeTime.countdown(resetAt.timeIntervalSince(usage.tick)))")
         }
         if let estimate = task.estimatedMinutes {
-            lines.append("Estimated \(estimate) min · limit \(task.autoRun.maximumRuntimeMinutes) min")
+            lines.append("Estimated \(estimate) min · limit \(task.maximumRuntimeMinutes) min")
         }
         if let session = usage.state.snapshot?.sessionWindow?.remainingPercent {
             lines.append("Session quota \(Int(session.rounded()))% remaining")

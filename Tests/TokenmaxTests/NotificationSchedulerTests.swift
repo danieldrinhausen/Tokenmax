@@ -125,6 +125,15 @@ struct NotificationSchedulerTests {
         )
     }
 
+    @Test("Providers never share a reminder identity")
+    func identifierSeparatesProviders() {
+        let reset = Date(timeIntervalSince1970: 1_785_484_800)
+        #expect(
+            NotificationScheduler.identifier(for: .session, resetAt: reset, providerID: TokenmaxProvider.claudeCode.rawValue)
+                != NotificationScheduler.identifier(for: .session, resetAt: reset, providerID: TokenmaxProvider.codex.rawValue)
+        )
+    }
+
     @Test("Drift changes the identity but not the scheduled fire time")
     func driftDoesNotShiftFireTime() {
         guard case let .schedule(id1, fire1, _, _) = NotificationScheduler.decide(input(resetInMinutes: 60)),

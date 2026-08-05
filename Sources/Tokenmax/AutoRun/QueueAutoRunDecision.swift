@@ -160,6 +160,10 @@ enum QueueAutoRunDecision: Equatable, Sendable {
 /// its own — everything arrives in `Input`, so every guard is directly testable.
 enum QueueAutoRun {
     struct Input {
+        /// The provider whose quota window and tasks are being evaluated.
+        /// It also namespaces persisted per-window limits so simultaneous
+        /// provider resets cannot share a task/runtime allowance.
+        var providerID: String
         var settings: QueueAutoRunSettings
         var queueEnabled: Bool
         var quietHours: QuietHours
@@ -179,6 +183,7 @@ enum QueueAutoRun {
         var now: Date
 
         init(
+            providerID: String = TokenmaxProvider.claudeCode.rawValue,
             settings: QueueAutoRunSettings,
             queueEnabled: Bool = true,
             quietHours: QuietHours = .init(),
@@ -192,6 +197,7 @@ enum QueueAutoRun {
             awaitingFreshUsage: Bool = false,
             now: Date = Date()
         ) {
+            self.providerID = providerID
             self.settings = settings
             self.queueEnabled = queueEnabled
             self.quietHours = quietHours
@@ -214,14 +220,20 @@ enum QueueAutoRun {
     /// endpoint reports jitters by a second or so between fetches, and an
     /// unbucketed key would reset the per-window task counter on every jitter —
     /// turning "one task per window" into one task per refresh.
-    static func windowID(resetAt: Date) -> String {
+    static func windowID(
+        resetAt: Date,
+        providerID: String = TokenmaxProvider.claudeCode.rawValue
+    ) -> String {
         let bucket = NotificationScheduler.identifierBucket
         let bucketed = Date(
             timeIntervalSince1970: (resetAt.timeIntervalSince1970 / bucket).rounded() * bucket
         )
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        return "autorun-" + formatter.string(from: bucketed)
+        // Preserve existing Claude state files while keeping Codex windows
+        // independent when the two providers happen to reset together.
+        let prefix = providerID == TokenmaxProvider.claudeCode.rawValue ? "autorun-" : "autorun-\(providerID)-"
+        return prefix + formatter.string(from: bucketed)
     }
 
     // MARK: - Time budget
@@ -244,7 +256,7 @@ enum QueueAutoRun {
         settings: QueueAutoRunSettings
     ) -> Date {
         effectiveDeadline(resetAt: resetAt, settings: settings)
-            .addingTimeInterval(-Double(task.autoRun.maximumRuntimeMinutes) * 60)
+            .addingTimeInterval(-Double(task.maximumRuntimeMinutes) * 60)
     }
 
     // MARK: - Per-task eligibility
@@ -271,7 +283,7 @@ enum QueueAutoRun {
         guard task.estimatedMinutes != nil else { return .noRuntimeEstimate }
 
         if let remainingWindowRuntime,
-           Double(task.autoRun.maximumRuntimeMinutes) * 60 > remainingWindowRuntime
+           Double(task.maximumRuntimeMinutes) * 60 > remainingWindowRuntime
         {
             return .runtimeExceedsWindowBudget
         }
@@ -308,7 +320,9 @@ enum QueueAutoRun {
 
     static func remainingWindowRuntime(_ input: Input) -> TimeInterval? {
         guard let resetAt = input.sessionWindow?.resetAt else { return nil }
-        let used = input.state.totalRuntime(inWindow: windowID(resetAt: resetAt), now: input.now)
+        let used = input.state.totalRuntime(
+            inWindow: windowID(resetAt: resetAt, providerID: input.providerID), now: input.now
+        )
         return max(0, Double(input.settings.maximumRuntimeMinutes) * 60 - used)
     }
 
@@ -339,7 +353,7 @@ enum QueueAutoRun {
             return .skip(reason: .noSessionWindow)
         }
 
-        let window = windowID(resetAt: resetAt)
+        let window = windowID(resetAt: resetAt, providerID: input.providerID)
 
         if input.state.isPaused(window) { return .skip(reason: .pausedAfterFailure) }
 

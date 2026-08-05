@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MenuBarPopoverView: View {
-    @EnvironmentObject private var usage: UsageRefreshCoordinator
+    @EnvironmentObject private var usage: ProviderUsageCoordinator
     @EnvironmentObject private var taskStore: TaskStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var notifications: NotificationCoordinator
@@ -12,12 +12,16 @@ struct MenuBarPopoverView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
+            appHeader
             if let opportunity = usage.burnOpportunity {
                 burnBanner(opportunity)
             }
-            Divider().padding(.vertical, 10)
-            content
+            // A switched-off provider loses its section *and* the divider above
+            // it — leaving the rule behind would read as an empty section.
+            ForEach(settingsStore.settings.enabledProviders) { provider in
+                Divider().padding(.vertical, 10)
+                providerSection(for: provider)
+            }
             if settingsStore.settings.queueEnabled {
                 Divider().padding(.vertical, 10)
                 autoRunBanner
@@ -32,12 +36,49 @@ struct MenuBarPopoverView: View {
 
     // MARK: - Header
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text("Tokenmax").font(.system(size: 14, weight: .semibold))
-                Spacer()
-                if let plan = usage.state.snapshot?.planName {
+    /// The app's own header, and nothing else. Everything that describes one
+    /// provider — its plan, its freshness, its age — belongs to that provider's
+    /// section, or the first provider silently inherits the title position and
+    /// the second looks like a subsection of the first.
+    private var appHeader: some View {
+        HStack {
+            Text("Tokenmax").font(.system(size: 14, weight: .semibold))
+            Spacer()
+        }
+    }
+
+    // MARK: - Provider sections
+
+    /// Every provider renders through here, so the layout cannot drift apart
+    /// between them: same header, same freshness line, same window rows.
+    private func providerSection(for provider: TokenmaxProvider) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            providerHeader(for: provider)
+            providerContent(for: provider)
+        }
+    }
+
+    private func providerHeader(for provider: TokenmaxProvider) -> some View {
+        let coordinator = usage.coordinator(for: provider)
+        let snapshot = coordinator.state.snapshot
+
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Text(provider.displayName)
+                    .font(.system(size: 12, weight: .semibold))
+                if usage.isStale(for: provider), snapshot != nil {
+                    Text("· Stale")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.orange)
+                    // The fix for staleness is one click, so offer it where the
+                    // staleness is announced rather than in the footer.
+                    Button("Refresh") { perform(.refresh, provider: provider) }
+                        .font(.system(size: 10))
+                        .buttonStyle(.link)
+                        .disabled(coordinator.isRefreshing)
+                }
+                Spacer(minLength: 0)
+                if let plan = snapshot?.planName {
                     Text(plan)
                         .font(.system(size: 10, weight: .medium))
                         .padding(.horizontal, 6)
@@ -45,23 +86,7 @@ struct MenuBarPopoverView: View {
                         .background(Color.secondary.opacity(0.15), in: Capsule())
                 }
             }
-            HStack(spacing: 5) {
-                Text("Claude Code")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                if usage.isStale, usage.state.snapshot != nil {
-                    Text("· Stale")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.orange)
-                    // The fix for staleness is one click, so offer it where the
-                    // staleness is announced rather than in the footer.
-                    Button("Refresh") { perform(.refresh) }
-                        .font(.system(size: 10))
-                        .buttonStyle(.link)
-                        .disabled(usage.isRefreshing)
-                }
-            }
-            Text(usage.lastUpdatedText)
+            Text(coordinator.lastUpdatedText)
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -98,8 +123,8 @@ struct MenuBarPopoverView: View {
     // MARK: - Content
 
     @ViewBuilder
-    private var content: some View {
-        switch usage.state {
+    private func providerContent(for provider: TokenmaxProvider) -> some View {
+        switch usage.state(for: provider) {
         case .loading:
             statusBlock(
                 icon: "arrow.triangle.2.circlepath",
@@ -110,47 +135,51 @@ struct MenuBarPopoverView: View {
         case .claudeCodeNotInstalled:
             statusBlock(
                 icon: "questionmark.folder",
-                title: "Claude Code is not installed",
-                message: "Tokenmax could not find the claude CLI on this Mac.",
-                recovery: [.openTerminal, .refresh]
+                title: "\(provider.displayName) is not installed",
+                message: "Tokenmax could not find the \(provider.commandName) CLI on this Mac.",
+                recovery: [.openTerminal, .refresh],
+                provider: provider
             )
 
         case .notAuthenticated:
             statusBlock(
                 icon: "person.crop.circle.badge.exclamationmark",
-                title: "Claude Code is not authenticated",
-                message: "Run `claude` in a terminal and sign in, then refresh.",
-                recovery: [.openTerminal, .refresh]
+                title: "\(provider.displayName) is not authenticated",
+                message: "Run `\(provider.commandName)` in a terminal and sign in, then refresh.",
+                recovery: [.openTerminal, .refresh],
+                provider: provider
             )
 
         case .keychainAccessDenied:
             statusBlock(
                 icon: "lock.trianglebadge.exclamationmark",
                 title: "Keychain access denied",
-                message: "Tokenmax needs to read the Claude Code credentials item to fetch usage. Click Refresh and choose Always Allow.",
+                message: "Tokenmax needs to read the \(provider.displayName) credentials item to fetch usage. Click Refresh and choose Always Allow.",
                 // No Open Terminal: a terminal cannot grant a keychain prompt.
-                recovery: [.refresh]
+                recovery: [.refresh],
+                provider: provider
             )
 
         case let .tokenExpired(lastGood):
             VStack(alignment: .leading, spacing: 10) {
                 statusBlock(
                     icon: "arrow.clockwise.circle",
-                    title: "Waiting for Claude Code to refresh its token",
-                    message: "The access token expired. Claude Code renews it the next time you run it — no sign-in needed."
+                    title: "Waiting for \(provider.displayName) to refresh its token",
+                    message: "The access token expired. Run \(provider.commandName) once, then refresh."
                 )
                 if let lastGood {
-                    windows(for: lastGood, forceStale: true)
+                    windows(for: lastGood, provider: provider, forceStale: true)
                 }
             }
 
         case .needsReauthentication:
             statusBlock(
                 icon: "key.slash",
-                title: "Claude Code needs re-authentication",
-                message: "The stored credentials are gone and cannot be refreshed. Run `claude` and sign in again.",
+                title: "\(provider.displayName) needs re-authentication",
+                message: "Run `\(provider.commandName)` and sign in again.",
                 // Refreshing cannot help until the user has signed in again.
-                recovery: [.openTerminal]
+                recovery: [.openTerminal],
+                provider: provider
             )
 
         case let .unavailable(lastGood, message):
@@ -159,10 +188,11 @@ struct MenuBarPopoverView: View {
                     icon: "exclamationmark.triangle",
                     title: "Usage unavailable",
                     message: message,
-                    recovery: [.retry]
+                    recovery: [.retry],
+                    provider: provider
                 )
                 if let lastGood {
-                    windows(for: lastGood, forceStale: true)
+                    windows(for: lastGood, provider: provider, forceStale: true)
                 }
             }
 
@@ -171,16 +201,21 @@ struct MenuBarPopoverView: View {
                 statusBlock(
                     icon: "chart.bar",
                     title: "No quota windows returned",
-                    message: "Claude did not report any usage windows for this account.",
-                    recovery: [.retry]
+                    message: "\(provider.displayName) did not report any usage windows for this account.",
+                    recovery: [.retry],
+                    provider: provider
                 )
             } else {
-                windows(for: snapshot, forceStale: usage.isStale)
+                windows(for: snapshot, provider: provider, forceStale: usage.isStale(for: provider))
             }
         }
     }
 
-    private func windows(for snapshot: UsageSnapshot, forceStale: Bool) -> some View {
+    private func windows(
+        for snapshot: UsageSnapshot,
+        provider: TokenmaxProvider,
+        forceStale: Bool
+    ) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             if let session = snapshot.sessionWindow {
                 VStack(alignment: .leading, spacing: 5) {
@@ -190,8 +225,8 @@ struct MenuBarPopoverView: View {
                         now: usage.tick,
                         projection: projection(for: session, forceStale: forceStale)
                     )
-                    reminderLine(for: .session)
-                    openerLine
+                    reminderLine(for: .session, provider: provider)
+                    if provider == .claudeCode { openerLine }
                 }
             }
             if let weekly = snapshot.weeklyWindow {
@@ -202,7 +237,7 @@ struct MenuBarPopoverView: View {
                         now: usage.tick,
                         projection: projection(for: weekly, forceStale: forceStale)
                     )
-                    reminderLine(for: .weekly)
+                    reminderLine(for: .weekly, provider: provider)
                 }
             }
         }
@@ -219,8 +254,13 @@ struct MenuBarPopoverView: View {
     /// Without this the scheduler's (correct) decision to stay silent is
     /// indistinguishable from the app being broken.
     @ViewBuilder
-    private func reminderLine(for kind: UsageWindowKind) -> some View {
-        if let status = notifications.statuses[kind] {
+    private func reminderLine(for kind: UsageWindowKind, provider: TokenmaxProvider) -> some View {
+        // "No session running" is read off the pre-opener snapshot, so during
+        // verification it contradicts the opener line right below it. The
+        // opener line is the one telling the truth; this one steps aside.
+        if provider == .claudeCode, kind == .session, case .verifying = opener.activity {
+            EmptyView()
+        } else if let status = notifications.status(for: provider, kind: kind) {
             HStack(spacing: 4) {
                 Image(systemName: status.isSuppressed ? "bell.slash" : "bell")
                     .font(.system(size: 9))
@@ -252,7 +292,18 @@ struct MenuBarPopoverView: View {
     }
 
     private var openerText: String? {
-        if opener.isRunning { return "Opening the next session…" }
+        switch opener.activity {
+        case .sending:
+            return "Opening the next session…"
+        case let .verifying(sentAt):
+            // Naming the time and the wait is the whole point: the numbers
+            // above are visibly unchanged, and without this the run reads as a
+            // failure for the three minutes it takes the endpoint to catch up.
+            let time = sentAt.formatted(date: .omitted, time: .shortened)
+            return "Session opened at \(time) — numbers catch up within 3 min"
+        case .idle:
+            break
+        }
 
         switch opener.decision.skipReason {
         case .none:
@@ -273,7 +324,8 @@ struct MenuBarPopoverView: View {
         icon: String,
         title: String,
         message: String?,
-        recovery: [Recovery] = []
+        recovery: [Recovery] = [],
+        provider: TokenmaxProvider = .claudeCode
     ) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: icon)
@@ -291,19 +343,15 @@ struct MenuBarPopoverView: View {
                 if !recovery.isEmpty {
                     HStack(spacing: 8) {
                         ForEach(recovery) { action in
-                            Button(action.title) { perform(action) }
+                            Button(action.title) { perform(action, provider: provider) }
                         }
                     }
                     .font(.system(size: 11))
                     .padding(.top, 2)
                 }
-                // A failure is exactly when "how old is this?" matters, and the
-                // header's copy of it is above the fold of the error.
-                if recovery.contains(.retry) || recovery.contains(.refresh) {
-                    Text(usage.lastUpdatedText)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                }
+                // No age line here: the provider's own header sits directly
+                // above this block and already carries it. Repeating it read as
+                // two different timestamps for the same reading.
             }
         }
     }
@@ -324,10 +372,10 @@ struct MenuBarPopoverView: View {
         }
     }
 
-    private func perform(_ action: Recovery) {
+    private func perform(_ action: Recovery, provider: TokenmaxProvider = .claudeCode) {
         switch action {
         case .refresh, .retry:
-            Task { await usage.refresh(reason: "recovery", manual: true) }
+            Task { await usage.refresh(reason: "recovery", manual: true, provider: provider) }
         case .openTerminal:
             // All the auth and install failures are fixed by running `claude`
             // somewhere, and somewhere is home.
@@ -476,16 +524,19 @@ struct MenuBarPopoverView: View {
             if settingsStore.settings.queueEnabled {
                 Button("Open Queue") { openQueue() }
             }
+            // The footer button sits below every provider section, so it
+            // refreshes every provider. The per-provider Refresh links in the
+            // section headers are the narrow ones.
             Button {
-                Task { await usage.refresh(reason: "manual", manual: true) }
+                Task { await usage.refreshAll(reason: "manual", manual: true) }
             } label: {
-                if usage.isRefreshing {
+                if usage.isRefreshingAny {
                     Text("Refreshing…")
                 } else {
                     Text("Refresh")
                 }
             }
-            .disabled(usage.isRefreshing)
+            .disabled(usage.isRefreshingAny)
 
             Spacer()
 

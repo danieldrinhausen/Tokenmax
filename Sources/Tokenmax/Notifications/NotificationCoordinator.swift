@@ -7,12 +7,12 @@ import UserNotifications
 @MainActor
 final class NotificationCoordinator: NSObject, ObservableObject {
     private let manager: NotificationManager
-    private let usage: UsageRefreshCoordinator
+    private let usage: ProviderUsageCoordinator
     private let taskStore: TaskStore
     private let settingsStore: SettingsStore
 
     /// Per-window reminder status, surfaced in the popover and Settings.
-    @Published private(set) var statuses: [UsageWindowKind: ReminderStatus] = [:]
+    @Published private(set) var statuses: [String: ReminderStatus] = [:]
 
     private var state: NotificationState
     private var settingsCancellable: AnyCancellable?
@@ -23,7 +23,7 @@ final class NotificationCoordinator: NSObject, ObservableObject {
 
     init(
         manager: NotificationManager,
-        usage: UsageRefreshCoordinator,
+        usage: ProviderUsageCoordinator,
         taskStore: TaskStore,
         settingsStore: SettingsStore
     ) {
@@ -89,9 +89,27 @@ final class NotificationCoordinator: NSObject, ObservableObject {
 
     /// Clears the fired record for the window currently in effect so the
     /// reminder can be delivered again. Backs the "Send Again" button.
-    func rearmCurrentWindow(_ kind: UsageWindowKind) async {
-        guard let window = usage.state.snapshot?.window(kind), let resetAt = window.resetAt else { return }
-        let identifier = NotificationScheduler.identifier(for: kind, resetAt: resetAt)
+    func status(for provider: TokenmaxProvider, kind: UsageWindowKind) -> ReminderStatus? {
+        statuses[statusKey(provider: provider, kind: kind)]
+    }
+
+    /// The windows the menubar icon should colour: reminder fired, window not
+    /// yet reset. Derived from `statuses` rather than stored separately so it
+    /// cannot drift out of step with what the popover says.
+    /// Restricted to enabled providers so a status left over from before a
+    /// provider was switched off cannot keep colouring a bar.
+    var alertingSources: Set<MenuBarQuotaSource> {
+        Set(
+            settingsStore.settings.allowedMenuBarSources.filter {
+                status(for: $0.provider, kind: $0.kind)?.hasFiredForCurrentWindow == true
+            }
+        )
+    }
+
+    func rearmCurrentWindow(_ kind: UsageWindowKind, provider: TokenmaxProvider? = nil) async {
+        let provider = provider ?? usage.selectedProvider
+        guard let window = usage.snapshot(for: provider)?.window(kind), let resetAt = window.resetAt else { return }
+        let identifier = NotificationScheduler.identifier(for: kind, resetAt: resetAt, providerID: provider.rawValue)
 
         state.clearFired(identifier)
         persistState()
@@ -110,89 +128,90 @@ final class NotificationCoordinator: NSObject, ObservableObject {
         defer { isSyncing = false }
 
         let settings = settingsStore.settings
-        let queuedCount = taskStore.readyCount
-
         // There may still be a pending request from the last good snapshot.
         // Keep it while a transient refresh failure makes the data stale, but
         // remove it when reminders were explicitly disabled. Returning here
         // without applying a decision used to leave stale notifications alive
         // after credentials disappeared or the app lost its snapshot entirely.
-        guard let snapshot = usage.state.snapshot else {
-            let reason: SchedulingDecision.SkipReason = settings.remindersEnabled
-                ? .noSnapshot
-                : .remindersDisabled
-            for kind in [UsageWindowKind.session, .weekly] {
-                let decision = SchedulingDecision.skip(reason: reason)
-                await NotificationScheduler.apply(
-                    decision,
-                    kind: kind,
-                    playSound: settings.playSound
-                )
-                statuses[kind] = ReminderStatus(decision: decision)
-            }
-            updateBadge(count: 0)
-            return
-        }
-        let stale = usage.isStale
-
-        for kind in [UsageWindowKind.session, .weekly] {
-            guard let window = snapshot.window(kind) else {
-                let decision = SchedulingDecision.skip(reason: .noResetTime)
-                await NotificationScheduler.apply(
-                    decision,
-                    kind: kind,
-                    playSound: settings.playSound
-                )
-                statuses[kind] = ReminderStatus(decision: decision)
+        for provider in TokenmaxProvider.allCases {
+            // A switched-off provider takes the same path a missing window
+            // already takes: apply a skip, which removes any pending request,
+            // rather than leaving a reminder armed for a source nobody is
+            // watching. Its rules stay on disk for when it is switched back on.
+            guard settings.isEnabled(provider) else {
+                for kind in [UsageWindowKind.session, .weekly] {
+                    let decision = SchedulingDecision.skip(reason: .remindersDisabled)
+                    await NotificationScheduler.apply(
+                        decision, kind: kind, playSound: settings.playSound, providerID: provider.rawValue
+                    )
+                    statuses[statusKey(provider: provider, kind: kind)] = ReminderStatus(decision: decision)
+                }
                 continue
             }
 
-            let rule = kind == .session ? settings.sessionReminder : settings.weeklyReminder
-            let windowIdentifier = window.resetAt.map {
-                NotificationScheduler.identifier(for: kind, resetAt: $0)
+            let snapshot = usage.snapshot(for: provider)
+            let stale = usage.isStale(for: provider)
+            let queuedCount = taskStore.tasks.filter { $0.status == .ready && $0.provider == provider }.count
+            for kind in [UsageWindowKind.session, .weekly] {
+                guard let window = snapshot?.window(kind) else {
+                    let reason: SchedulingDecision.SkipReason = snapshot == nil && settings.remindersEnabled
+                        ? .noSnapshot : (settings.remindersEnabled ? .noResetTime : .remindersDisabled)
+                    let decision = SchedulingDecision.skip(reason: reason)
+                    await NotificationScheduler.apply(
+                        decision, kind: kind, playSound: settings.playSound, providerID: provider.rawValue
+                    )
+                    statuses[statusKey(provider: provider, kind: kind)] = ReminderStatus(decision: decision)
+                    continue
+                }
+
+                let rule = settings.reminderRule(for: provider, kind: kind)
+                let windowIdentifier = window.resetAt.map {
+                    NotificationScheduler.identifier(for: kind, resetAt: $0, providerID: provider.rawValue)
+                }
+                let alreadyFired = windowIdentifier.map {
+                    state.hasFired($0, fingerprint: rule.fingerprint)
+                } ?? false
+
+                let decision = NotificationScheduler.decide(.init(
+                    providerID: provider.rawValue,
+                    window: window,
+                    rule: rule,
+                    remindersEnabled: settings.remindersEnabled,
+                    quietHours: settings.quietHours,
+                    isStale: stale,
+                    queuedTaskCount: queuedCount,
+                    queueEnabled: settings.queueEnabled,
+                    alreadyFired: alreadyFired,
+                    now: Date()
+                ))
+
+                let deliveredNow = await NotificationScheduler.apply(
+                    decision, kind: kind, playSound: settings.playSound, providerID: provider.rawValue
+                )
+
+                if let deliveredNow {
+                    state.markFired(deliveredNow, fingerprint: rule.fingerprint)
+                    persistState()
+                }
+
+                statuses[statusKey(provider: provider, kind: kind)] = ReminderStatus(
+                    decision: decision,
+                    firedAt: windowIdentifier.flatMap { state.firedAt($0) }
+                )
             }
-            let alreadyFired = windowIdentifier.map {
-                state.hasFired($0, fingerprint: rule.fingerprint)
-            } ?? false
-
-            let decision = NotificationScheduler.decide(.init(
-                window: window,
-                rule: rule,
-                remindersEnabled: settings.remindersEnabled,
-                quietHours: settings.quietHours,
-                isStale: stale,
-                queuedTaskCount: queuedCount,
-                queueEnabled: settings.queueEnabled,
-                alreadyFired: alreadyFired,
-                now: Date()
-            ))
-
-            let deliveredNow = await NotificationScheduler.apply(
-                decision,
-                kind: kind,
-                playSound: settings.playSound
-            )
-
-            // An immediately-delivered reminder has no pending request to dedup
-            // against, so record it here or every refresh would send another.
-            if let deliveredNow {
-                state.markFired(deliveredNow, fingerprint: rule.fingerprint)
-                persistState()
-            }
-
-            statuses[kind] = ReminderStatus(
-                decision: decision,
-                firedAt: windowIdentifier.flatMap { state.firedAt($0) }
-            )
         }
 
-        // The badge counts queued tasks, so it has nothing to say once the queue
+        // The badge counts all ready tasks, so it has nothing to say once the queue
         // is switched off.
         if settings.showBadge, settings.queueEnabled {
-            updateBadge(count: queuedCount)
+            updateBadge(count: taskStore.readyCount)
         } else {
             updateBadge(count: 0)
         }
+    }
+
+    private func statusKey(provider: TokenmaxProvider, kind: UsageWindowKind) -> String {
+        "\(provider.rawValue).\(kind.rawValue)"
     }
 
     private func updateBadge(count: Int) {
@@ -211,7 +230,7 @@ final class NotificationCoordinator: NSObject, ObservableObject {
     private func recordFired(identifier: String) {
         // Snoozed copies carry a `-snooze-N` suffix; the window is the base.
         let base = identifier.components(separatedBy: "-snooze-").first ?? identifier
-        let isWeekly = base.hasPrefix(NotificationScheduler.identifierPrefix(for: .weekly))
+        let isWeekly = base.contains("-weekly-")
         let rule = isWeekly ? settingsStore.settings.weeklyReminder : settingsStore.settings.sessionReminder
 
         state.markFired(base, fingerprint: rule.fingerprint)
@@ -343,4 +362,3 @@ private struct NotificationSnoozePayload: Sendable {
     let body: String
     let windowKind: String?
 }
-

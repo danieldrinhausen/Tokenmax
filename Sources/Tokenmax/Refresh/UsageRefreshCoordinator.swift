@@ -24,9 +24,16 @@ final class UsageRefreshCoordinator: ObservableObject {
 
     private let provider: any UsageProvider
     private let settingsStore: SettingsStore
+    private let snapshotURL: URL
 
     private var refreshTimer: Timer?
     private var tickTimer: Timer?
+    /// Held so `stop()` can deregister it. Discarding the token would leave a
+    /// wake observer running for a provider the user switched off.
+    private var wakeObserver: NSObjectProtocol?
+    /// The in-flight refresh, so `stop()` can cancel it rather than let it land
+    /// on a coordinator that is no longer running.
+    private var refreshTask: Task<Void, Never>?
     private var popoverIsOpen = false
     private var hasStarted = false
     private var consecutiveFailures = 0
@@ -34,11 +41,16 @@ final class UsageRefreshCoordinator: ObservableObject {
 
     private static let backoffSchedule: [TimeInterval] = [30, 60, 120, 300]
 
-    init(provider: any UsageProvider = ClaudeCodeProvider(), settingsStore: SettingsStore) {
+    init(
+        provider: any UsageProvider = ClaudeCodeProvider(),
+        settingsStore: SettingsStore,
+        snapshotURL: URL = FileLocations.usageSnapshotFile
+    ) {
         self.provider = provider
         self.settingsStore = settingsStore
+        self.snapshotURL = snapshotURL
 
-        if let snapshot = JSONStore.load(UsageSnapshot.self, from: FileLocations.usageSnapshotFile) {
+        if let snapshot = JSONStore.load(UsageSnapshot.self, from: snapshotURL), snapshot.providerID == provider.identifier {
             state = .loaded(snapshot)
         }
     }
@@ -50,18 +62,64 @@ final class UsageRefreshCoordinator: ObservableObject {
         observeWake()
         startTickTimer()
         scheduleRefreshTimer()
-        Task { await refresh(reason: "launch") }
+        kickOffRefresh(reason: "launch")
     }
 
+    /// The exact mirror of `start()`, for a provider the user has switched off.
+    ///
+    /// Everything `start()` created that outlives the call has to be released
+    /// here, or a disabled provider keeps a one-second timer, a repeating
+    /// refresh, and a wake observer alive for the life of the app.
+    ///
+    /// `state` and the snapshot file are deliberately left alone: switching the
+    /// provider back on should show its last reading immediately rather than
+    /// flash "Never updated" while the first fetch runs.
+    func stop() {
+        guard hasStarted else { return }
+        hasStarted = false
+
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+        tickTimer?.invalidate()
+        tickTimer = nil
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+            self.wakeObserver = nil
+        }
+        refreshTask?.cancel()
+        refreshTask = nil
+
+        popoverIsOpen = false
+        previewUntil = nil
+        burnOpportunity = nil
+        isRefreshing = false
+        resetBackoff()
+
+        Log.shared.write("usage: stopped polling \(provider.identifier)")
+    }
+
+    /// `hasStarted` guards both popover paths because they call
+    /// `scheduleRefreshTimer()` unconditionally — without the guard, opening the
+    /// popover would rebuild the timer of a provider that has been switched off.
     func popoverOpened() {
         popoverIsOpen = true
+        guard hasStarted else { return }
         scheduleRefreshTimer()
-        Task { await refresh(reason: "popover opened") }
+        kickOffRefresh(reason: "popover opened")
     }
 
     func popoverClosed() {
         popoverIsOpen = false
+        guard hasStarted else { return }
         scheduleRefreshTimer()
+    }
+
+    /// Refreshes through a retained handle so `stop()` has something to cancel.
+    private func kickOffRefresh(reason: String, manual: Bool = false) {
+        refreshTask?.cancel()
+        refreshTask = Task { @MainActor [weak self] in
+            await self?.refresh(reason: reason, manual: manual)
+        }
     }
 
     // MARK: - Timers
@@ -130,7 +188,7 @@ final class UsageRefreshCoordinator: ObservableObject {
     }
 
     private func observeWake() {
-        NSWorkspace.shared.notificationCenter.addObserver(
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification,
             object: nil,
             queue: .main
@@ -164,6 +222,9 @@ final class UsageRefreshCoordinator: ObservableObject {
         let startedAt = Date()
         do {
             let usage = try await provider.fetchUsage()
+            // The provider may have been switched off while this was in flight.
+            // A stopped coordinator must not be repopulated behind the user's back.
+            guard !Task.isCancelled else { return }
             let snapshot = UsageSnapshot(
                 providerID: usage.providerID,
                 planName: usage.planName,
@@ -173,8 +234,26 @@ final class UsageRefreshCoordinator: ObservableObject {
                 errorMessage: nil,
                 extraUsageEnabled: usage.extraUsageEnabled
             )
+
+            // `ClaudeOAuthUsageClient` correctly replays its response while
+            // inside its request floor. That replay is not evidence that
+            // anything changed, so it must not clear a pending token renewal:
+            // no token was renewed, and the session opener needs that fact to
+            // make its one safe recovery attempt. A newer observation
+            // (including a statusline update) is what clears it.
+            let isNewObservation = lastObservedAt.map { snapshot.fetchedAt > $0 } ?? true
+            if isNewObservation { lastObservedAt = snapshot.fetchedAt }
+
+            if isAwaitingTokenRenewal, !isNewObservation {
+                state = .tokenExpired(lastGood: snapshot)
+                Log.shared.write("refresh(\(reason)): cached while awaiting Claude token renewal")
+                NotificationCenter.default.post(name: .tokenmaxUsageUpdated, object: nil)
+                return
+            }
+
+            isAwaitingTokenRenewal = false
             state = .loaded(snapshot)
-            JSONStore.save(snapshot, to: FileLocations.usageSnapshotFile)
+            JSONStore.save(snapshot, to: snapshotURL)
             resetBackoff()
             Log.shared.write("refresh(\(reason)): ok")
             NotificationCenter.default.post(name: .tokenmaxUsageUpdated, object: nil)
@@ -205,14 +284,28 @@ final class UsageRefreshCoordinator: ObservableObject {
             case .tokenExpired:
                 // Keep showing what we last knew. This clears itself the next
                 // time Claude Code runs, without the user doing anything.
+                isAwaitingTokenRenewal = true
                 state = .tokenExpired(lastGood: state.snapshot)
                 return
             case .needsReauthentication:
+                // A run of Claude Code cannot fix this one — the refresh token
+                // is gone and only a sign-in will do. The opener must not think
+                // it has a recovery available.
+                isAwaitingTokenRenewal = false
                 state = .needsReauthentication
                 return
             case .noWindowsReturned, .underlying:
                 break
             }
+        }
+
+        // A transient failure on top of a pending token renewal does not
+        // replace the diagnosis. Relabelling it — a rate-limit reading as
+        // "Usage unavailable" — hid the real blocker from the user and, worse,
+        // cleared the opener's recovery path along with the state.
+        if isAwaitingTokenRenewal {
+            state = .tokenExpired(lastGood: state.snapshot)
+            return
         }
 
         // Otherwise keep the last good snapshot visible but clearly degraded.
@@ -254,10 +347,19 @@ final class UsageRefreshCoordinator: ObservableObject {
     /// True while the only thing wrong is an access token Claude Code has yet to
     /// rotate. Worth distinguishing from staleness in general because it is the
     /// one failure a Claude Code run cures — which is what the session opener is.
-    var isAwaitingTokenRenewal: Bool {
-        if case .tokenExpired = state { return true }
-        return false
-    }
+    ///
+    /// Deliberately a stored fact rather than a reading of `state`. Derived from
+    /// the state it was silently wrong: any refresh that returned without
+    /// throwing — a cached replay inside the 180s floor, a rate-limit landing as
+    /// `.unavailable` — overwrote `.tokenExpired` and took the opener's one
+    /// recovery path with it. The opener would then refuse, on stale data, to
+    /// perform the only action that clears the staleness. Only a genuinely newer
+    /// observation clears this now.
+    @Published private(set) var isAwaitingTokenRenewal = false
+
+    /// The newest observation actually seen, used to tell a fresh reading from
+    /// the client replaying the one we already had.
+    private var lastObservedAt: Date?
 
     var lastUpdatedText: String {
         guard let snapshot = state.snapshot else { return "Never updated" }

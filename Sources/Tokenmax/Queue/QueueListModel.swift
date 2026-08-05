@@ -119,7 +119,7 @@ enum TaskAction: String, Identifiable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .runWithClaude: "Run with Claude"
+        case .runWithClaude: "Run with Provider"
         case .stop: "Stop"
         case .viewResult: "View Result"
         case .viewOutput: "View Output"

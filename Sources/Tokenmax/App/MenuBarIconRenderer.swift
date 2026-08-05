@@ -26,6 +26,41 @@ enum MenuBarIconRenderer {
     /// replaces the colour when tinting.
     static let templateColor = NSColor.black
 
+    /// One bar's worth of state.
+    struct Bar: Hashable, Sendable {
+        /// Percent *remaining*, or nil when unknown.
+        var fraction: Double?
+        /// This window's reminder has already fired and the window has not reset
+        /// yet, so the bar carries the alert colour.
+        var isAlerting: Bool
+
+        init(fraction: Double?, isAlerting: Bool = false) {
+            self.fraction = fraction
+            self.isAlerting = isAlerting
+        }
+    }
+
+    /// The colour of a bar whose reminder has fired.
+    ///
+    /// Fixed rather than configurable, and deliberately the same orange the
+    /// popover already uses for everything noteworthy — a second colour picker
+    /// would let the user set it equal to the highlight colour, at which point
+    /// the two signals it exists to separate become one.
+    static let alertColor = NSColor(srgbRed: 1.00, green: 0.58, blue: 0.10, alpha: 1)
+
+    /// What an *un*-alerting bar is drawn in once the icon has to abandon
+    /// templating to show colour at all.
+    ///
+    /// A mid grey rather than `labelColor`, for the reason in the type comment:
+    /// menu bar contrast follows the wallpaper, so there is no correct answer
+    /// available here. Grey is the one value that stays legible against both
+    /// ends — it clears `HighlightColor.minimumContrastRatio` on black and on
+    /// white, which no near-black or near-white choice does.
+    /// sRGB rather than `NSColor(white:)`, which lands in the calibrated-grey
+    /// space where the RGB accessors are not valid — the legibility check reads
+    /// those components.
+    static let untemplatedNeutralColor = NSColor(srgbRed: 0.5, green: 0.5, blue: 0.5, alpha: 1)
+
     /// How far the bloom reaches.
     ///
     /// The icon stays *exactly* menu bar sized — padding it out for the glow
@@ -37,8 +72,9 @@ enum MenuBarIconRenderer {
     static let glowRadius: CGFloat = 2.5
 
     private struct CacheKey: Hashable {
-        let session: Int?
-        let weekly: Int?
+        /// Percentages rounded to whole numbers, paired with each bar's alert
+        /// state — the whole reading, in order.
+        let bars: [Bar]
         let isStale: Bool
         let isReady: Bool
         /// Nil unless the highlight is actually being drawn, so every unlit
@@ -51,9 +87,18 @@ enum MenuBarIconRenderer {
     /// each distinct reading is drawn once and reused.
     @MainActor private static var imageCache: [CacheKey: NSImage] = [:]
 
+    /// Bar thickness and spacing for a given bar count.
+    ///
+    /// Three bars have to fit the same 16pt as two — the icon may not grow, or
+    /// it shoves its neighbours along the menu bar and misaligns against every
+    /// other item. So the third bar is paid for out of thickness and gap rather
+    /// than height.
+    static func geometry(barCount: Int) -> (barHeight: CGFloat, gap: CGFloat) {
+        barCount >= 3 ? (3.5, 1.75) : (5, 2.5)
+    }
+
     static func image(
-        session: Double?,
-        weekly: Double?,
+        bars: [Bar],
         isStale: Bool,
         isReady: Bool = false,
         highlight: HighlightColor = .default,
@@ -64,31 +109,37 @@ enum MenuBarIconRenderer {
         let image = NSImage(size: size)
         image.lockFocus()
 
-        let barHeight: CGFloat = 5
-        let gap: CGFloat = 2.5
-        let totalHeight = barHeight * 2 + gap
+        let (barHeight, gap) = geometry(barCount: bars.count)
+        let totalHeight = barHeight * CGFloat(bars.count) + gap * CGFloat(max(0, bars.count - 1))
         let originY = (size.height - totalHeight) / 2
 
-        draw(
-            fraction: session,
-            rect: NSRect(x: 0, y: originY + barHeight + gap, width: size.width, height: barHeight),
-            isStale: isStale,
-            isReady: isReady,
-            highlight: highlight,
-            glow: isGlowing(isStale: isStale, isReady: isReady, glow: glow)
-        )
-        draw(
-            fraction: weekly,
-            rect: NSRect(x: 0, y: originY, width: size.width, height: barHeight),
-            isStale: isStale,
-            isReady: isReady,
-            highlight: highlight,
-            glow: isGlowing(isStale: isStale, isReady: isReady, glow: glow)
-        )
+        // A coloured bar cannot survive templating, and a template is the only
+        // way the neutral bars can match the menu bar. When both are on screen
+        // the colour has to win, so the neutrals fall back to grey.
+        let templated = !isReady && !bars.contains(where: \.isAlerting)
+
+        for (index, bar) in bars.enumerated() {
+            // Drawn top-down: the first source is the top bar, matching the
+            // order the settings editor shows.
+            let rowFromBottom = CGFloat(bars.count - 1 - index)
+            draw(
+                bar: bar,
+                rect: NSRect(
+                    x: 0,
+                    y: originY + rowFromBottom * (barHeight + gap),
+                    width: size.width,
+                    height: barHeight
+                ),
+                isStale: isStale,
+                isReady: isReady,
+                templated: templated,
+                highlight: highlight,
+                glow: isGlowing(isStale: isStale, isReady: isReady, glow: glow)
+            )
+        }
 
         image.unlockFocus()
-        // Template only when neutral; the ready state carries its own colour.
-        image.isTemplate = !isReady
+        image.isTemplate = templated
         return image
     }
 
@@ -101,8 +152,7 @@ enum MenuBarIconRenderer {
 
     @MainActor
     static func cachedImage(
-        session: Double?,
-        weekly: Double?,
+        bars: [Bar],
         isStale: Bool,
         isReady: Bool,
         highlight: HighlightColor = .default,
@@ -113,8 +163,7 @@ enum MenuBarIconRenderer {
         // Round to whole percent: the icon cannot show more resolution than
         // that, and it stops the cache growing on every tiny fluctuation.
         let key = CacheKey(
-            session: session.map { Int($0.rounded()) },
-            weekly: weekly.map { Int($0.rounded()) },
+            bars: bars.map { Bar(fraction: $0.fraction.map { Double(Int($0.rounded())) }, isAlerting: $0.isAlerting) },
             isStale: isStale,
             isReady: isReady,
             highlight: lit ? highlight : nil,
@@ -124,14 +173,15 @@ enum MenuBarIconRenderer {
         if let cached = imageCache[key] { return cached }
 
         let rendered = image(
-            session: session,
-            weekly: weekly,
+            bars: bars,
             isStale: isStale,
             isReady: isReady,
             highlight: highlight,
             glow: glow
         )
-        if imageCache.count > 16 { imageCache.removeAll() }
+        // Three bars and three alert states multiply the reachable states, so
+        // the cap is above the old 16 to keep the common rotation resident.
+        if imageCache.count > 48 { imageCache.removeAll() }
         imageCache[key] = rendered
         return rendered
     }
@@ -144,15 +194,23 @@ enum MenuBarIconRenderer {
     }
 
     private static func draw(
-        fraction: Double?,
+        bar: Bar,
         rect: NSRect,
         isStale: Bool,
         isReady: Bool,
+        templated: Bool,
         highlight: HighlightColor,
         glow: Bool
     ) {
+        let fraction = bar.fraction
         let radius = rect.height / 2
-        let color = barColor(isStale: isStale, isReady: isReady, highlight: highlight)
+        let color = barColor(
+            isStale: isStale,
+            isReady: isReady,
+            isAlerting: bar.isAlerting,
+            templated: templated,
+            highlight: highlight
+        )
 
         // Empty track: the bar colour at low alpha, so it reads as "unfilled"
         // rather than as a second colour.
@@ -161,8 +219,8 @@ enum MenuBarIconRenderer {
 
         guard let fraction, !isStale else {
             // Stale or unknown: leave the track and add a muted stub so the
-            // icon still reads as "two meters" rather than two blank slots.
-            templateColor.withAlphaComponent(0.4).setFill()
+            // icon still reads as a set of meters rather than blank slots.
+            (templated ? templateColor : untemplatedNeutralColor).withAlphaComponent(0.4).setFill()
             let stub = NSRect(x: rect.minX, y: rect.minY, width: rect.height, height: rect.height)
             NSBezierPath(roundedRect: stub, xRadius: radius, yRadius: radius).fill()
             return
@@ -197,15 +255,29 @@ enum MenuBarIconRenderer {
         fill.fill()
     }
 
-    /// In the neutral state this is only a mask — alpha is what survives
+    /// In the templated state this is only a mask — alpha is what survives
     /// templating, and macOS supplies the actual colour.
-    static func barColor(isStale: Bool, isReady: Bool, highlight: HighlightColor = .default) -> NSColor {
-        if isStale { return templateColor.withAlphaComponent(0.45) }
-        return isReady ? highlight.nsColor : templateColor
+    ///
+    /// The precedence is the point: a fired reminder outranks a burn
+    /// opportunity on its own bar, so "you are about to waste this window" is
+    /// never repainted by the more general "now is a good time to spend".
+    static func barColor(
+        isStale: Bool,
+        isReady: Bool,
+        isAlerting: Bool = false,
+        templated: Bool = true,
+        highlight: HighlightColor = .default
+    ) -> NSColor {
+        if isStale { return (templated ? templateColor : untemplatedNeutralColor).withAlphaComponent(0.45) }
+        if isAlerting { return alertColor }
+        if isReady { return highlight.nsColor }
+        return templated ? templateColor : untemplatedNeutralColor
     }
 
     /// "3:44", always `hours:minutes` even under an hour ("0:44") — time until
-    /// the session window resets.
+    /// the chosen window resets. A week away reads "6d 18h" instead: a weekly
+    /// window would otherwise render as "162:18", which is both wider than the
+    /// menu bar wants and unreadable as a duration.
     ///
     /// The bars already carry "how much is left"; what they cannot show is how
     /// long there is to spend it, which is the number that decides whether to
@@ -214,12 +286,12 @@ enum MenuBarIconRenderer {
     /// Deliberately terser than `RelativeTime.countdown`, which stays verbose
     /// ("1h 16m") for the popover and notification bodies where there is room.
     /// The menu bar is charged by the pixel.
-    /// `nil` when no session window is running, so the label can collapse to
-    /// the bars alone rather than reserving width for a placeholder.
-    static func countdownText(sessionResetAt: Date?, now: Date) -> String? {
-        guard let sessionResetAt else { return nil }
+    /// `nil` when the window is not running, so the label can collapse to the
+    /// bars alone rather than reserving width for a placeholder.
+    static func countdownText(resetAt: Date?, now: Date) -> String? {
+        guard let resetAt else { return nil }
 
-        let interval = sessionResetAt.timeIntervalSince(now)
+        let interval = resetAt.timeIntervalSince(now)
         guard interval > 0 else { return "0:00" }
 
         // Truncated, not rounded: "0:44" means *at least* 44 minutes left, which
@@ -228,6 +300,7 @@ enum MenuBarIconRenderer {
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
 
+        guard hours < 24 else { return "\(hours / 24)d \(hours % 24)h" }
         return "\(hours):\(String(format: "%02d", minutes))"
     }
 }

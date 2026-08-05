@@ -121,6 +121,11 @@ struct RunOutputView: View {
         parts.append(record.startedAt.formatted(date: .abbreviated, time: .shortened))
         if let duration { parts.append(duration) }
         parts.append(TaskExecutionPolicy.modelDisplayName(record.model))
+        // Only when it was set — "Default" in the metadata line would be noise
+        // on the runs that never asked for a thinking grade.
+        if let effort = record.effort, !effort.isEmpty {
+            parts.append("\(TaskExecutionPolicy.effortDisplayName(effort)) effort")
+        }
         if let cost = totalCost {
             // The thread total, not the last turn's: each turn replays the whole
             // conversation, so the running cost is the number that matters.

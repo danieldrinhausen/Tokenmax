@@ -3,7 +3,7 @@ import SwiftUI
 
 struct QueueView: View {
     @EnvironmentObject private var taskStore: TaskStore
-    @EnvironmentObject private var usage: UsageRefreshCoordinator
+    @EnvironmentObject private var usage: ProviderUsageCoordinator
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
 
@@ -29,8 +29,7 @@ struct QueueView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             QueueHeaderView(
-                state: usage.state,
-                isStale: usage.isStale,
+                quotas: providerQuotas,
                 now: usage.tick,
                 tasks: taskStore.tasks,
                 burnOpportunity: usage.burnOpportunity,
@@ -61,7 +60,7 @@ struct QueueView: View {
             if !enabled { dismiss() }
         }
         .sheet(isPresented: $isCreating) {
-            TaskEditorView(task: TokenmaxTask(title: "", prompt: "")) { newTask in
+            TaskEditorView(task: newTaskDraft) { newTask in
                 taskStore.add(newTask)
                 directories.invalidate()
             }
@@ -97,6 +96,30 @@ struct QueueView: View {
     }
 
     // MARK: - Chrome
+
+    /// A blank task carrying the configured model and thinking defaults, so the
+    /// common choice is made once in Settings rather than on every task.
+    private var newTaskDraft: TokenmaxTask {
+        var task = TokenmaxTask(title: "", prompt: "")
+        task.autoRun.model = settingsStore.settings.defaultTaskModel
+        task.autoRun.effort = settingsStore.settings.defaultTaskEffort
+        return task
+    }
+
+    /// One entry per provider the user is still monitoring, in canonical order.
+    /// The header lays them out side by side when the window has room.
+    private var providerQuotas: [QueueHeaderView.ProviderQuota] {
+        settingsStore.settings.enabledProviders.map { provider in
+            QueueHeaderView.ProviderQuota(
+                provider: provider,
+                state: usage.state(for: provider),
+                isStale: usage.isStale(for: provider),
+                onRefresh: {
+                    Task { await usage.refresh(reason: "queue", manual: true, provider: provider) }
+                }
+            )
+        }
+    }
 
     private var autoRunBanner: some View {
         AutoRunStatusBannerView(
@@ -213,7 +236,7 @@ struct QueueView: View {
             onEdit: { editingTask = task },
             onCopy: { ManualRunService.copyPrompt(task) },
             onOpenInTerminal: { openInTerminal(task) },
-            onRunWithClaude: { runWithClaude(task) },
+            onRunWithClaude: { runWithProvider(task) },
             onStop: { autoRun.stop() },
             onViewOutput: { viewOutput(task) },
             onComplete: { taskStore.setStatus(.completed, for: task) },
@@ -295,13 +318,13 @@ struct QueueView: View {
         }
     }
 
-    /// Runs the task headlessly through Claude Code, here and now.
+    /// Runs the task headlessly through its selected provider, here and now.
     ///
     /// Deliberately does not require the task to be marked for automation:
     /// pressing this button *is* the approval, and demanding the safe default be
     /// switched off first would make it impossible to test a task before
     /// trusting it to run unattended.
-    private func runWithClaude(_ task: TokenmaxTask) {
+    private func runWithProvider(_ task: TokenmaxTask) {
         if let reason = autoRun.runManually(task) {
             errorMessage = reason.explanation
         }

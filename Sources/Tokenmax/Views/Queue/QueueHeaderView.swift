@@ -7,8 +7,18 @@ import SwiftUI
 /// titled "Tokenmax Queue" — repeating the app name inside its own window spends
 /// the most prominent line in the view saying something the title bar just said.
 struct QueueHeaderView: View {
-    let state: UsageState
-    let isStale: Bool
+    /// One provider's quota, ready to render. Assembled by the caller so this
+    /// view needs no coordinator of its own.
+    struct ProviderQuota: Identifiable {
+        let provider: TokenmaxProvider
+        let state: UsageState
+        let isStale: Bool
+        let onRefresh: () -> Void
+
+        var id: TokenmaxProvider { provider }
+    }
+
+    let quotas: [ProviderQuota]
     let now: Date
     let tasks: [TokenmaxTask]
     let burnOpportunity: BurnOpportunity?
@@ -33,7 +43,7 @@ struct QueueHeaderView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Queue")
                         .font(.system(size: 15, weight: .semibold))
-                    Text("Claude Code usage and queued work")
+                    Text("Provider usage and queued work")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -43,13 +53,7 @@ struct QueueHeaderView: View {
                 actions
             }
 
-            QueueQuotaSummaryView(
-                state: state,
-                isStale: isStale,
-                now: now,
-                onRefresh: onRefresh,
-                onOpenTerminal: onOpenTerminal
-            )
+            providerQuotas
 
             QueueStatusSummaryView(
                 tasks: tasks,
@@ -58,6 +62,58 @@ struct QueueHeaderView: View {
             )
         }
         .padding(16)
+    }
+
+    /// Providers side by side when they fit, stacked when they do not.
+    ///
+    /// `ViewThatFits` rather than a fixed two-column grid for the same reason
+    /// `QueueView.controls` uses it: two columns of quota want about 600pt, the
+    /// window can be narrower, and an `HStack` that overflows does not compress
+    /// — it renders off the leading edge and drags the header's alignment with it.
+    @ViewBuilder
+    private var providerQuotas: some View {
+        if quotas.count <= 1 {
+            // A single provider gets the full width and no heading: there is
+            // nothing to tell it apart from.
+            ForEach(quotas) { quota in
+                summary(quota, isCompact: false)
+            }
+        } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 20) {
+                    ForEach(quotas) { quota in
+                        labelled(quota, isCompact: true)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(quotas) { quota in
+                        labelled(quota, isCompact: false)
+                    }
+                }
+            }
+        }
+    }
+
+    private func labelled(_ quota: ProviderQuota, isCompact: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(quota.provider.displayName)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            summary(quota, isCompact: isCompact)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func summary(_ quota: ProviderQuota, isCompact: Bool) -> some View {
+        QueueQuotaSummaryView(
+            state: quota.state,
+            isStale: quota.isStale,
+            now: now,
+            provider: quota.provider,
+            isCompact: isCompact,
+            onRefresh: quota.onRefresh,
+            onOpenTerminal: onOpenTerminal
+        )
     }
 
     private var actions: some View {

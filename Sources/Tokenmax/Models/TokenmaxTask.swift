@@ -69,6 +69,9 @@ struct TokenmaxTask: Codable, Identifiable, Sendable, Equatable {
     /// What this task is allowed to do when Tokenmax runs it. Independent of
     /// `executionMode`, which decides *whether* it may run at all.
     var autoRun: TaskExecutionPolicy = .init()
+    /// Stored separately rather than overloading Claude's allowlisted-tools
+    /// policy. Existing tasks decode exactly as Claude tasks.
+    var codex: CodexExecutionPolicy = .init()
 
     var estimatedMinutes: Int?
 
@@ -126,6 +129,7 @@ struct TokenmaxTask: Codable, Identifiable, Sendable, Equatable {
         // automatically" rather than throwing away the task.
         executionMode = (try? container.decodeIfPresent(ExecutionMode.self, forKey: .executionMode)) ?? .manual
         autoRun = try container.decodeIfPresent(TaskExecutionPolicy.self, forKey: .autoRun) ?? TaskExecutionPolicy()
+        codex = try container.decodeIfPresent(CodexExecutionPolicy.self, forKey: .codex) ?? CodexExecutionPolicy()
         estimatedMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
@@ -201,6 +205,22 @@ struct TokenmaxTask: Codable, Identifiable, Sendable, Equatable {
         // subdirectories. Treated as readable rather than blocking a run over a
         // question that could not be asked.
         return true
+    }
+
+    var provider: TokenmaxProvider { TokenmaxProvider.from(identifier: providerID) ?? .claudeCode }
+
+    var maximumRuntimeMinutes: Int {
+        provider == .codex ? codex.maximumRuntimeMinutes : autoRun.maximumRuntimeMinutes
+    }
+
+    var selectedModel: String {
+        provider == .codex ? codex.modelDisplayName : autoRun.model
+    }
+
+    /// The thinking grade this task runs at, or nil for whichever default the
+    /// provider's own configuration supplies.
+    var selectedEffort: String? {
+        provider == .codex ? codex.reasoningEffort : autoRun.effort
     }
 }
 

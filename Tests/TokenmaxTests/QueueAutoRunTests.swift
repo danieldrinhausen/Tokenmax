@@ -282,6 +282,77 @@ struct QueueAutoRunTests {
         ) == .insufficientTime)
     }
 
+    // MARK: - Working directory permission
+
+    // The probe must exercise a *file read*. Listing is not what TCC gates, so
+    // both an `open(O_DIRECTORY)` and a `readdir` probe reported success on a
+    // folder with no permission — which is how this shipped broken twice.
+    //
+    // TCC's own denial (`EPERM`) cannot be simulated in a unit test: `chmod`
+    // produces `EACCES`, which the probe deliberately treats differently. What
+    // is testable is that the probe reads a file at all, and that ordinary Unix
+    // permissions never masquerade as a TCC denial.
+
+    @Test("A folder that cannot even be listed is unreadable")
+    func unlistableDirectoryIsUnreadable() throws {
+        let blocked = task(directory: "/var/root")
+        try #require(blocked.workingDirectoryExists, "precondition: /var/root must exist")
+        try #require(getuid() != 0, "precondition: not root")
+        #expect(!blocked.workingDirectoryReadable)
+    }
+
+    @Test("One unreadable file does not condemn the whole folder")
+    func unixPermissionsAreNotATCCDenial() throws {
+        // `EACCES` on a single file says nothing about the folder. Treating it
+        // as a denial would refuse to run a task over one lock file.
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("tokenmax-probe-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try "locked".write(to: root.appendingPathComponent("a-locked.txt"), atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o000], ofItemAtPath: root.appendingPathComponent("a-locked.txt").path
+        )
+        try "fine".write(to: root.appendingPathComponent("b-open.txt"), atomically: true, encoding: .utf8)
+
+        #expect(task(directory: root.path).workingDirectoryReadable)
+    }
+
+    @Test("A folder holding only subdirectories is not reported as blocked")
+    func directoryWithNoFilesIsReadable() throws {
+        // Nothing to test against is not the same as a refusal, and refusing
+        // here would block a run over a question that could not be asked.
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("tokenmax-probe-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("nested"), withIntermediateDirectories: true
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        #expect(task(directory: root.path).workingDirectoryReadable)
+    }
+
+    @Test("A readable folder is not mistaken for a blocked one")
+    func readableDirectoryIsAllowed() {
+        #expect(task().workingDirectoryReadable)
+    }
+
+    @Test("One dialog per directory, not one per task")
+    func accessProbeDeduplicatesDirectories() {
+        // Three tasks in one checkout must not raise three consent dialogs.
+        let shared = [task(title: "a"), task(title: "b"), task(title: "c")]
+        #expect(WorkingDirectoryAccess.distinctExistingDirectories(in: shared).count == 1)
+    }
+
+    @Test("A missing directory is never probed")
+    func accessProbeSkipsMissingDirectories() {
+        // Asking macOS about a path the user has mistyped would raise a
+        // permission dialog for a folder that does not exist.
+        let missing = [task(directory: "/nope/does/not/exist")]
+        #expect(WorkingDirectoryAccess.distinctExistingDirectories(in: missing).isEmpty)
+    }
+
     // MARK: - Per-window budgets
 
     @Test("One task per window, keyed on the bucketed reset time")

@@ -75,7 +75,7 @@ struct SettingsView: View {
 
 struct GeneralSettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
-    @EnvironmentObject private var usage: UsageRefreshCoordinator
+    @EnvironmentObject private var usage: ProviderUsageCoordinator
 
     @StateObject private var loginItem = LoginItemService()
 
@@ -109,15 +109,37 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Section {
+            Section("Bars") {
+                MenuBarBarsSettingsView(
+                    bars: $settingsStore.settings.menuBarBars,
+                    allowed: settingsStore.settings.allowedMenuBarSources
+                )
+                Text("Which quota each bar shows, top to bottom. Drag a quota onto a bar to put it there; dragging one that is already placed swaps the two.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section("Time remaining") {
                 Toggle("Show time remaining in the menu bar", isOn: Binding(
                     get: { settingsStore.settings.menuBarDisplayMode != .iconOnly },
                     set: { settingsStore.settings.menuBarDisplayMode = $0 ? .iconAndText : .iconOnly }
                 ))
-                Text("Time left in the current session window, beside the bars — \"3:44\", or just the minutes under an hour. Blank while no window is running.")
+
+                // Its own choice rather than "whatever the top bar shows": the
+                // most useful deadline is not always one the bars have room for.
+                Picker("Count down to", selection: $settingsStore.settings.menuBarCountdownSource) {
+                    ForEach(settingsStore.settings.allowedMenuBarSources) { source in
+                        Text(source.displayName).tag(source)
+                    }
+                }
+                .disabled(settingsStore.settings.menuBarDisplayMode == .iconOnly)
+
+                Text("Time left before the chosen window resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                .fixedSize(horizontal: false, vertical: true)
+
             }
 
             Section("Highlight") {
@@ -281,8 +303,10 @@ private struct HighlightPreview: View {
 
     private func chip(background: Color) -> some View {
         Image(nsImage: MenuBarIconRenderer.image(
-            session: 62,
-            weekly: 78,
+            // Two bars regardless of the user's layout: this swatch is about
+            // whether the *colour* survives a light and a dark menu bar, and a
+            // third bar would only make the sample thinner to judge.
+            bars: [.init(fraction: 62), .init(fraction: 78)],
             isStale: false,
             isReady: true,
             highlight: color,
@@ -300,6 +324,7 @@ private struct HighlightPreview: View {
 
 struct NotificationSettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var usage: ProviderUsageCoordinator
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var notifications: NotificationCoordinator
 
@@ -330,19 +355,39 @@ struct NotificationSettingsView: View {
                 }
             }
 
-            reminderSection(
-                title: "Claude session (5-hour)",
-                rule: $settingsStore.settings.sessionReminder,
-                leadOptions: [10, 15, 30, 45, 60],
-                kind: .session
-            )
+            if settingsStore.settings.claudeCodeEnabled {
+                reminderSection(
+                    title: "\(TokenmaxProvider.claudeCode.displayName) session",
+                    rule: $settingsStore.settings.sessionReminder,
+                    leadOptions: [10, 15, 30, 45, 60],
+                    kind: .session,
+                    provider: .claudeCode
+                )
 
-            reminderSection(
-                title: "Weekly window",
-                rule: $settingsStore.settings.weeklyReminder,
-                leadOptions: [60, 120, 240, 480, 1440],
-                kind: .weekly
-            )
+                reminderSection(
+                    title: "\(TokenmaxProvider.claudeCode.displayName) weekly window",
+                    rule: $settingsStore.settings.weeklyReminder,
+                    leadOptions: [60, 120, 240, 480, 1440],
+                    kind: .weekly,
+                    provider: .claudeCode
+                )
+            }
+
+            // Its own rule, not a toggle on Claude's: the two weeks are
+            // different lengths of rope, so one threshold cannot fit both.
+            // Codex reports no session window, hence no session section.
+            //
+            // Hidden rather than disabled when the data source is off: there is
+            // nothing to remind about, and the rule stays on disk regardless.
+            if settingsStore.settings.codexEnabled {
+                reminderSection(
+                    title: "\(TokenmaxProvider.codex.displayName) weekly window",
+                    rule: $settingsStore.settings.codexWeeklyReminder,
+                    leadOptions: [60, 120, 240, 480, 1440],
+                    kind: .weekly,
+                    provider: .codex
+                )
+            }
 
             Section("Quiet hours") {
                 Toggle("Enable quiet hours", isOn: $settingsStore.settings.quietHours.enabled)
@@ -368,14 +413,15 @@ struct NotificationSettingsView: View {
         title: String,
         rule: Binding<ReminderRule>,
         leadOptions: [Int],
-        kind: UsageWindowKind
+        kind: UsageWindowKind,
+        provider: TokenmaxProvider
     ) -> some View {
         Section(title) {
             Toggle("Remind me before reset", isOn: rule.enabled)
 
             // Shows the effect of every control below it, so changing a setting
             // has visible consequences instead of silent ones.
-            if let status = notifications.statuses[kind] {
+            if let status = notifications.status(for: provider, kind: kind) {
                 HStack(spacing: 5) {
                     Image(systemName: status.isSuppressed ? "bell.slash" : "bell")
                         .font(.caption)
@@ -384,7 +430,7 @@ struct NotificationSettingsView: View {
                     Spacer()
                     if case .suppressed(.alreadyFiredForWindow, _) = status {
                         Button("Send Again") {
-                            Task { await notifications.rearmCurrentWindow(kind) }
+                            Task { await notifications.rearmCurrentWindow(kind, provider: provider) }
                         }
                         .font(.caption)
                     }
@@ -448,59 +494,134 @@ struct NotificationSettingsView: View {
 
 struct DataSourceSettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
-    @EnvironmentObject private var usage: UsageRefreshCoordinator
+    @EnvironmentObject private var usage: ProviderUsageCoordinator
+    @EnvironmentObject private var modelCatalog: ModelCatalogStore
 
     @State private var installError: String?
 
+    /// Says what the picker is actually working from — a fetched list, a stale
+    /// cache, or the built-in fallback — so a failed fetch is visible rather
+    /// than just looking like an oddly short list.
+    private var catalogSummary: String {
+        if modelCatalog.isRefreshing { return "Refreshing…" }
+        if let error = modelCatalog.lastError { return error }
+        guard !modelCatalog.catalog.isEmpty else { return "Not fetched yet — using built-in aliases" }
+        let age = RelativeTime.short(Date().timeIntervalSince(modelCatalog.catalog.fetchedAt))
+        return "\(modelCatalog.catalog.models.count) models · updated \(age) ago"
+    }
+
+    /// True when this is the only source still on, so its toggle can be locked.
+    /// The app is a quota meter; with nothing enabled the menu bar item renders
+    /// an empty label, which is invisible *and* unclickable — leaving no way
+    /// back to this screen.
+    private func isLastEnabled(_ provider: TokenmaxProvider) -> Bool {
+        settingsStore.settings.isEnabled(provider) && settingsStore.settings.enabledProviders.count == 1
+    }
+
     var body: some View {
         Form {
-            Section("Primary — Claude account") {
-                LabeledContent("Endpoint") {
-                    Text("api.anthropic.com/api/oauth/usage")
-                        .font(.system(size: 10, design: .monospaced))
-                }
-                LabeledContent("Credentials") {
-                    Text("macOS Keychain")
-                }
-                Text("Reads the OAuth token Claude Code already stores in your login keychain. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Section("Claude Code") {
+                Toggle("Monitor Claude Code usage", isOn: $settingsStore.settings.claudeCodeEnabled)
+                    .disabled(isLastEnabled(.claudeCode))
 
-            Section("Fallback — Claude Code status line") {
-                Toggle("Install status line shim", isOn: Binding(
-                    get: { settingsStore.settings.statuslineShimInstalled },
-                    set: { toggleShim($0) }
-                ))
-                Text("Writes a small script and sets \"statusLine\" in ~/.claude/settings.json, wrapping any status line you already use. This is the officially documented source, but it only updates while a Claude Code session is running.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if let installError {
-                    Text(installError)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
-
-            Section("Current windows") {
-                if let snapshot = usage.state.snapshot, !snapshot.windows.isEmpty {
-                    ForEach(snapshot.windows) { window in
-                        LabeledContent(window.label) {
-                            Text("\(window.source.displayName) · \(window.confidence.rawValue)")
-                                .font(.caption)
-                        }
-                    }
-                } else {
-                    Text("No usage data yet.")
+                if isLastEnabled(.claudeCode) {
+                    Text("At least one data source has to stay on — Tokenmax has nothing to show otherwise.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                if settingsStore.settings.claudeCodeEnabled {
+                    LabeledContent("Endpoint") {
+                        Text("api.anthropic.com/api/oauth/usage")
+                            .font(.system(size: 10, design: .monospaced))
+                    }
+                    LabeledContent("Credentials") {
+                        Text("macOS Keychain")
+                    }
+                    Text("Reads the OAuth token Claude Code already stores in your login keychain. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if settingsStore.settings.claudeCodeEnabled {
+                Section("Fallback — Claude Code status line") {
+                    Toggle("Install status line shim", isOn: Binding(
+                        get: { settingsStore.settings.statuslineShimInstalled },
+                        set: { toggleShim($0) }
+                    ))
+                    Text("Writes a small script and sets \"statusLine\" in ~/.claude/settings.json, wrapping any status line you already use. This is the officially documented source, but it only updates while a Claude Code session is running.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if let installError {
+                        Text(installError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+
+            if settingsStore.settings.claudeCodeEnabled {
+                Section("Available models") {
+                    LabeledContent("Catalog") {
+                        Text(catalogSummary)
+                            .font(.caption)
+                            .foregroundStyle(modelCatalog.lastError == nil ? Color.secondary : Color.orange)
+                    }
+                    HStack {
+                        Button("Refresh models") {
+                            Task { await modelCatalog.refresh(force: true) }
+                        }
+                        .disabled(modelCatalog.isRefreshing)
+                        Spacer()
+                    }
+                    .font(.caption)
+                    Text("Fetched from api.anthropic.com/v1/models with the same keychain token as your usage, so a newly released model shows up in the task editor without updating Tokenmax. Refreshed daily; the last list is cached and used offline. If the fetch fails, the built-in aliases still work.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Section("Codex") {
+                Toggle("Monitor Codex usage", isOn: $settingsStore.settings.codexEnabled)
+                    .disabled(isLastEnabled(.codex))
+
+                if isLastEnabled(.codex) {
+                    Text("At least one data source has to stay on — Tokenmax has nothing to show otherwise.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Reads your ChatGPT quota through the Codex app server. Switching this off stops the polling, hides Codex everywhere in the app, and leaves its queued tasks in place without running them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // One section per enabled provider, so a disabled source cannot
+            // leave a frozen last-known reading on screen looking current.
+            ForEach(settingsStore.settings.enabledProviders) { provider in
+                Section("\(provider.displayName) — current windows") {
+                    if let snapshot = usage.snapshot(for: provider), !snapshot.windows.isEmpty {
+                        ForEach(snapshot.windows) { window in
+                            LabeledContent(window.label) {
+                                Text("\(window.source.displayName) · \(window.confidence.rawValue)")
+                                    .font(.caption)
+                            }
+                        }
+                    } else {
+                        Text("No usage data yet.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
         .formStyle(.grouped)
         .onAppear {
             settingsStore.settings.statuslineShimInstalled = StatuslineShimInstaller.isInstalled
+            modelCatalog.refreshIfStale()
         }
     }
 

@@ -304,6 +304,27 @@ struct SessionOpenerTests {
         #expect(SessionOpener.modelWeeklyWindow(for: "sonnet", in: []) == nil)
     }
 
+    /// The model picker can now hold a pinned id as well as an alias, while the
+    /// provider still builds window ids from the alias. A literal match would
+    /// miss — silently, because absence is read as "no separate allowance", so
+    /// the guard would go dark rather than fail loudly.
+    @Test("A pinned model id still finds its family's weekly window")
+    func pinnedModelIDResolvesToFamily() {
+        let windows = [modelWeekly("opus", remaining: 50), modelWeekly("sonnet", remaining: 20)]
+
+        #expect(SessionOpener.modelWeeklyWindow(for: "claude-opus-5", in: windows)?.id == "claude.weekly.opus")
+        #expect(
+            SessionOpener.modelWeeklyWindow(for: "claude-sonnet-4-5-20250929", in: windows)?.id
+                == "claude.weekly.sonnet"
+        )
+        #expect(SessionOpener.modelWeeklyWindow(for: "Claude-Opus-5", in: windows)?.id == "claude.weekly.opus")
+
+        #expect(SessionOpener.modelFamily("claude-opus-5") == "opus")
+        #expect(SessionOpener.modelFamily("opus") == "opus")
+        // An id from no known family is passed through rather than guessed at.
+        #expect(SessionOpener.modelFamily("some-future-model") == "some-future-model")
+    }
+
     /// Extra usage only bills *past* the plan allowance, and the opener only
     /// runs into a freshly reset window with the weekly figure above the
     /// threshold — so the blanket refusal is off by default now.
@@ -493,6 +514,16 @@ struct SessionOpenerTests {
 
         let sourcesIndex = try! #require(arguments.firstIndex(of: "--setting-sources"))
         #expect(arguments[sourcesIndex + 1] == "")
+
+        // No effort passed, so no flag — the opener must invoke the CLI exactly
+        // as it did before the setting existed unless asked otherwise.
+        #expect(!arguments.contains("--effort"))
+
+        let withEffort = ClaudeOpenerRunner.arguments(model: "haiku", effort: "low")
+        let effortIndex = try! #require(withEffort.firstIndex(of: "--effort"))
+        #expect(withEffort[effortIndex + 1] == "low")
+        // Still the last positional argument.
+        #expect(withEffort.last == arguments.last)
 
         #expect(arguments.contains("--print"))
         #expect(arguments.contains("--strict-mcp-config"))

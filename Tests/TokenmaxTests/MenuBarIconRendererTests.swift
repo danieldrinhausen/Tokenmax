@@ -13,10 +13,10 @@ struct MenuBarIconRendererTests {
     @Test("The ready state visibly changes what is drawn")
     func readyStateChangesOutput() throws {
         let normal = try #require(pixels(
-            MenuBarIconRenderer.image(session: 40, weekly: 70, isStale: false, isReady: false)
+            MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false)
         ))
         let ready = try #require(pixels(
-            MenuBarIconRenderer.image(session: 40, weekly: 70, isStale: false, isReady: true)
+            MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
         ))
 
         #expect(normal != ready)
@@ -45,10 +45,10 @@ struct MenuBarIconRendererTests {
     @Test("Two different highlight colours draw differently")
     func highlightColourChangesOutput() throws {
         let green = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: false, isReady: true, highlight: .default
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, highlight: .default
         )))
         let pink = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: false, isReady: true,
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true,
             highlight: HighlightColor(red: 1, green: 0.35, blue: 0.62)
         )))
 
@@ -58,10 +58,10 @@ struct MenuBarIconRendererTests {
     @Test("The glow visibly changes what is drawn")
     func glowChangesOutput() throws {
         let plain = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: false, isReady: true, glow: false
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, glow: false
         )))
         let glowing = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: false, isReady: true, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, glow: true
         )))
 
         #expect(plain != glowing)
@@ -76,10 +76,10 @@ struct MenuBarIconRendererTests {
         #expect(MenuBarIconRenderer.isGlowing(isStale: false, isReady: true, glow: true))
 
         let plain = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: false, isReady: false, glow: false
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false, glow: false
         )))
         let asked = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: false, isReady: false, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false, glow: true
         )))
 
         #expect(plain == asked)
@@ -92,10 +92,10 @@ struct MenuBarIconRendererTests {
         #expect(!MenuBarIconRenderer.isGlowing(isStale: true, isReady: true, glow: true))
 
         let plain = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: true, isReady: true, glow: false
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: true, isReady: true, glow: false
         )))
         let glowing = try #require(pixels(MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: true, isReady: true, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: true, isReady: true, glow: true
         )))
 
         #expect(plain == glowing)
@@ -106,8 +106,8 @@ struct MenuBarIconRendererTests {
     /// renders black on a dark menu bar.
     @Test("Neutral icon is a template; the green one is not")
     func templatingFollowsState() {
-        let neutral = MenuBarIconRenderer.image(session: 40, weekly: 70, isStale: false, isReady: false)
-        let ready = MenuBarIconRenderer.image(session: 40, weekly: 70, isStale: false, isReady: true)
+        let neutral = MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false)
+        let ready = MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
 
         #expect(neutral.isTemplate)
         #expect(!ready.isTemplate)
@@ -115,7 +115,7 @@ struct MenuBarIconRendererTests {
 
     @Test("Stale icon is still a template so it stays legible")
     func staleIsTemplate() {
-        let stale = MenuBarIconRenderer.image(session: nil, weekly: nil, isStale: true, isReady: false)
+        let stale = MenuBarIconRenderer.image(bars: [.init(fraction: nil), .init(fraction: nil)], isStale: true, isReady: false)
         #expect(stale.isTemplate)
     }
 
@@ -132,9 +132,9 @@ struct MenuBarIconRendererTests {
     /// inside the existing bounds instead.
     @Test("Icon is exactly the menubar size — no glow padding")
     func iconSize() {
-        let plain = MenuBarIconRenderer.image(session: 40, weekly: 70, isStale: false, isReady: true)
+        let plain = MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
         let glowing = MenuBarIconRenderer.image(
-            session: 40, weekly: 70, isStale: false, isReady: true, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, glow: true
         )
 
         #expect(plain.size == MenuBarIconRenderer.size)
@@ -146,7 +146,7 @@ struct MenuBarIconRendererTests {
     @Test("A full bar still renders at full size with the glow on")
     func glowDoesNotResizeAFullBar() {
         let full = MenuBarIconRenderer.image(
-            session: 100, weekly: 100, isStale: false, isReady: true, glow: true
+            bars: [.init(fraction: 100), .init(fraction: 100)], isStale: false, isReady: true, glow: true
         )
         #expect(full.size == MenuBarIconRenderer.size)
     }
@@ -155,8 +155,8 @@ struct MenuBarIconRendererTests {
     /// saturated the main thread and beachballed the app.
     @Test("An unchanged reading is drawn once and reused")
     func imagesAreCached() {
-        let first = MenuBarIconRenderer.cachedImage(session: 40, weekly: 70, isStale: false, isReady: true)
-        let second = MenuBarIconRenderer.cachedImage(session: 40, weekly: 70, isStale: false, isReady: true)
+        let first = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
+        let second = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
 
         // Identical object, not merely equal — proves no re-render happened.
         #expect(first === second)
@@ -164,8 +164,8 @@ struct MenuBarIconRendererTests {
 
     @Test("Ready and default states are cached separately")
     func readyAndDefaultAreDistinct() {
-        let ready = MenuBarIconRenderer.cachedImage(session: 40, weekly: 70, isStale: false, isReady: true)
-        let normal = MenuBarIconRenderer.cachedImage(session: 40, weekly: 70, isStale: false, isReady: false)
+        let ready = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
+        let normal = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false)
 
         #expect(ready !== normal)
         #expect(ready.tiffRepresentation != normal.tiffRepresentation)
@@ -178,14 +178,14 @@ struct MenuBarIconRendererTests {
         MenuBarIconRenderer.invalidateCache()
 
         let green = MenuBarIconRenderer.cachedImage(
-            session: 40, weekly: 70, isStale: false, isReady: true, highlight: .default
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, highlight: .default
         )
         let blue = MenuBarIconRenderer.cachedImage(
-            session: 40, weekly: 70, isStale: false, isReady: true,
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true,
             highlight: HighlightColor(red: 0.2, green: 0.6, blue: 1.0)
         )
         let glowing = MenuBarIconRenderer.cachedImage(
-            session: 40, weekly: 70, isStale: false, isReady: true, highlight: .default, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, highlight: .default, glow: true
         )
 
         #expect(green !== blue)
@@ -199,10 +199,10 @@ struct MenuBarIconRendererTests {
         MenuBarIconRenderer.invalidateCache()
 
         let a = MenuBarIconRenderer.cachedImage(
-            session: 40, weekly: 70, isStale: false, isReady: false, highlight: .default, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false, highlight: .default, glow: true
         )
         let b = MenuBarIconRenderer.cachedImage(
-            session: 40, weekly: 70, isStale: false, isReady: false,
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false,
             highlight: HighlightColor(red: 0.2, green: 0.6, blue: 1.0), glow: false
         )
 
@@ -211,8 +211,8 @@ struct MenuBarIconRendererTests {
 
     @Test("Sub-percent fluctuations reuse the same cached image")
     func cacheIgnoresSubPercentNoise() {
-        let a = MenuBarIconRenderer.cachedImage(session: 40.2, weekly: 70.1, isStale: false, isReady: false)
-        let b = MenuBarIconRenderer.cachedImage(session: 40.4, weekly: 70.3, isStale: false, isReady: false)
+        let a = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40.2), .init(fraction: 70.1)], isStale: false, isReady: false)
+        let b = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40.4), .init(fraction: 70.3)], isStale: false, isReady: false)
 
         #expect(a === b)
     }
@@ -221,9 +221,9 @@ struct MenuBarIconRendererTests {
     /// validity when the user switches between light and dark.
     @Test("Invalidating the cache forces a fresh render")
     func cacheCanBeInvalidated() {
-        let first = MenuBarIconRenderer.cachedImage(session: 55, weekly: 66, isStale: false, isReady: false)
+        let first = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 55), .init(fraction: 66)], isStale: false, isReady: false)
         MenuBarIconRenderer.invalidateCache()
-        let second = MenuBarIconRenderer.cachedImage(session: 55, weekly: 66, isStale: false, isReady: false)
+        let second = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 55), .init(fraction: 66)], isStale: false, isReady: false)
 
         #expect(first !== second)
     }
@@ -232,7 +232,7 @@ struct MenuBarIconRendererTests {
     /// menu bar width for a placeholder defeats the point of the compact format.
     @Test("No running window yields no label at all")
     func missingResetYieldsNoLabel() {
-        #expect(MenuBarIconRenderer.countdownText(sessionResetAt: nil, now: Date()) == nil)
+        #expect(MenuBarIconRenderer.countdownText(resetAt: nil, now: Date()) == nil)
     }
 
     /// Compact on purpose — this competes with every other menu bar item for
@@ -242,16 +242,16 @@ struct MenuBarIconRendererTests {
         let now = Date()
 
         #expect(MenuBarIconRenderer.countdownText(
-            sessionResetAt: now.addingTimeInterval(224 * 60), now: now
+            resetAt: now.addingTimeInterval(224 * 60), now: now
         ) == "3:44")
 
         // The minutes are padded so the label does not read as "3:4".
         #expect(MenuBarIconRenderer.countdownText(
-            sessionResetAt: now.addingTimeInterval(185 * 60), now: now
+            resetAt: now.addingTimeInterval(185 * 60), now: now
         ) == "3:05")
 
         #expect(MenuBarIconRenderer.countdownText(
-            sessionResetAt: now.addingTimeInterval(60 * 60), now: now
+            resetAt: now.addingTimeInterval(60 * 60), now: now
         ) == "1:00")
     }
 
@@ -260,11 +260,11 @@ struct MenuBarIconRendererTests {
         let now = Date()
 
         #expect(MenuBarIconRenderer.countdownText(
-            sessionResetAt: now.addingTimeInterval(44 * 60), now: now
+            resetAt: now.addingTimeInterval(44 * 60), now: now
         ) == "0:44")
 
         #expect(MenuBarIconRenderer.countdownText(
-            sessionResetAt: now.addingTimeInterval(5 * 60), now: now
+            resetAt: now.addingTimeInterval(5 * 60), now: now
         ) == "0:05")
     }
 
@@ -274,7 +274,7 @@ struct MenuBarIconRendererTests {
     func countdownTruncates() {
         let now = Date()
         #expect(MenuBarIconRenderer.countdownText(
-            sessionResetAt: now.addingTimeInterval(44 * 60 + 59), now: now
+            resetAt: now.addingTimeInterval(44 * 60 + 59), now: now
         ) == "0:44")
     }
 
@@ -284,7 +284,7 @@ struct MenuBarIconRendererTests {
     func pastResetClampsToZero() {
         let now = Date()
         #expect(MenuBarIconRenderer.countdownText(
-            sessionResetAt: now.addingTimeInterval(-60), now: now
+            resetAt: now.addingTimeInterval(-60), now: now
         ) == "0:00")
     }
 }

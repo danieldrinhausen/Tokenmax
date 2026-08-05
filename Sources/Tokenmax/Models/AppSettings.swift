@@ -87,6 +87,27 @@ struct ReminderRule: Codable, Sendable, Equatable {
         onlyWhenTasksQueued: true,
         notifyOncePerWindow: true
     )
+
+    /// Codex gets its own weekly default rather than sharing Claude's. The two
+    /// weeks are different lengths of rope — reusing one threshold would be
+    /// wrong for whichever provider it was not tuned for. Off by default, like
+    /// every other reminder that was not already switched on.
+    static let codexWeeklyDefault = ReminderRule(
+        enabled: false,
+        leadTimeMinutes: 240,
+        minimumRemainingPercent: 20,
+        onlyWhenTasksQueued: true,
+        notifyOncePerWindow: true
+    )
+
+    /// A rule that can never fire, for windows a provider does not report.
+    static let disabled = ReminderRule(
+        enabled: false,
+        leadTimeMinutes: 0,
+        minimumRemainingPercent: 0,
+        onlyWhenTasksQueued: false,
+        notifyOncePerWindow: true
+    )
 }
 
 struct QuietHours: Codable, Sendable, Equatable {
@@ -138,6 +159,10 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
     /// weekly limits share the same budget, so an opener is never free.
     var minimumWeeklyRemainingPercent: Double = 10
     var model: String = "haiku"
+    /// The opener exists to spend the *minimum* quota that opens a window, so
+    /// it defaults to the cheapest thinking grade rather than the CLI's own
+    /// default. Passed as `--effort`; nil leaves the flag off.
+    var effort: String? = "low"
     /// A window opened at 03:00 expires before the user wakes up.
     var respectQuietHours: Bool = true
     /// Extra usage lets spending continue past the plan allowance as a real
@@ -155,12 +180,13 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
     static let modelOptions = ["haiku", "sonnet"]
     static let delayOptions = [30, 60, 120, 300]
     static let weeklyThresholdOptions = [5.0, 10.0, 20.0, 30.0]
+    static let effortOptions = TaskExecutionPolicy.effortOptions
 
     static func modelDisplayName(_ raw: String) -> String {
         switch raw {
         case "haiku": "Haiku"
         case "sonnet": "Sonnet"
-        default: raw.capitalized
+        default: raw
         }
     }
 
@@ -176,6 +202,9 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
             Double.self, forKey: .minimumWeeklyRemainingPercent
         ) ?? d.minimumWeeklyRemainingPercent
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? d.model
+        // An opener written before `effort` existed keeps the cheap default,
+        // which is what it was implicitly getting from the picker anyway.
+        effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? d.effort
         respectQuietHours = try container.decodeIfPresent(Bool.self, forKey: .respectQuietHours)
             ?? d.respectQuietHours
         skipWhenExtraUsageEnabled = try container.decodeIfPresent(Bool.self, forKey: .skipWhenExtraUsageEnabled)
@@ -185,10 +214,25 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
 }
 
 struct AppSettings: Codable, Sendable, Equatable {
+    /// Retained for compatibility with older settings. The current interface
+    /// keeps the compact menu-bar meter on Claude Code.
+    var menuBarProviderID: String = TokenmaxProvider.claudeCode.rawValue
     /// Bars plus the session countdown. The bars carry "how much is left"; the
     /// countdown carries "how long to spend it", which the bars cannot show.
     /// The old percentage readout duplicated the bars and was dropped.
     var menuBarDisplayMode: MenuBarDisplayMode = .iconAndText
+
+    /// Which quota each bar of the icon draws, top to bottom. Two or three bars;
+    /// see `MenuBarBars`.
+    var menuBarBars: MenuBarBars = .default
+
+    /// Which window the "time remaining" text counts down to.
+    ///
+    /// Independent of `menuBarBars` on purpose: the most useful deadline is not
+    /// always one the bars have room for, and tying the two would mean changing
+    /// the icon to change the text. `menuBarDisplayMode` still decides whether
+    /// the text appears at all.
+    var menuBarCountdownSource: MenuBarQuotaSource = .claudeSession
 
     /// UI tick while the popover is open. Network calls are separately floored
     /// at 180s inside `ClaudeOAuthUsageClient`, so this is safe to keep low.
@@ -199,6 +243,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var remindersEnabled: Bool = false
     var sessionReminder: ReminderRule = .sessionDefault
     var weeklyReminder: ReminderRule = .weeklyDefault
+    /// Codex's weekly window, configured independently of Claude's. See
+    /// `ReminderRule.codexWeeklyDefault`.
+    var codexWeeklyReminder: ReminderRule = .codexWeeklyDefault
     var quietHours: QuietHours = .init()
     var playSound: Bool = false
     var showBadge: Bool = true
@@ -242,8 +289,78 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// `sessionOpener`: the three features must not share enablement or
     /// silently retune each other.
     var queueAutoRun: QueueAutoRunSettings = .init()
+    /// Codex needs an independent opt-in: a user who previously enabled
+    /// Claude automation must never gain a second unattended agent on upgrade.
+    var codexAutoRunEnabled: Bool = false
+
+    /// Whether each provider is monitored at all. Switching one off stops its
+    /// polling, hides its popover section and menu-bar bars, cancels its pending
+    /// reminders, and refuses to auto-run its tasks.
+    ///
+    /// Like `queueEnabled`, these hide rather than delete: the provider's
+    /// reminder rules, bar layout, and tasks all stay on disk, so switching it
+    /// back on restores the user's own arrangement instead of a rebuilt one.
+    var claudeCodeEnabled: Bool = true
+    var codexEnabled: Bool = true
+
+    /// Seeded into a new task's policy so the common choice is made once rather
+    /// than on every task. Both are overridable per task in the editor, and
+    /// neither affects a task already on disk.
+    var defaultTaskModel: String = "sonnet"
+    var defaultTaskEffort: String?
 
     static let terminalOptions = ["Terminal", "Ghostty", "iTerm", "Warp", "Alacritty", "kitty"]
+
+    func isEnabled(_ provider: TokenmaxProvider) -> Bool {
+        switch provider {
+        case .claudeCode: claudeCodeEnabled
+        case .codex: codexEnabled
+        }
+    }
+
+    /// Never empty — `init(from:)` guarantees at least one provider stays on.
+    var enabledProviders: [TokenmaxProvider] {
+        TokenmaxProvider.allCases.filter(isEnabled)
+    }
+
+    /// The menu-bar quotas a disabled provider must not be able to claim. This
+    /// is the set every bar-editing call site passes as `allowed:`.
+    var allowedMenuBarSources: [MenuBarQuotaSource] {
+        MenuBarQuotaSource.allCases.filter { isEnabled($0.provider) }
+    }
+
+    /// The stored layout, normalized for display.
+    ///
+    /// Read-time only: `menuBarBars` on disk is never rewritten by this, which
+    /// is what lets a disabled provider's slot survive until it is switched back
+    /// on. Everything that *draws* the icon goes through here; everything that
+    /// *edits* it works on `menuBarBars` directly.
+    var effectiveMenuBarBars: MenuBarBars {
+        MenuBarBars(menuBarBars.sources, allowed: allowedMenuBarSources)
+    }
+
+    /// nil is unreachable in practice — `allowedMenuBarSources` is non-empty
+    /// whenever a provider is enabled — but the countdown is optional anyway,
+    /// so there is nothing to force here.
+    var effectiveCountdownSource: MenuBarQuotaSource? {
+        isEnabled(menuBarCountdownSource.provider)
+            ? menuBarCountdownSource
+            : allowedMenuBarSources.first
+    }
+
+    /// The one place that maps a window to the rule governing it. Every caller
+    /// went through `kind == .session ? … : …` before Codex existed, which
+    /// quietly gave Codex's week Claude's thresholds.
+    func reminderRule(for provider: TokenmaxProvider, kind: UsageWindowKind) -> ReminderRule {
+        switch (provider, kind) {
+        case (.claudeCode, .session): sessionReminder
+        case (.claudeCode, .weekly): weeklyReminder
+        case (.codex, .weekly): codexWeeklyReminder
+        // Codex reports no session window, and no provider reports a
+        // model-specific weekly to remind about.
+        default: .disabled
+        }
+    }
 
     init() {}
 
@@ -262,6 +379,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         // so retiring an enum case can never reset the user's configuration.
         menuBarDisplayMode = (try? container.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode))
             ?? d.menuBarDisplayMode
+        menuBarProviderID = try container.decodeIfPresent(String.self, forKey: .menuBarProviderID)
+            ?? d.menuBarProviderID
         foregroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .foregroundRefreshSeconds)
             ?? d.foregroundRefreshSeconds
         backgroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .backgroundRefreshSeconds)
@@ -271,6 +390,14 @@ struct AppSettings: Codable, Sendable, Equatable {
         remindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .remindersEnabled) ?? d.remindersEnabled
         sessionReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .sessionReminder) ?? d.sessionReminder
         weeklyReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .weeklyReminder) ?? d.weeklyReminder
+        codexWeeklyReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .codexWeeklyReminder)
+            ?? d.codexWeeklyReminder
+        // `try?` as above: `MenuBarBars` normalizes what it can, but a value of
+        // the wrong shape entirely still has to fall back rather than throw.
+        menuBarBars = (try? container.decodeIfPresent(MenuBarBars.self, forKey: .menuBarBars)) ?? d.menuBarBars
+        menuBarCountdownSource = (try? container.decodeIfPresent(
+            MenuBarQuotaSource.self, forKey: .menuBarCountdownSource
+        )) ?? d.menuBarCountdownSource
         quietHours = try container.decodeIfPresent(QuietHours.self, forKey: .quietHours) ?? d.quietHours
         playSound = try container.decodeIfPresent(Bool.self, forKey: .playSound) ?? d.playSound
         showBadge = try container.decodeIfPresent(Bool.self, forKey: .showBadge) ?? d.showBadge
@@ -293,6 +420,22 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.sessionOpener
         queueAutoRun = try container.decodeIfPresent(QueueAutoRunSettings.self, forKey: .queueAutoRun)
             ?? d.queueAutoRun
+        codexAutoRunEnabled = try container.decodeIfPresent(Bool.self, forKey: .codexAutoRunEnabled)
+            ?? d.codexAutoRunEnabled
+        // `try?` rather than the plain-`try` form the other Bools use. These two
+        // gate the whole app, and a hand-edited `"codexEnabled": "yes"` under
+        // plain `try` would throw out of this initializer, make `JSONStore.load`
+        // return nil, and reset every other setting with it.
+        claudeCodeEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .claudeCodeEnabled))
+            ?? d.claudeCodeEnabled
+        codexEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .codexEnabled)) ?? d.codexEnabled
+        defaultTaskModel = try container.decodeIfPresent(String.self, forKey: .defaultTaskModel)
+            ?? d.defaultTaskModel
+        defaultTaskEffort = try container.decodeIfPresent(String.self, forKey: .defaultTaskEffort)
+        // A file with every source off has no meter to draw and no clickable
+        // menu bar item to reach Settings through. The UI prevents this; a
+        // hand-edited file has to be caught here instead of booting invisible.
+        if !claudeCodeEnabled && !codexEnabled { claudeCodeEnabled = true }
     }
 }
 

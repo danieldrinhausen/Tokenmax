@@ -22,6 +22,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Tokenmax runs your queued tasks in the project folders you choose. Without access it cannot read those folders, and unattended runs stall waiting for a prompt nobody is there to answer.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Tokenmax runs your queued tasks in the project folders you choose. Without access it cannot read those folders, and unattended runs stall waiting for a prompt nobody is there to answer.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Tokenmax runs your queued tasks in the project folders you choose. Without access it cannot read those folders, and unattended runs stall waiting for a prompt nobody is there to answer.</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

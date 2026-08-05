@@ -21,6 +21,12 @@ enum FileLocations {
     static var tasksFile: URL { supportDirectory.appendingPathComponent("tokenmax.json") }
     static var settingsFile: URL { supportDirectory.appendingPathComponent("settings.json") }
     static var usageSnapshotFile: URL { supportDirectory.appendingPathComponent("usage-snapshot.json") }
+    /// Kept separate from the legacy Claude snapshot so upgrading never has to
+    /// rewrite or risk the user's last known Claude reading.
+    static var codexUsageSnapshotFile: URL { supportDirectory.appendingPathComponent("codex-usage-snapshot.json") }
+    /// The fetched list of Claude models, cached so the task editor is
+    /// populated at launch and keeps working offline.
+    static var modelCatalogFile: URL { supportDirectory.appendingPathComponent("model-catalog.json") }
     static var notificationStateFile: URL { supportDirectory.appendingPathComponent("notification-state.json") }
     /// Which reset cycles the session opener has already acted on. Not derived
     /// data — losing it would let the same cycle be opened twice.

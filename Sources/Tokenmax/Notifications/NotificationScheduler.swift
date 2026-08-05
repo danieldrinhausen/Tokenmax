@@ -66,6 +66,7 @@ enum SchedulingDecision: Equatable, Sendable {
 /// is what stops repeated refreshes from stacking up duplicate notifications.
 enum NotificationScheduler {
     struct Input {
+        var providerID: String = TokenmaxProvider.claudeCode.rawValue
         var window: UsageWindow
         var rule: ReminderRule
         var remindersEnabled: Bool
@@ -80,8 +81,11 @@ enum NotificationScheduler {
         var now: Date
     }
 
-    static func identifierPrefix(for kind: UsageWindowKind) -> String {
-        "claude-\(kind.rawValue)-"
+    static func identifierPrefix(
+        for kind: UsageWindowKind,
+        providerID: String = TokenmaxProvider.claudeCode.rawValue
+    ) -> String {
+        "\(providerID)-\(kind.rawValue)-"
     }
 
     /// Reset timestamps from the usage endpoint jitter between fetches — the
@@ -96,14 +100,18 @@ enum NotificationScheduler {
     /// identifier is recorded in `NotificationState`, and a one-second drift
     /// would make the lookup miss and deliver a second banner for the same
     /// window.
-    static func identifier(for kind: UsageWindowKind, resetAt: Date) -> String {
+    static func identifier(
+        for kind: UsageWindowKind,
+        resetAt: Date,
+        providerID: String = TokenmaxProvider.claudeCode.rawValue
+    ) -> String {
         let bucketed = Date(
             timeIntervalSince1970: (resetAt.timeIntervalSince1970 / identifierBucket)
                 .rounded() * identifierBucket
         )
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        return identifierPrefix(for: kind) + formatter.string(from: bucketed)
+        return identifierPrefix(for: kind, providerID: providerID) + formatter.string(from: bucketed)
     }
 
     /// Below this much time to reset there is no longer room to actually spend
@@ -123,7 +131,7 @@ enum NotificationScheduler {
         guard !input.window.hasNotStarted else { return .skip(reason: .windowNotStarted) }
         guard let resetAt = input.window.resetAt else { return .skip(reason: .noResetTime) }
 
-        let identifier = identifier(for: input.window.kind, resetAt: resetAt)
+        let identifier = identifier(for: input.window.kind, resetAt: resetAt, providerID: input.providerID)
 
         // The point of the reminder is quota about to be *wasted*. If there is
         // barely anything left there is nothing to warn about.
@@ -155,7 +163,7 @@ enum NotificationScheduler {
             return .schedule(
                 identifier: identifier,
                 fireDate: fireDate,
-                title: title(for: input.window.kind),
+                title: title(for: input.window.kind, providerID: input.providerID),
                 body: body(
                     kind: input.window.kind,
                     timeUntilReset: Double(input.rule.leadTimeMinutes) * 60,
@@ -177,7 +185,7 @@ enum NotificationScheduler {
 
         return .deliverNow(
             identifier: identifier,
-            title: title(for: input.window.kind),
+            title: title(for: input.window.kind, providerID: input.providerID),
             body: body(
                 kind: input.window.kind,
                 timeUntilReset: timeUntilReset,
@@ -187,11 +195,15 @@ enum NotificationScheduler {
         )
     }
 
-    static func title(for kind: UsageWindowKind) -> String {
-        switch kind {
-        case .session: "Claude Code window ending soon"
-        case .weekly: "Claude Code weekly limit resets soon"
-        case .modelSpecificWeekly: "Claude Code model limit resets soon"
+    static func title(
+        for kind: UsageWindowKind,
+        providerID: String = TokenmaxProvider.claudeCode.rawValue
+    ) -> String {
+        let provider = TokenmaxProvider.from(identifier: providerID)?.displayName ?? providerID
+        return switch kind {
+        case .session: "\(provider) window ending soon"
+        case .weekly: "\(provider) weekly limit resets soon"
+        case .modelSpecificWeekly: "\(provider) model limit resets soon"
         }
     }
 
@@ -280,9 +292,10 @@ enum NotificationScheduler {
         _ decision: SchedulingDecision,
         kind: UsageWindowKind,
         playSound: Bool,
+        providerID: String = TokenmaxProvider.claudeCode.rawValue,
         center: UNUserNotificationCenter = .current()
     ) async -> String? {
-        let prefix = identifierPrefix(for: kind)
+        let prefix = identifierPrefix(for: kind, providerID: providerID)
         let pending = await center.pendingNotificationRequests()
         let existing = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
 
@@ -314,7 +327,7 @@ enum NotificationScheduler {
             content.title = title
             content.body = body
             content.categoryIdentifier = NotificationManager.categoryIdentifier
-            content.userInfo = ["windowKind": kind.rawValue]
+            content.userInfo = ["windowKind": kind.rawValue, "providerID": providerID]
             if playSound { content.sound = .default }
             NotificationIcon.attach(to: content)
 
@@ -345,7 +358,7 @@ enum NotificationScheduler {
             content.title = title
             content.body = body
             content.categoryIdentifier = NotificationManager.categoryIdentifier
-            content.userInfo = ["windowKind": kind.rawValue]
+            content.userInfo = ["windowKind": kind.rawValue, "providerID": providerID]
             if playSound { content.sound = .default }
             NotificationIcon.attach(to: content)
 

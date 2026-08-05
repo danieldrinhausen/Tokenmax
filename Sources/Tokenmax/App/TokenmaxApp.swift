@@ -11,16 +11,17 @@ struct TokenmaxApp: App {
 
     @StateObject private var settingsStore: SettingsStore
     @StateObject private var taskStore: TaskStore
-    @StateObject private var usage: UsageRefreshCoordinator
+    @StateObject private var usage: ProviderUsageCoordinator
     @StateObject private var notificationManager: NotificationManager
     @StateObject private var notificationCoordinator: NotificationCoordinator
     @StateObject private var sessionOpener: SessionOpenerCoordinator
     @StateObject private var autoRun: QueueAutoRunCoordinator
+    @StateObject private var modelCatalog = ModelCatalogStore()
 
     init() {
         let settingsStore = SettingsStore()
         let taskStore = TaskStore()
-        let usage = UsageRefreshCoordinator(settingsStore: settingsStore)
+        let usage = ProviderUsageCoordinator(settingsStore: settingsStore)
         let notificationManager = NotificationManager()
         let notificationCoordinator = NotificationCoordinator(
             manager: notificationManager,
@@ -28,7 +29,7 @@ struct TokenmaxApp: App {
             taskStore: taskStore,
             settingsStore: settingsStore
         )
-        let sessionOpener = SessionOpenerCoordinator(usage: usage, settingsStore: settingsStore)
+        let sessionOpener = SessionOpenerCoordinator(usage: usage.claude, settingsStore: settingsStore)
         let autoRun = QueueAutoRunCoordinator(
             usage: usage,
             taskStore: taskStore,
@@ -53,11 +54,16 @@ struct TokenmaxApp: App {
         } label: {
             MenuBarLabel(
                 mode: settingsStore.settings.menuBarDisplayMode,
-                session: usage.state.snapshot?.sessionWindow?.remainingPercent,
-                weekly: usage.state.snapshot?.weeklyWindow?.remainingPercent,
-                sessionResetAt: usage.state.snapshot?.sessionWindow?.resetAt,
+                model: MenuBarIconModel.make(
+                    // The *effective* layout: a disabled provider keeps its slot
+                    // in the stored settings but must not be drawn.
+                    layout: settingsStore.settings.effectiveMenuBarBars,
+                    countdownSource: settingsStore.settings.effectiveCountdownSource,
+                    snapshot: { usage.snapshot(for: $0) },
+                    isStale: { usage.isStale(for: $0) },
+                    alerting: notificationCoordinator.alertingSources
+                ),
                 now: usage.tick,
-                isStale: usage.isStale,
                 isHighlighted: usage.burnOpportunity != nil,
                 highlight: settingsStore.settings.menuBarHighlightColor,
                 glow: settingsStore.settings.menuBarHighlightGlow
@@ -69,6 +75,11 @@ struct TokenmaxApp: App {
                 notificationCoordinator.start()
                 sessionOpener.start()
                 autoRun.start()
+                // Asked now, not when a task runs. Reading a protected folder
+                // raises a consent dialog that blocks until answered, and an
+                // unattended run is exactly when nobody will answer it — so the
+                // question has to be put while the user is still here.
+                WorkingDirectoryAccess.requestAccess(for: taskStore.tasks)
             }
         }
         .menuBarExtraStyle(.window)
@@ -101,7 +112,8 @@ struct TokenmaxApp: App {
             notificationManager: notificationManager,
             notificationCoordinator: notificationCoordinator,
             sessionOpener: sessionOpener,
-            autoRun: autoRun
+            autoRun: autoRun,
+            modelCatalog: modelCatalog
         )
     }
 }
@@ -110,21 +122,26 @@ struct TokenmaxApp: App {
 struct SharedEnvironment: ViewModifier {
     let settingsStore: SettingsStore
     let taskStore: TaskStore
-    let usage: UsageRefreshCoordinator
+    let usage: ProviderUsageCoordinator
     let notificationManager: NotificationManager
     let notificationCoordinator: NotificationCoordinator
     let sessionOpener: SessionOpenerCoordinator
     let autoRun: QueueAutoRunCoordinator
+    let modelCatalog: ModelCatalogStore
 
     func body(content: Content) -> some View {
         content
             .environmentObject(settingsStore)
             .environmentObject(taskStore)
             .environmentObject(usage)
+            // Claude-only opener settings deliberately keep their narrowly
+            // typed dependency while the rest of the app uses both providers.
+            .environmentObject(usage.claude)
             .environmentObject(notificationManager)
             .environmentObject(notificationCoordinator)
             .environmentObject(sessionOpener)
             .environmentObject(autoRun)
+            .environmentObject(modelCatalog)
     }
 }
 
@@ -132,12 +149,9 @@ struct SharedEnvironment: ViewModifier {
 /// glyph is drawn into an `NSImage` and handed over as the icon.
 private struct MenuBarLabel: View {
     let mode: MenuBarDisplayMode
-    let session: Double?
-    let weekly: Double?
-    let sessionResetAt: Date?
+    let model: MenuBarIconModel
     /// `usage.tick` — advances every second so the countdown stays live.
     let now: Date
-    let isStale: Bool
     let isHighlighted: Bool
     let highlight: HighlightColor
     let glow: Bool
@@ -181,9 +195,8 @@ private struct MenuBarLabel: View {
     /// good moment to spend quota. Redraws only when the reading itself changes.
     private var animatedIcon: some View {
         Image(nsImage: MenuBarIconRenderer.cachedImage(
-            session: session,
-            weekly: weekly,
-            isStale: isStale,
+            bars: model.bars,
+            isStale: model.isStale,
             isReady: isHighlighted,
             highlight: highlight,
             glow: glow
@@ -191,14 +204,14 @@ private struct MenuBarLabel: View {
     }
 
     /// Text-only users get no glow, so the opportunity is marked with a bolt.
-    /// `nil` while no session window is running.
+    /// `nil` while the window it follows is not running.
     private var text: String? {
         // A stale reset timestamp is useful for diagnostics, but not as a
         // live deadline. Keep the menu bar honest instead of showing a precise
         // countdown beside a stale-data indicator.
-        guard !isStale,
+        guard !model.countdownIsStale,
               let countdown = MenuBarIconRenderer.countdownText(
-                sessionResetAt: sessionResetAt, now: now
+                resetAt: model.countdownResetAt, now: now
               )
         else { return nil }
         return isHighlighted && mode == .textOnly ? "⚡︎ \(countdown)" : countdown

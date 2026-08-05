@@ -10,6 +10,7 @@ import Foundation
 struct PendingAutoRun: Equatable, Sendable {
     var taskID: UUID
     var taskTitle: String
+    var providerID: String
     var windowID: String
     var startsAt: Date
 
@@ -36,7 +37,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// True between a run finishing and a usage reading newer than it arriving.
     @Published private(set) var awaitingFreshUsage = false
 
-    private let usage: UsageRefreshCoordinator
+    private let usage: ProviderUsageCoordinator
     private let taskStore: TaskStore
     private let settingsStore: SettingsStore
     private let notifications: AutoRunNotifier
@@ -62,7 +63,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     private static let freshUsageTimeout: TimeInterval = 600
 
     init(
-        usage: UsageRefreshCoordinator,
+        usage: ProviderUsageCoordinator,
         taskStore: TaskStore,
         settingsStore: SettingsStore,
         notifications: AutoRunNotifier = AutoRunNotifier()
@@ -153,17 +154,25 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     // MARK: - Evaluation
 
-    private func makeInput(now: Date = Date()) -> QueueAutoRun.Input {
-        let snapshot = usage.state.snapshot
+    private func makeInput(provider requestedProvider: TokenmaxProvider? = nil, now: Date = Date()) -> QueueAutoRun.Input {
+        let provider = requestedProvider ?? usage.selectedProvider
+        let snapshot = usage.snapshot(for: provider)
+        var settings = settingsStore.settings.queueAutoRun
+        // A provider the user switched off has stopped refreshing, so its
+        // snapshot is frozen — and every quota gate below reads that snapshot.
+        // Nothing may run against it.
+        if !settingsStore.settings.isEnabled(provider) { settings.enabled = false }
+        if provider == .codex && !settingsStore.settings.codexAutoRunEnabled { settings.enabled = false }
         return QueueAutoRun.Input(
-            settings: settingsStore.settings.queueAutoRun,
+            providerID: provider.rawValue,
+            settings: settings,
             queueEnabled: settingsStore.settings.queueEnabled,
             quietHours: settingsStore.settings.quietHours,
             sessionWindow: snapshot?.sessionWindow,
             weeklyWindow: snapshot?.weeklyWindow,
-            isStale: usage.isStale,
-            cliInstalled: cliInstalled(),
-            tasks: taskStore.readyTasks,
+            isStale: usage.isStale(for: provider),
+            cliInstalled: cliInstalled(provider),
+            tasks: taskStore.readyTasks.filter { $0.provider == provider },
             state: state,
             runInFlight: activeRun != nil,
             awaitingFreshUsage: awaitingFreshUsage,
@@ -171,7 +180,11 @@ final class QueueAutoRunCoordinator: ObservableObject {
         )
     }
 
-    private func cliInstalled() -> Bool {
+    /// The providers the user is still monitoring. Never empty.
+    private var enabledProviders: [TokenmaxProvider] { settingsStore.settings.enabledProviders }
+
+    private func cliInstalled(_ provider: TokenmaxProvider = .claudeCode) -> Bool {
+        if provider == .codex { return CodexCLIClient.isInstalled }
         if let cachedCLIInstalled, Date().timeIntervalSince(cachedCLIInstalled.readAt) < Self.cliCacheLifetime {
             return cachedCLIInstalled.value
         }
@@ -203,11 +216,31 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return
         }
 
-        var outcome = QueueAutoRun.decide(makeInput())
+        // A disabled provider is not merely skipped, it is never consulted: its
+        // snapshot has stopped refreshing and would be judged as though current.
+        let outcomes = enabledProviders.map { provider in
+            (provider, QueueAutoRun.decide(makeInput(provider: provider)))
+        }
+        // Three tiers: the first eligible verdict, else the verdict for the
+        // provider whose meter is on screen (so the UI explains what the user is
+        // looking at), else any verdict at all. The last tier is what makes this
+        // total — `selectedProvider` is derived from the same settings and can
+        // momentarily disagree with this list mid-change.
+        guard var outcome = outcomes.first(where: { $0.1.isEligible })?.1
+            ?? outcomes.first(where: { $0.0 == usage.selectedProvider })?.1
+            ?? outcomes.first?.1
+        else {
+            publish(.skip(reason: .disabled))
+            pendingRun = nil
+            return
+        }
 
         // The account gates cost a subprocess and a file read, so they only run
         // once the cheap guards have all passed.
-        if outcome.isEligible, let gate = QueueAutoRun.accountGate(expensiveGate()) {
+        if outcome.isEligible,
+           let taskID = outcome.taskID,
+           taskStore.tasks.first(where: { $0.id == taskID })?.provider == .claudeCode,
+           let gate = QueueAutoRun.accountGate(expensiveGate()) {
             outcome = .skip(reason: gate)
         }
 
@@ -232,7 +265,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// never having run it. Only a deliberate opt-in changes that.
     private func enforceResetBoundary() {
         guard settingsStore.settings.queueAutoRun.resetBoundaryBehavior == .stopAtDeadline else { return }
-        guard let resetAt = usage.state.snapshot?.sessionWindow?.resetAt else { return }
+        guard let resetAt = usage.snapshot(for: activeRun.flatMap { TokenmaxProvider.from(identifier: $0.providerID) } ?? usage.selectedProvider)?.sessionWindow?.resetAt else { return }
 
         let deadline = QueueAutoRun.effectiveDeadline(
             resetAt: resetAt,
@@ -293,6 +326,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         pendingRun = PendingAutoRun(
             taskID: taskID,
             taskTitle: task.title,
+            providerID: task.providerID,
             windowID: windowID,
             startsAt: Date().addingTimeInterval(delay)
         )
@@ -344,10 +378,12 @@ final class QueueAutoRunCoordinator: ObservableObject {
             taskTitle: task.title,
             windowID: windowID,
             trigger: trigger,
-            model: task.autoRun.model,
+            providerID: task.providerID,
+            model: task.selectedModel,
+            effort: task.selectedEffort,
             workingDirectory: task.workingDirectory ?? "",
             status: .starting,
-            sessionRemainingBefore: usage.state.snapshot?.sessionWindow?.remainingPercent
+            sessionRemainingBefore: usage.snapshot(for: task.provider)?.sessionWindow?.remainingPercent
         )
         record.outputFile = FileLocations.runLogFile(runID: runID).lastPathComponent
         record.replyText = reply
@@ -370,13 +406,18 @@ final class QueueAutoRunCoordinator: ObservableObject {
         Log.shared.write("autorun: run \(runID) started (\(trigger.rawValue)) — \(task.title)")
 
         runTask = Task { [weak self] in
-            let result = await ClaudeTaskRunner.run(
-                task: task,
-                runID: runID,
-                prompt: reply,
-                resuming: sessionID
-            ) { text in
+            let progress: @Sendable (String) -> Void = { text in
                 Task { @MainActor in self?.progressText = text }
+            }
+            let result: ClaudeTaskRunner.Result
+            if task.provider == .codex {
+                result = await CodexTaskRunner.run(
+                    task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
+                )
+            } else {
+                result = await ClaudeTaskRunner.run(
+                    task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
+                )
             }
             await self?.finish(record: record, task: task, result: result)
         }
@@ -446,18 +487,20 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// between a real reading and a stale one presented as fresh — the same
     /// reasoning as `SessionOpenerCoordinator.verify`.
     private func requestPostRunRefresh() async {
-        let allowedAt = await usage.nextNetworkRefreshAllowedAt()
+        let provider = TokenmaxProvider.from(identifier: lastRun?.providerID ?? "") ?? .claudeCode
+        let allowedAt = await usage.nextNetworkRefreshAllowedAt(for: provider)
         let seconds = max(0, allowedAt.timeIntervalSinceNow + 5)
         if seconds > 0 {
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
         }
-        await usage.refresh(reason: "autorun post-run", manual: true)
+        await usage.refresh(reason: "autorun post-run", manual: true, provider: provider)
     }
 
     /// Clears the post-run wait once a reading newer than the run arrives.
     private func noteUsageArrived() {
         guard let needed = freshUsageNeededAfter else { return }
-        guard let snapshot = usage.state.snapshot else { return }
+        let provider = TokenmaxProvider.from(identifier: lastRun?.providerID ?? "") ?? .claudeCode
+        guard let snapshot = usage.snapshot(for: provider) else { return }
 
         if snapshot.fetchedAt > needed {
             freshUsageNeededAfter = nil
@@ -484,10 +527,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
     @discardableResult
     func checkEligibility() -> QueueAutoRunDecision {
         cachedCLIInstalled = nil
-        var outcome = QueueAutoRun.decide(makeInput())
+        let provider = usage.selectedProvider
+        var outcome = QueueAutoRun.decide(makeInput(provider: provider))
         // Nothing served from cache: the button exists to give a current
         // answer, and the user may have just edited ~/.claude/settings.json.
-        if outcome.isEligible, let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
+        if provider == .claudeCode,
+           outcome.isEligible,
+           let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
             outcome = .skip(reason: gate)
         }
         publish(outcome)
@@ -502,12 +548,22 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// or impossible; those are re-checked in `runManually`.
     @discardableResult
     func runNextEligibleNow() -> QueueAutoRunDecision.SkipReason? {
-        let input = makeInput()
-        let candidates = QueueAutoRun.approvedTasks(input)
-        guard let task = candidates.first(where: { $0.workingDirectoryExists }) else {
-            return candidates.isEmpty ? .noApprovedTask : .workingDirectoryMissing
+        let enabled = enabledProviders
+        guard !enabled.isEmpty else { return .disabled }
+        // Both halves drawn from the enabled set rather than prepending
+        // `selectedProvider` outright, which would consult a disabled provider
+        // whenever the two disagree.
+        let providers = enabled.filter { $0 == usage.selectedProvider }
+            + enabled.filter { $0 != usage.selectedProvider }
+        for provider in providers {
+            let input = makeInput(provider: provider)
+            let candidates = QueueAutoRun.approvedTasks(input)
+            if let task = candidates.first(where: { $0.workingDirectoryExists }) {
+                return runManually(task)
+            }
+            if !candidates.isEmpty { return .workingDirectoryMissing }
         }
-        return runManually(task)
+        return .noApprovedTask
     }
 
     /// Backs the per-card "Run with Claude".
@@ -517,9 +573,18 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// could be run by hand would make the safe default untestable.
     @discardableResult
     func runManually(_ task: TokenmaxTask) -> QueueAutoRunDecision.SkipReason? {
+        // Clicking the button is approval to run the task, not approval to run
+        // it unmetered. Every gate below reads a snapshot that stops refreshing
+        // when the provider is switched off, so there is nothing safe to check
+        // against and the run is refused.
+        guard settingsStore.settings.isEnabled(task.provider) else {
+            Log.shared.write("autorun: manual run refused — \(task.provider.rawValue) is switched off")
+            return .disabled
+        }
+
         if let reason = QueueAutoRun.manualGate(
             task: task,
-            cliInstalled: cliInstalled(),
+            cliInstalled: cliInstalled(task.provider),
             runInFlight: activeRun != nil
         ) {
             Log.shared.write("autorun: manual run refused — \(reason.rawValue)")
@@ -527,13 +592,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
         }
 
         // The account gates still apply: a manual run must not be billed either.
-        if let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
+        if task.provider == .claudeCode, let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
             Log.shared.write("autorun: manual run refused — \(gate.rawValue)")
             return gate
         }
 
-        let windowID = usage.state.snapshot?.sessionWindow?.resetAt
-            .map { QueueAutoRun.windowID(resetAt: $0) } ?? "autorun-manual"
+        let windowID = usage.snapshot(for: task.provider)?.sessionWindow?.resetAt
+            .map { QueueAutoRun.windowID(resetAt: $0, providerID: task.provider.rawValue) } ?? "autorun-manual"
         run(task, windowID: windowID, trigger: .manual)
         return nil
     }
@@ -565,20 +630,20 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
         if let reason = QueueAutoRun.manualGate(
             task: task,
-            cliInstalled: cliInstalled(),
+            cliInstalled: cliInstalled(task.provider),
             runInFlight: activeRun != nil
         ) {
             Log.shared.write("autorun: reply refused — \(reason.rawValue)")
             return reason
         }
 
-        if let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
+        if task.provider == .claudeCode, let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
             Log.shared.write("autorun: reply refused — \(gate.rawValue)")
             return gate
         }
 
-        let windowID = usage.state.snapshot?.sessionWindow?.resetAt
-            .map { QueueAutoRun.windowID(resetAt: $0) } ?? "autorun-manual"
+        let windowID = usage.snapshot(for: task.provider)?.sessionWindow?.resetAt
+            .map { QueueAutoRun.windowID(resetAt: $0, providerID: task.provider.rawValue) } ?? "autorun-manual"
         run(task, windowID: windowID, trigger: .manual, reply: message, resuming: sessionID)
         return nil
     }
@@ -593,7 +658,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         }
         return QueueAutoRun.manualGate(
             task: task,
-            cliInstalled: cliInstalled(),
+            cliInstalled: cliInstalled(task.provider),
             runInFlight: activeRun != nil
         )
     }
@@ -612,8 +677,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     /// Clears a failure pause so the queue can act again in this window.
     func resumeAfterFailure() {
-        guard let resetAt = usage.state.snapshot?.sessionWindow?.resetAt else { return }
-        state.resume(QueueAutoRun.windowID(resetAt: resetAt))
+        guard let resetAt = usage.snapshot(for: usage.selectedProvider)?.sessionWindow?.resetAt else { return }
+        state.resume(QueueAutoRun.windowID(resetAt: resetAt, providerID: usage.selectedProvider.rawValue))
         persist()
         evaluate()
     }
@@ -622,7 +687,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     /// Why this task cannot run automatically right now, or nil if it can.
     func eligibility(for task: TokenmaxTask) -> QueueAutoRunDecision.SkipReason? {
-        let input = makeInput()
+        let input = makeInput(provider: task.provider)
         return QueueAutoRun.eligibility(
             for: task,
             resetAt: input.sessionWindow?.resetAt,
@@ -645,15 +710,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
     func eligibilityMap(for tasks: [TokenmaxTask]) -> [UUID: QueueAutoRunDecision.SkipReason] {
         guard !tasks.isEmpty else { return [:] }
 
-        let input = makeInput()
-        let remainingWindowRuntime = QueueAutoRun.remainingWindowRuntime(input)
-
         return tasks.reduce(into: [:]) { result, task in
+            let input = makeInput(provider: task.provider)
             result[task.id] = QueueAutoRun.eligibility(
                 for: task,
                 resetAt: input.sessionWindow?.resetAt,
                 settings: input.settings,
-                remainingWindowRuntime: remainingWindowRuntime,
+                remainingWindowRuntime: QueueAutoRun.remainingWindowRuntime(input),
                 now: input.now
             )
         }

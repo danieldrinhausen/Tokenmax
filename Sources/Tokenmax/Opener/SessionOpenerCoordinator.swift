@@ -12,8 +12,24 @@ final class SessionOpenerCoordinator: ObservableObject {
     /// The most recent decision, so Settings and the popover can explain a
     /// silence instead of looking broken.
     @Published private(set) var decision: SessionOpenerDecision = .skip(reason: .disabled)
-    @Published private(set) var isRunning = false
+    @Published private(set) var activity: Activity = .idle
     @Published private(set) var lastAttempt: SessionOpenerAttempt?
+
+    /// The two halves of a run, which the UI must not conflate.
+    ///
+    /// Sending takes seconds. Verifying takes up to `ClaudeOAuthUsageClient`'s
+    /// 180s floor, and for that whole stretch the snapshot on screen is still
+    /// the *pre-opener* one — so the popover would otherwise show a live
+    /// "Opening the next session…" directly above a stale "No window running".
+    enum Activity: Equatable {
+        case idle
+        case sending
+        /// The CLI already answered at this time. The window exists; only our
+        /// reading of it is behind.
+        case verifying(sentAt: Date)
+    }
+
+    var isRunning: Bool { activity != .idle }
 
     private let usage: UsageRefreshCoordinator
     private let settingsStore: SettingsStore
@@ -142,6 +158,14 @@ final class SessionOpenerCoordinator: ObservableObject {
             return
         }
 
+        // The opener spends Claude quota, and every decision below reads a
+        // Claude snapshot that stops refreshing when the data source is
+        // switched off. Switching off the source switches off the opener.
+        guard settingsStore.settings.isEnabled(.claudeCode) else {
+            publish(.skip(reason: .disabled))
+            return
+        }
+
         let input = makeInput()
         var outcome = SessionOpener.decide(input)
 
@@ -230,10 +254,11 @@ final class SessionOpenerCoordinator: ObservableObject {
     // MARK: - Running
 
     private func open(cycleID: String, reason: String) async {
-        isRunning = true
-        defer { isRunning = false }
+        activity = .sending
+        defer { activity = .idle }
 
         let model = settingsStore.settings.sessionOpener.model
+        let effort = settingsStore.settings.sessionOpener.effort
         let startedAt = Date()
 
         // Written *before* the process starts. A crash between spawning and
@@ -250,10 +275,12 @@ final class SessionOpenerCoordinator: ObservableObject {
         persist()
         lastAttempt = attempt
 
-        Log.shared.write("opener: sending (\(reason), model=\(model), cycle=\(cycleID))")
+        Log.shared.write(
+            "opener: sending (\(reason), model=\(model), effort=\(effort ?? "default"), cycle=\(cycleID))"
+        )
 
         let result = await Task.detached(priority: .userInitiated) {
-            ClaudeOpenerRunner.run(model: model)
+            ClaudeOpenerRunner.run(model: model, effort: effort)
         }.value
 
         attempt.outcome = result.succeeded ? .sent : .failed
@@ -280,6 +307,7 @@ final class SessionOpenerCoordinator: ObservableObject {
             return
         }
 
+        activity = .verifying(sentAt: attempt.startedAt)
         await verify(attempt)
     }
 
