@@ -22,15 +22,11 @@ section once it is done.
 | Agent notes | `AGENTS.md` and `CLAUDE.md` are deliberately untracked and gitignored |
 
 The pre-rewrite history backup still exists and still verifies as a complete
-history (574 KB, `queue-cockpit` at `d159c15`):
-
-    /private/tmp/claude-501/-Users-daniel-Documents-Git-Repositories-Tokenmax/
-      0a237df8-f242-4139-b4e6-bba782f45236/scratchpad/tokenmax-backup.bundle
-
-It lives in a temp directory and will not survive a reboot. Once the repo is
-public and the rewritten history has been accepted, there is nothing left to
-undo — but until then, copy it somewhere durable or accept that it is gone the
-next time this machine restarts.
+history (574 KB, tip `d159c15`). It sits in an agent session scratchpad under
+`/private/tmp`, so it will not survive a reboot. Once the repo is public and the
+rewritten history has been accepted there is nothing left to undo — but until
+then, copy it somewhere durable or accept that it disappears the next time this
+machine restarts.
 
 ---
 
@@ -68,8 +64,8 @@ update** and "Always Allow" never sticks.
         field**, and Organization / Country while you are there. It pre-fills
         from the Apple ID, and whatever is left lands in the certificate subject
         — which is embedded in every binary signed with it. The first attempt on
-        2026-08-03 produced `CN=Tokenmax Dev, C=DE,
-        emailAddress=ddrinhausen@gmail.com` this way.
+        2026-08-03 produced `CN=Tokenmax Dev, C=DE, emailAddress=<the Apple ID
+        address>` this way, which is exactly what must not ship.
       - *Subject Alternate Name*: leave every field blank, same reason.
 - [ ] Trust it: Keychain Access → double-click `Tokenmax Dev` → **Trust** →
       **Code Signing: Always Trust**. A self-signed root is not valid for signing
@@ -84,7 +80,7 @@ update** and "Always Allow" never sticks.
       it does not, the Extended Key Usage screen was missing **Code Signing** —
       delete the certificate and rerun the assistant.
 - [ ] **Never sign a public build with the `Apple Development` certificate.** Its
-      Common Name is `ddrinhausen@gmail.com`, and the signing certificate is
+      Common Name is the Apple ID email address, and the signing certificate is
       embedded in the signature — `codesign -dvvv` on the shipped app would
       display that address to anyone who downloads it, undoing the history
       rewrite. `Tokenmax Dev` carries no personal data.
