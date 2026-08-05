@@ -13,10 +13,10 @@ struct MenuBarIconRendererTests {
     @Test("The ready state visibly changes what is drawn")
     func readyStateChangesOutput() throws {
         let normal = try #require(pixels(
-            MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false)
+            MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false)
         ))
         let ready = try #require(pixels(
-            MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
+            MenuBarIconRenderer.image(bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false)
         ))
 
         #expect(normal != ready)
@@ -45,10 +45,10 @@ struct MenuBarIconRendererTests {
     @Test("Two different highlight colours draw differently")
     func highlightColourChangesOutput() throws {
         let green = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, highlight: .default
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false, highlight: .default
         )))
         let pink = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true,
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false,
             highlight: HighlightColor(red: 1, green: 0.35, blue: 0.62)
         )))
 
@@ -58,10 +58,10 @@ struct MenuBarIconRendererTests {
     @Test("The glow visibly changes what is drawn")
     func glowChangesOutput() throws {
         let plain = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, glow: false
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false, glow: false
         )))
         let glowing = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, glow: true
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false, glow: true
         )))
 
         #expect(plain != glowing)
@@ -76,10 +76,10 @@ struct MenuBarIconRendererTests {
         #expect(MenuBarIconRenderer.isGlowing(isStale: false, isReady: true, glow: true))
 
         let plain = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false, glow: false
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, glow: false
         )))
         let asked = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, glow: true
         )))
 
         #expect(plain == asked)
@@ -92,10 +92,10 @@ struct MenuBarIconRendererTests {
         #expect(!MenuBarIconRenderer.isGlowing(isStale: true, isReady: true, glow: true))
 
         let plain = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: true, isReady: true, glow: false
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: true, glow: false
         )))
         let glowing = try #require(pixels(MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: true, isReady: true, glow: true
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: true, glow: true
         )))
 
         #expect(plain == glowing)
@@ -106,8 +106,8 @@ struct MenuBarIconRendererTests {
     /// renders black on a dark menu bar.
     @Test("Neutral icon is a template; the green one is not")
     func templatingFollowsState() {
-        let neutral = MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false)
-        let ready = MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
+        let neutral = MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false)
+        let ready = MenuBarIconRenderer.image(bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false)
 
         #expect(neutral.isTemplate)
         #expect(!ready.isTemplate)
@@ -115,7 +115,7 @@ struct MenuBarIconRendererTests {
 
     @Test("Stale icon is still a template so it stays legible")
     func staleIsTemplate() {
-        let stale = MenuBarIconRenderer.image(bars: [.init(fraction: nil), .init(fraction: nil)], isStale: true, isReady: false)
+        let stale = MenuBarIconRenderer.image(bars: [.init(fraction: nil), .init(fraction: nil)], isStale: true)
         #expect(stale.isTemplate)
     }
 
@@ -132,9 +132,9 @@ struct MenuBarIconRendererTests {
     /// inside the existing bounds instead.
     @Test("Icon is exactly the menubar size — no glow padding")
     func iconSize() {
-        let plain = MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
+        let plain = MenuBarIconRenderer.image(bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false)
         let glowing = MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, glow: true
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false, glow: true
         )
 
         #expect(plain.size == MenuBarIconRenderer.size)
@@ -146,7 +146,8 @@ struct MenuBarIconRendererTests {
     @Test("A full bar still renders at full size with the glow on")
     func glowDoesNotResizeAFullBar() {
         let full = MenuBarIconRenderer.image(
-            bars: [.init(fraction: 100), .init(fraction: 100)], isStale: false, isReady: true, glow: true
+            bars: [.init(fraction: 100, isReady: true), .init(fraction: 100, isReady: true)],
+            isStale: false, glow: true
         )
         #expect(full.size == MenuBarIconRenderer.size)
     }
@@ -155,8 +156,8 @@ struct MenuBarIconRendererTests {
     /// saturated the main thread and beachballed the app.
     @Test("An unchanged reading is drawn once and reused")
     func imagesAreCached() {
-        let first = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
-        let second = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
+        let first = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false)
+        let second = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false)
 
         // Identical object, not merely equal — proves no re-render happened.
         #expect(first === second)
@@ -164,8 +165,8 @@ struct MenuBarIconRendererTests {
 
     @Test("Ready and default states are cached separately")
     func readyAndDefaultAreDistinct() {
-        let ready = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true)
-        let normal = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false)
+        let ready = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false)
+        let normal = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false)
 
         #expect(ready !== normal)
         #expect(ready.tiffRepresentation != normal.tiffRepresentation)
@@ -178,14 +179,14 @@ struct MenuBarIconRendererTests {
         MenuBarIconRenderer.invalidateCache()
 
         let green = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, highlight: .default
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false, highlight: .default
         )
         let blue = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true,
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false,
             highlight: HighlightColor(red: 0.2, green: 0.6, blue: 1.0)
         )
         let glowing = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: true, highlight: .default, glow: true
+            bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false, highlight: .default, glow: true
         )
 
         #expect(green !== blue)
@@ -199,10 +200,10 @@ struct MenuBarIconRendererTests {
         MenuBarIconRenderer.invalidateCache()
 
         let a = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false, highlight: .default, glow: true
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, highlight: .default, glow: true
         )
         let b = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false,
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false,
             highlight: HighlightColor(red: 0.2, green: 0.6, blue: 1.0), glow: false
         )
 
@@ -211,8 +212,8 @@ struct MenuBarIconRendererTests {
 
     @Test("Sub-percent fluctuations reuse the same cached image")
     func cacheIgnoresSubPercentNoise() {
-        let a = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40.2), .init(fraction: 70.1)], isStale: false, isReady: false)
-        let b = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40.4), .init(fraction: 70.3)], isStale: false, isReady: false)
+        let a = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40.2), .init(fraction: 70.1)], isStale: false)
+        let b = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 40.4), .init(fraction: 70.3)], isStale: false)
 
         #expect(a === b)
     }
@@ -221,9 +222,9 @@ struct MenuBarIconRendererTests {
     /// validity when the user switches between light and dark.
     @Test("Invalidating the cache forces a fresh render")
     func cacheCanBeInvalidated() {
-        let first = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 55), .init(fraction: 66)], isStale: false, isReady: false)
+        let first = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 55), .init(fraction: 66)], isStale: false)
         MenuBarIconRenderer.invalidateCache()
-        let second = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 55), .init(fraction: 66)], isStale: false, isReady: false)
+        let second = MenuBarIconRenderer.cachedImage(bars: [.init(fraction: 55), .init(fraction: 66)], isStale: false)
 
         #expect(first !== second)
     }

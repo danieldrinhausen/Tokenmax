@@ -238,7 +238,8 @@ struct MenuBarIconModelTests {
             countdownSource: .claudeSession,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { _ in false },
-            alerting: []
+            alerting: [],
+            ready: []
         )
 
         #expect(model.bars.map(\.fraction) == [90, 40, 70])
@@ -256,7 +257,8 @@ struct MenuBarIconModelTests {
             countdownSource: .claudeSession,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { $0 == .codex },
-            alerting: []
+            alerting: [],
+            ready: []
         )
 
         #expect(model.bars.map(\.fraction) == [40, nil])
@@ -271,7 +273,8 @@ struct MenuBarIconModelTests {
             countdownSource: .claudeSession,
             snapshot: { _ in nil },
             isStale: { _ in true },
-            alerting: []
+            alerting: [],
+            ready: []
         )
 
         #expect(model.isStale)
@@ -286,7 +289,8 @@ struct MenuBarIconModelTests {
             countdownSource: .claudeSession,
             snapshot: { _ in claude },
             isStale: { _ in false },
-            alerting: [.claudeWeekly]
+            alerting: [.claudeWeekly],
+            ready: []
         )
 
         #expect(model.bars.map(\.isAlerting) == [false, true])
@@ -305,7 +309,8 @@ struct MenuBarIconModelTests {
             countdownSource: .claudeSession,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { _ in false },
-            alerting: []
+            alerting: [],
+            ready: []
         )
         // Deliberately a window no bar is showing — that is allowed.
         #expect(followingSession.countdownResetAt == reset)
@@ -316,7 +321,8 @@ struct MenuBarIconModelTests {
             countdownSource: .codexWeekly,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { _ in false },
-            alerting: []
+            alerting: [],
+            ready: []
         )
         #expect(followingCodex.countdownResetAt == nil)
     }
@@ -334,7 +340,8 @@ struct MenuBarIconModelTests {
             countdownSource: .claudeSession,
             snapshot: { _ in claude },
             isStale: { $0 == .claudeCode },
-            alerting: []
+            alerting: [],
+            ready: []
         )
 
         #expect(model.countdownIsStale)
@@ -360,6 +367,46 @@ struct MenuBarIconModelTests {
             resetAt: now.addingTimeInterval(24 * 3600), now: now
         ) == "1d 0h")
     }
+
+    /// The bug this exists to prevent: `isReady` was one flag handed to every
+    /// bar, sourced from the selected provider's *session* window. A Codex
+    /// weekly window with four days left was painted "spend it now" because
+    /// Claude's session was about to reset — a bar reporting a state that was
+    /// never its own.
+    @Test("Only the bar whose own window is a burn opportunity lights up")
+    func readinessIsPerSource() {
+        let claude = snapshot(provider: .claudeCode, session: 80, weekly: 56)
+        let codex = snapshot(provider: .codex, weekly: 85)
+
+        let model = MenuBarIconModel.make(
+            layout: MenuBarBars([.claudeSession, .codexWeekly]),
+            countdownSource: .claudeSession,
+            snapshot: { $0 == .codex ? codex : claude },
+            isStale: { _ in false },
+            alerting: [],
+            ready: [.claudeSession]
+        )
+
+        #expect(model.bars.map(\.isReady) == [true, false])
+    }
+
+    /// Same reason `fraction` is nil for a stale provider: a bar with no reading
+    /// has no opportunity to announce either.
+    @Test("A stale provider's bar is never ready")
+    func staleBarIsNeverReady() {
+        let claude = snapshot(provider: .claudeCode, session: 80, weekly: 56)
+
+        let model = MenuBarIconModel.make(
+            layout: MenuBarBars([.claudeSession, .claudeWeekly]),
+            countdownSource: .claudeSession,
+            snapshot: { _ in claude },
+            isStale: { _ in true },
+            alerting: [],
+            ready: [.claudeSession]
+        )
+
+        #expect(model.bars.allSatisfy { !$0.isReady })
+    }
 }
 
 @Suite("Menubar alert colouring")
@@ -377,15 +424,29 @@ struct MenuBarAlertColourTests {
         #expect(!ReminderStatus.suppressed(.notEnoughQuotaLeft, firedAt: nil).hasFiredForCurrentWindow)
     }
 
-    /// "You are about to waste this window" must not be repainted by the more
-    /// general "now is a good time to spend".
-    @Test("An alert outranks the burn highlight on its own bar")
-    func alertBeatsHighlight() {
-        let alerting = MenuBarIconRenderer.barColor(
+    /// "Now is a good time to spend this" is a statement about quota. "Already
+    /// notified" is bookkeeping about a notification, and says nothing about how
+    /// much is left. When both are true of one window the quota fact has to win,
+    /// or a bar with 80% remaining is painted the warning colour while the
+    /// popover calls the same window a good time to spend.
+    @Test("The burn highlight outranks an already-fired reminder")
+    func highlightBeatsAlert() {
+        let both = MenuBarIconRenderer.barColor(
             isStale: false, isReady: true, isAlerting: true, templated: false
         )
+        #expect(both == MenuBarIconRenderer.readyColor)
+        #expect(both != MenuBarIconRenderer.alertColor)
+    }
+
+    /// The alert keeps the case it was actually meant for: a window that has
+    /// been announced and is no longer a burn opportunity, which is the one
+    /// that genuinely warrants a warning colour.
+    @Test("An alert still colours a bar that is not a burn opportunity")
+    func alertAppliesWithoutHighlight() {
+        let alerting = MenuBarIconRenderer.barColor(
+            isStale: false, isReady: false, isAlerting: true, templated: false
+        )
         #expect(alerting == MenuBarIconRenderer.alertColor)
-        #expect(alerting != MenuBarIconRenderer.readyColor)
     }
 
     /// Stale data must never be dressed up — including as an alert.
@@ -431,11 +492,11 @@ struct MenuBarAlertColourTests {
         MenuBarIconRenderer.invalidateCache()
 
         let plain = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false, isReady: false
+            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false
         )
         let alerting = MenuBarIconRenderer.cachedImage(
             bars: [.init(fraction: 40), .init(fraction: 70, isAlerting: true)],
-            isStale: false, isReady: false
+            isStale: false
         )
 
         #expect(plain !== alerting)

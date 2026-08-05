@@ -56,6 +56,28 @@ final class ProviderUsageCoordinator: ObservableObject {
     func isStale(for provider: TokenmaxProvider) -> Bool { coordinator(for: provider).isStale }
     func snapshot(for provider: TokenmaxProvider) -> UsageSnapshot? { state(for: provider).snapshot }
 
+    /// The windows currently in their "spend it now" stretch, per source.
+    ///
+    /// Deliberately shaped like `NotificationCoordinator.alertingSources`, and
+    /// for the same reason: the menubar draws one bar per source, so anything
+    /// that colours a bar has to be answerable *per source*. The single
+    /// `burnOpportunity` below is the selected provider's alone, and passing it
+    /// to every bar told a window with four days left that it was about to
+    /// evaporate.
+    ///
+    /// Only session windows can appear here. `burnOpportunity` is a statement
+    /// about the session window specifically — a weekly window measured in days
+    /// is never the thing that is about to be lost.
+    var readySources: Set<MenuBarQuotaSource> {
+        Set(
+            MenuBarQuotaSource.allCases.filter { source in
+                source.kind == .session
+                    && isEnabled(source.provider)
+                    && coordinator(for: source.provider).burnOpportunity != nil
+            }
+        )
+    }
+
     // Compatibility conveniences for the selected meter.
     var state: UsageState { coordinator(for: selectedProvider).state }
     var isStale: Bool { coordinator(for: selectedProvider).isStale }

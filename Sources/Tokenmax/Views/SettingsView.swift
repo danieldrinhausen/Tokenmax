@@ -306,9 +306,8 @@ private struct HighlightPreview: View {
             // Two bars regardless of the user's layout: this swatch is about
             // whether the *colour* survives a light and a dark menu bar, and a
             // third bar would only make the sample thinner to judge.
-            bars: [.init(fraction: 62), .init(fraction: 78)],
+            bars: [.init(fraction: 62, isReady: true), .init(fraction: 78, isReady: true)],
             isStale: false,
-            isReady: true,
             highlight: color,
             glow: glow
         ))

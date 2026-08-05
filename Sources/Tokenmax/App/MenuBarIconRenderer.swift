@@ -33,10 +33,18 @@ enum MenuBarIconRenderer {
         /// This window's reminder has already fired and the window has not reset
         /// yet, so the bar carries the alert colour.
         var isAlerting: Bool
+        /// *This* window is in its "spend it now" stretch.
+        ///
+        /// Per bar, not per icon. It used to be one flag passed to every bar,
+        /// which meant a window with four days left was painted "spend it now"
+        /// because a different provider's session was about to reset — a bar
+        /// reporting a state that was never its own.
+        var isReady: Bool
 
-        init(fraction: Double?, isAlerting: Bool = false) {
+        init(fraction: Double?, isAlerting: Bool = false, isReady: Bool = false) {
             self.fraction = fraction
             self.isAlerting = isAlerting
+            self.isReady = isReady
         }
     }
 
@@ -76,7 +84,6 @@ enum MenuBarIconRenderer {
         /// state — the whole reading, in order.
         let bars: [Bar]
         let isStale: Bool
-        let isReady: Bool
         /// Nil unless the highlight is actually being drawn, so every unlit
         /// reading shares one cache entry no matter what colour is configured.
         let highlight: HighlightColor?
@@ -100,7 +107,6 @@ enum MenuBarIconRenderer {
     static func image(
         bars: [Bar],
         isStale: Bool,
-        isReady: Bool = false,
         highlight: HighlightColor = .default,
         glow: Bool = false
     ) -> NSImage {
@@ -116,7 +122,7 @@ enum MenuBarIconRenderer {
         // A coloured bar cannot survive templating, and a template is the only
         // way the neutral bars can match the menu bar. When both are on screen
         // the colour has to win, so the neutrals fall back to grey.
-        let templated = !isReady && !bars.contains(where: \.isAlerting)
+        let templated = !bars.contains { $0.isReady || $0.isAlerting }
 
         for (index, bar) in bars.enumerated() {
             // Drawn top-down: the first source is the top bar, matching the
@@ -131,10 +137,9 @@ enum MenuBarIconRenderer {
                     height: barHeight
                 ),
                 isStale: isStale,
-                isReady: isReady,
                 templated: templated,
                 highlight: highlight,
-                glow: isGlowing(isStale: isStale, isReady: isReady, glow: glow)
+                glow: isGlowing(isStale: isStale, isReady: bar.isReady, glow: glow)
             )
         }
 
@@ -154,20 +159,24 @@ enum MenuBarIconRenderer {
     static func cachedImage(
         bars: [Bar],
         isStale: Bool,
-        isReady: Bool,
         highlight: HighlightColor = .default,
         glow: Bool = false
     ) -> NSImage {
-        let lit = isReady && !isStale
+        let lit = bars.contains(where: \.isReady) && !isStale
 
         // Round to whole percent: the icon cannot show more resolution than
         // that, and it stops the cache growing on every tiny fluctuation.
         let key = CacheKey(
-            bars: bars.map { Bar(fraction: $0.fraction.map { Double(Int($0.rounded())) }, isAlerting: $0.isAlerting) },
+            bars: bars.map {
+                Bar(
+                    fraction: $0.fraction.map { Double(Int($0.rounded())) },
+                    isAlerting: $0.isAlerting,
+                    isReady: $0.isReady
+                )
+            },
             isStale: isStale,
-            isReady: isReady,
             highlight: lit ? highlight : nil,
-            glow: isGlowing(isStale: isStale, isReady: isReady, glow: glow)
+            glow: isGlowing(isStale: isStale, isReady: lit, glow: glow)
         )
 
         if let cached = imageCache[key] { return cached }
@@ -175,7 +184,6 @@ enum MenuBarIconRenderer {
         let rendered = image(
             bars: bars,
             isStale: isStale,
-            isReady: isReady,
             highlight: highlight,
             glow: glow
         )
@@ -197,7 +205,6 @@ enum MenuBarIconRenderer {
         bar: Bar,
         rect: NSRect,
         isStale: Bool,
-        isReady: Bool,
         templated: Bool,
         highlight: HighlightColor,
         glow: Bool
@@ -206,7 +213,7 @@ enum MenuBarIconRenderer {
         let radius = rect.height / 2
         let color = barColor(
             isStale: isStale,
-            isReady: isReady,
+            isReady: bar.isReady,
             isAlerting: bar.isAlerting,
             templated: templated,
             highlight: highlight
@@ -269,8 +276,16 @@ enum MenuBarIconRenderer {
         highlight: HighlightColor = .default
     ) -> NSColor {
         if isStale { return (templated ? templateColor : untemplatedNeutralColor).withAlphaComponent(0.45) }
-        if isAlerting { return alertColor }
+        // Ready outranks alerting. "Already notified" is notification
+        // bookkeeping, not a statement about quota: a window with 80% left that
+        // happens to have been announced is an *opportunity*, and painting it
+        // the warning colour contradicted the popover, which was calling the
+        // same window a good time to spend. Alert survives for the case it was
+        // meant for — a window that has been announced and is genuinely low,
+        // which by then is no longer a burn opportunity and so never reaches
+        // this branch as ready.
         if isReady { return highlight.nsColor }
+        if isAlerting { return alertColor }
         return templated ? templateColor : untemplatedNeutralColor
     }
 

@@ -31,7 +31,8 @@ struct MenuBarIconModel: Equatable {
         countdownSource: MenuBarQuotaSource?,
         snapshot: (TokenmaxProvider) -> UsageSnapshot?,
         isStale: (TokenmaxProvider) -> Bool,
-        alerting: Set<MenuBarQuotaSource>
+        alerting: Set<MenuBarQuotaSource>,
+        ready: Set<MenuBarQuotaSource>
     ) -> MenuBarIconModel {
         let sources = layout.sources
 
@@ -43,7 +44,10 @@ struct MenuBarIconModel: Equatable {
             let fraction = isStale(source.provider) ? nil : window?.remainingPercent
             return MenuBarIconRenderer.Bar(
                 fraction: fraction,
-                isAlerting: alerting.contains(source)
+                isAlerting: alerting.contains(source),
+                // A stale bar has no reading, so it has no opportunity to
+                // announce either — same reason `fraction` is nil above.
+                isReady: !isStale(source.provider) && ready.contains(source)
             )
         }
 

@@ -61,7 +61,8 @@ struct TokenmaxApp: App {
                     countdownSource: settingsStore.settings.effectiveCountdownSource,
                     snapshot: { usage.snapshot(for: $0) },
                     isStale: { usage.isStale(for: $0) },
-                    alerting: notificationCoordinator.alertingSources
+                    alerting: notificationCoordinator.alertingSources,
+                    ready: usage.readySources
                 ),
                 now: usage.tick,
                 isHighlighted: usage.burnOpportunity != nil,
@@ -197,7 +198,6 @@ private struct MenuBarLabel: View {
         Image(nsImage: MenuBarIconRenderer.cachedImage(
             bars: model.bars,
             isStale: model.isStale,
-            isReady: isHighlighted,
             highlight: highlight,
             glow: glow
         ))

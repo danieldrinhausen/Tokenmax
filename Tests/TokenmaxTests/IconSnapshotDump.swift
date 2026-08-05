@@ -19,9 +19,13 @@ struct IconSnapshotDump {
         var unlit = NSImage()
         var lit = NSImage()
         appearance.performAsCurrentDrawingAppearance {
-            let bars: [MenuBarIconRenderer.Bar] = [.init(fraction: 40), .init(fraction: 70)]
-            unlit = MenuBarIconRenderer.image(bars: bars, isStale: false, isReady: false)
-            lit = MenuBarIconRenderer.image(bars: bars, isStale: false, isReady: true)
+            unlit = MenuBarIconRenderer.image(
+                bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false
+            )
+            lit = MenuBarIconRenderer.image(
+                bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)],
+                isStale: false
+            )
         }
 
         let pad: CGFloat = 12 * scale
@@ -89,16 +93,16 @@ struct IconSnapshotDump {
                     ],
                     isStale: false
                 ),
-                // Alerting *and* a burn opportunity: the alert must still win
-                // on its own bar while the others take the highlight colour.
+                // Alerting *and* a burn opportunity on the same bar: the
+                // highlight wins there, while a bar that is only alerting keeps
+                // the alert colour and an ordinary bar stays neutral.
                 MenuBarIconRenderer.image(
                     bars: [
-                        .init(fraction: 40),
+                        .init(fraction: 40, isReady: true),
                         .init(fraction: 70, isAlerting: true),
                         .init(fraction: 90),
                     ],
-                    isStale: false,
-                    isReady: true
+                    isStale: false
                 ),
             ]
         }
