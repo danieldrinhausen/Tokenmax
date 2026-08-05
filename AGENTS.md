@@ -159,6 +159,28 @@ there when you add a persisted field.
 Do not run `make install` unless asked — it stops and replaces the user's running
 copy.
 
+## Git
+
+**Commit and push after every change. Do not wait to be asked.** A finished
+change that is still only in the working tree is a change that can be lost, and
+work that piles up uncommitted stops being separable into commits that explain
+themselves — the diffs interleave in shared files and the reasoning is gone by
+the time anyone tries to reconstruct it.
+
+- **Green before committed.** `make test` passes first; a commit that does not
+  build is worse than an uncommitted change.
+- **One logical change per commit.** If you did two things, that is two commits.
+  Split them while you still remember which hunk belongs to which.
+- **Push to `origin main` once committed.** Committing without pushing only moves
+  the problem.
+- Never commit `Tokenmax.xcodeproj` — it is generated and untracked.
+
+Commit messages follow the existing history, which is the specification: a
+sentence-case subject in the imperative, no `feat:`/`fix:` prefix, no scope
+tags. The body is prose explaining **why** — the failure mode, what was tried
+and rejected, what invariant is being preserved. Say what the code cannot. A
+one-line commit is almost always a commit that skipped the interesting part.
+
 ## Further reading
 
 | | |
