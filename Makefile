@@ -8,15 +8,26 @@ VERSION    := $(shell sed -n 's/.*MARKETING_VERSION: "\(.*\)".*/\1/p' project.ym
 DIST_DIR   := dist
 DMG        := $(DIST_DIR)/$(APP)-$(VERSION).dmg
 
-# Ad-hoc by default, so a fresh clone builds with no setup at all.
+# A stable signing identity when one exists, ad-hoc otherwise.
 #
 # Ad-hoc means no certificate, so the bundle has no stable designated
-# requirement and the keychain ACL falls back to the raw cdhash — which changes
-# on every rebuild, so macOS re-asks for access to the Claude credentials every
-# time and "Always Allow" never sticks. Signing with a self-signed code-signing
-# certificate fixes that: `make sign SIGN_ID="Tokenmax Dev"`. See README →
-# Building a release.
-SIGN_ID ?= -
+# requirement and both the keychain ACL and the app's TCC grants fall back to
+# the raw cdhash — which changes on every rebuild. macOS then treats each build
+# as a different program: "Always Allow" never sticks for the Claude
+# credentials, and file-access grants are thrown away, which makes an
+# unattended run block on a consent dialog nobody is there to answer.
+#
+# Detected rather than left as a variable you must remember to pass. One
+# forgotten `SIGN_ID=` silently reinstates the whole problem, which is exactly
+# how a certificate created on 3 Aug went unused. A clone with no certificate
+# still builds ad-hoc, so setup remains optional. Override explicitly with
+# `make install SIGN_ID=-` to test the ad-hoc path.
+#
+# Create the certificate once: Keychain Access → Certificate Assistant →
+# Create a Certificate…, named "Tokenmax Dev", Self Signed Root, Code Signing.
+# See README → Building a release.
+SIGN_ID ?= $(shell security find-identity -v -p codesigning 2>/dev/null \
+	| grep -q '"Tokenmax Dev"' && echo "Tokenmax Dev" || echo "-")
 
 .PHONY: all generate build sign install run stop test dmg clean logs
 
