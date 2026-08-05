@@ -5,6 +5,30 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-05
+
+### Fixed
+
+- **Each menu bar bar is now coloured by its own window.** Two faults combined
+  into one nonsensical icon: a Claude session with 80% remaining was drawn in
+  the warning colour, while a Codex week four days from resetting was drawn as
+  an opportunity. Neither bar was reporting its own state.
+
+  The "now is a good time to spend this" flag was a single value computed from
+  one provider's *session* window and then handed to every bar, so a weekly
+  window was lit because a different provider's session was about to reset. It
+  is now resolved per bar.
+
+  The warning colour also outranked it. "Already notified" is bookkeeping about
+  a notification and says nothing about how much quota is left, so it no longer
+  repaints a window the popover is simultaneously calling a good time to spend —
+  the two disagreed about the same window in the same second. The warning colour
+  keeps the case it was written for: a window that has been announced and is no
+  longer an opportunity.
+- **Release images are built from the Release configuration.** `make dmg`
+  inherited the Debug default, so 0.1.0 shipped an unoptimised build with
+  assertions live. It is no longer a flag that can be forgotten.
+
 ## [0.1.0] - 2026-08-05
 
 First public release. The **Changed** and **Fixed** entries below describe work
