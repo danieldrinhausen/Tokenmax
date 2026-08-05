@@ -1,7 +1,7 @@
 APP        := Tokenmax
 BUNDLE_ID  := com.tokenmax.Tokenmax
 BUILD_DIR  := .build
-CONFIG     := Debug
+CONFIG     ?= Debug
 APP_PATH   := $(BUILD_DIR)/Build/Products/$(CONFIG)/$(APP).app
 INSTALL_TO := /Applications/$(APP).app
 VERSION    := $(shell sed -n 's/.*MARKETING_VERSION: "\(.*\)".*/\1/p' project.yml)
@@ -29,7 +29,7 @@ DMG        := $(DIST_DIR)/$(APP)-$(VERSION).dmg
 SIGN_ID ?= $(shell security find-identity -v -p codesigning 2>/dev/null \
 	| grep -q '"Tokenmax Dev"' && echo "Tokenmax Dev" || echo "-")
 
-.PHONY: all generate build sign install run stop test doctor dmg clean logs
+.PHONY: all generate build sign install run stop test doctor dmg dmg-image clean logs
 
 all: install
 
@@ -83,7 +83,14 @@ test: generate
 # nothing installed and no Apple Developer account. The image is not notarised,
 # so Gatekeeper will ask the recipient to confirm the first launch — README →
 # Installing a release covers what they see.
-dmg: sign
+# Always Release, never whatever `CONFIG` happens to be. 0.1.0 shipped a Debug
+# image because the default was Debug and nothing here disagreed — unoptimised,
+# with assertions live, handed to users. Leaving this to a `CONFIG=Release` you
+# have to remember is the same trap `SIGN_ID` was, so it is not a flag.
+dmg:
+	@$(MAKE) --no-print-directory dmg-image CONFIG=Release
+
+dmg-image: sign
 	@rm -rf "$(DIST_DIR)/root" "$(DMG)"
 	@mkdir -p "$(DIST_DIR)/root"
 	@cp -R "$(APP_PATH)" "$(DIST_DIR)/root/"
