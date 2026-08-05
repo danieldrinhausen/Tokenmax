@@ -5,10 +5,22 @@ projects whether your current pace runs out early or leaves quota on the table, 
 prompt queue, and notifies you before a window resets so leftover quota gets used instead of
 evaporating.
 
-The menubar shows two meters — session over weekly — and the time left in the session window
-("1h 16m"). The bars carry how much is left; the countdown carries how long there is to spend it.
-Settings → General switches between bars, countdown, or both, and offers **Start Tokenmax at
-login**.
+<p align="center">
+  <img src="docs/images/menu-bar-popover.png" width="420" alt="The Tokenmax menu bar icon and its popover, showing Claude Code session and weekly quota, Codex weekly quota, and the queue">
+</p>
+
+The menubar shows a stack of meters and the time left before a window resets ("1h 16m"). The bars
+carry how much is left; the countdown carries how long there is to spend it.
+
+**Settings → General** decides what the icon draws. Pick **2 or 3 bars**, then choose which quota
+each one shows — Claude session, Claude week, Codex session, Codex week — by dragging a quota onto
+a bar; dragging one that is already placed swaps the two. The countdown is chosen separately under
+**Count down to**, because the most useful deadline is not always one the bars have room for, and
+tying the two would mean changing the icon to change the text. The same pane switches the countdown
+text off entirely and offers **Start Tokenmax at login**.
+
+A quota belonging to a provider you have switched off is never drawn, but its slot is remembered —
+turn the provider back on and your arrangement returns rather than a rebuilt one.
 
 When the session window is inside your reminder lead time and still holds usable quota, the bars
 light up: "now is a good moment to spend this". Settings → General → **Highlight** picks the
@@ -17,6 +29,10 @@ the whole signal off so the icon stays plain at all times. The colour is shared 
 banner in the popover. Because menu bar contrast follows your *wallpaper* rather than the
 light/dark setting, the pane previews the lit icon against both extremes and warns about a colour
 that would disappear into one of them.
+
+<p align="center">
+  <img src="docs/images/settings-highlight.png" width="700" alt="Settings → General → Highlight: colour presets, optional glow, and the light/dark menu bar preview">
+</p>
 
 > **Not affiliated with Anthropic.** Tokenmax is an independent tool that reads quota data
 > Claude Code already holds on your Mac. See [Disclaimer](#disclaimer) — the primary data source
@@ -87,6 +103,10 @@ Requires macOS 14+ to run, Xcode 26+ to build. No Apple Developer account needed
 
 ## Where the quota data comes from
 
+<p align="center">
+  <img src="docs/images/settings-data-source.png" width="700" alt="Settings → Data Source: the usage endpoint, keychain credentials, the status line fallback, and the fetched model catalog">
+</p>
+
 ### Codex
 
 Tokenmax reads Codex quota through the local `codex app-server` JSON-RPC interface. It reuses the
@@ -121,6 +141,18 @@ cache.
 The fallback is opt-in from **Settings → Data Source**. It writes a shim script and sets
 `statusLine` in `~/.claude/settings.json`, wrapping any status line you already use. Remove the
 `statusLine` key to uninstall.
+
+### The model catalog
+
+The models offered in the task editor and the session opener are **fetched, not hardcoded**.
+Tokenmax reads `GET api.anthropic.com/v1/models` with the same keychain token it uses for usage, so
+a newly released model appears in the pickers without updating the app. The list refreshes daily and
+the last one is cached and used offline; **Settings → Data Source → Refresh models** forces it.
+
+If the fetch fails there is no dead end — the built-in aliases (`haiku`, `sonnet`, `opus`, `fable`)
+still work, and an alias resolves to the newest model of that family at run time rather than
+pinning a version. A full model id typed into the editor's *Other…* field is stored exactly as
+typed, which is how you pin one deliberately.
 
 ## Files
 
@@ -187,6 +219,10 @@ Switch it off in **Settings → General → Show projected pace**.
 Permission is requested only when you enable reminders — never at launch. Session and weekly
 windows are configured independently.
 
+<p align="center">
+  <img src="docs/images/settings-notifications.png" width="700" alt="Settings → Notifications: independent lead time, minimum quota and repeat rules per window">
+</p>
+
 A reminder is scheduled at `resetAt − leadTime` with the identifier
 `claude-{window}-{ISO8601 resetAt}`. Because the identifier derives from the reset timestamp,
 rescheduling is idempotent — repeated refreshes cannot stack duplicates.
@@ -219,6 +255,10 @@ switched off only **Snooze 15 Minutes** is offered.
 A Claude window starts on **first use**, not on a schedule. **Settings → Session Opener** will,
 once the current window expires, send one tiny non-interactive request so the next window is already
 running when you sit down later.
+
+<p align="center">
+  <img src="docs/images/settings-session-opener.png" width="700" alt="Settings → Session Opener: model and thinking grade, and the safety thresholds that can refuse the run">
+</p>
 
 ```
 claude --print --model haiku --output-format json --tools "" \
@@ -282,6 +322,10 @@ Every decision is logged with an `opener:` prefix.
 
 ## Queue
 
+<p align="center">
+  <img src="docs/images/queue.png" width="820" alt="The queue window: per-provider quota in the header, Ready/Running/Attention and Completed/Archived tabs, and task cards">
+</p>
+
 Add (⌘N), edit, duplicate, copy prompt, move to top, run, mark complete, archive, delete.
 
 **Settings → General → Enable task queue** switches the whole feature off: the popover's queue
@@ -330,6 +374,10 @@ that would fail.
 **Settings → Queue Automation** lets Tokenmax spend quota that would otherwise expire by running a
 queued task on its own. Off by default, and in **preview only** mode even once switched on, so the
 decision logic can be watched for days before it is trusted with real quota and real file changes.
+
+<p align="center">
+  <img src="docs/images/settings-queue-automation.png" width="700" alt="Settings → Queue Automation: the mode selector and the timing thresholds">
+</p>
 
 A task runs automatically only when *all* of this holds: the task is marked **Always allow automatic
 execution**, its working directory exists, it has a runtime estimate, the usage reading is fresh, the

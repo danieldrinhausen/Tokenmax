@@ -6,22 +6,31 @@ section once it is done.
 
 ---
 
-## Where things stand (2026-08-03)
+## Where things stand (2026-08-05)
 
 | | |
 |---|---|
-| GitHub repo | `github.com/danieldrinhausen/Tokenmax` — exists, **private**, **empty** (nothing pushed) |
-| Local `origin` | wired up, never pushed |
-| Working branch | `queue-cockpit`; `main` is 5 commits behind and does **not** have the release prep |
-| Uncommitted | 14 staged files — the session-opener fixes plus all the open-source prep |
-| Author email | rewritten to `152017997+danieldrinhausen@users.noreply.github.com` across all history; `user.email` is set **repo-locally** |
-| Signing | still ad-hoc (`SIGN_ID=-`); the `Tokenmax Dev` certificate does **not** exist yet |
-| Tests | 343 passing |
-| Info page | `docs/index.html`, ready; GitHub Pages not enabled yet |
+| GitHub repo | `github.com/danieldrinhausen/Tokenmax` — **still private**; the visibility switch is the one thing left |
+| `main` | 18 commits, pushed, in sync with `origin/main`; carries all the release prep |
+| Uncommitted | none |
+| Stale branch | `queue-cockpit` still exists locally **and on `origin`** — delete both before going public |
+| Author email | `152017997+danieldrinhausen@users.noreply.github.com` across all history, verified — no other address appears in any commit; `user.email` is set **repo-locally** |
+| Signing | the `Tokenmax Dev` certificate **exists**, and the Makefile detects it automatically — `make sign` resolves to it with no `SIGN_ID=` needed |
+| Tests | **449 passing**, 0 failing |
+| Info page | `docs/index.html`, ready; GitHub Pages **not enabled yet** — it cannot be until the repo is public |
+| Screenshots | `docs/images/`, 10 PNGs, 2.4 MB total |
+| Agent notes | `AGENTS.md` and `CLAUDE.md` are deliberately untracked and gitignored |
 
-A backup bundle of the pre-rewrite history was left in the session scratchpad. It
-is temporary — if the rewritten history ever needs undoing, do it before that
-directory is cleaned up.
+The pre-rewrite history backup still exists and still verifies as a complete
+history (574 KB, `queue-cockpit` at `d159c15`):
+
+    /private/tmp/claude-501/-Users-daniel-Documents-Git-Repositories-Tokenmax/
+      0a237df8-f242-4139-b4e6-bba782f45236/scratchpad/tokenmax-backup.bundle
+
+It lives in a temp directory and will not survive a reboot. Once the repo is
+public and the rewritten history has been accepted, there is nothing left to
+undo — but until then, copy it somewhere durable or accept that it is gone the
+next time this machine restarts.
 
 ---
 

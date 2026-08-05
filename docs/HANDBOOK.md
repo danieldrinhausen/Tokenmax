@@ -34,8 +34,13 @@ certificate fix.
 
 **2. Check the menu bar.**
 
-You should see two meters and a countdown. Two bars means session over weekly.
-The countdown is time left in the *session* window.
+You should see a stack of meters and a countdown. Out of the box that is two
+bars — Claude session over Claude week — with the countdown showing time left in
+the Claude session window.
+
+<p align="center">
+  <img src="images/menu-bar-popover.png" width="380" alt="The menu bar icon and its popover">
+</p>
 
 If you see a stub icon instead, the first reading has not landed yet. Give it a
 few seconds. If it stays empty, jump to
@@ -43,9 +48,18 @@ few seconds. If it stays empty, jump to
 
 **3. Decide what the icon should show.**
 
-**Settings → General** switches between bars, countdown, or both. There is no
-wrong answer, but the countdown alone is the most legible at a glance, and the
-bars alone are the least distracting.
+**Settings → General** decides both halves independently. Choose **2 or 3 bars**,
+then drag a quota — Claude session, Claude week, Codex session, Codex week — onto
+the bar you want it on; dropping one onto an occupied bar swaps the two. **Count
+down to** picks the window the countdown text tracks, which does not have to be a
+window the bars show. The text can also be switched off, leaving bars alone.
+
+<p align="center">
+  <img src="images/settings-general.png" width="640" alt="Settings → General, showing the bar layout editor and the countdown source">
+</p>
+
+There is no wrong answer, but the countdown alone is the most legible at a
+glance, and the bars alone are the least distracting.
 
 **4. Grant folder access when you add your first task.**
 
@@ -137,7 +151,15 @@ see [Troubleshooting](TROUBLESHOOTING.md#a-reminder-did-not-arrive).
 The queue is a list of prompts you have not run yet. Its point is that leftover
 quota is only useful if you have something ready to spend it on.
 
+<p align="center">
+  <img src="images/queue.png" width="720" alt="The queue window with two ready tasks">
+</p>
+
 **Add a task** with ⌘N. The fields that matter:
+
+<p align="center">
+  <img src="images/task-editor.png" width="720" alt="The task editor: title, prompt, project, working directory, and the execution section">
+</p>
 
 | Field | Why it matters |
 |---|---|
