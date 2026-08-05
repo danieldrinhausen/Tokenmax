@@ -5,8 +5,30 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-05
+
+First public release. The **Changed** and **Fixed** entries below describe work
+done during pre-release development; there is no earlier version to have
+upgraded from.
+
 ### Added
 
+- **Codex as a second provider.** Codex quota appears beside Claude Code's, read
+  through a short-lived local `codex app-server` over JSON-RPC rather than any
+  network endpoint — Tokenmax reuses the login the Codex CLI manages and never
+  reads or stores those credentials. A ChatGPT-managed login reports quota
+  windows; an API-key login is billed and unmetered, and is labelled as such
+  rather than shown as an empty meter. Codex tasks run under a per-task
+  read-only or workspace-write sandbox. Either provider can be switched off
+  entirely, which hides rather than deletes: its rules, bars and tasks stay on
+  disk and return when it is switched back on.
+- **A configurable menu bar icon.** Two or three bars, each drawing a quota you
+  drag into place, and a countdown that tracks a window chosen independently of
+  them — the most useful deadline is not always one the bars have room for.
+- **A fetched model catalog.** Models offered in the task editor and the session
+  opener come from `GET /v1/models` using the same keychain token as usage, so a
+  newly released model appears without updating the app. Refreshed daily, cached
+  for offline use, and the built-in aliases still work if the fetch fails.
 - **`make doctor`.** Checks the surfaces Tokenmax depends on but does not own:
   that the Claude CLI is where it looks, that every flag it passes still exists
   in `--help`, that the keychain item still has the expected shape, that both

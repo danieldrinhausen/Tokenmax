@@ -28,6 +28,10 @@ ROADMAP.md
 docs/plans/
 docs/planning/
 
+# The release checklist is process, not product — and it records certificate
+# details, go-public steps and the state of this specific machine. Kept local.
+docs/RELEASING.md
+
 # Release artefacts built by `make dmg`.
 dist/
 *.dmg

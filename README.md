@@ -9,6 +9,24 @@ evaporating.
   <img src="docs/images/menu-bar-popover.png" width="420" alt="The Tokenmax menu bar icon and its popover, showing Claude Code session and weekly quota, Codex weekly quota, and the queue">
 </p>
 
+## What it does
+
+- **Two providers in one meter.** Claude Code and Codex quota side by side — session and weekly
+  windows, each with the time left before it resets.
+- **A menu bar icon you configure.** Two or three bars, each drawing a quota you choose, plus a
+  countdown that can track a different window entirely.
+- **Pace, not just remaining.** A marker showing where an even burn would have left you, whether
+  you are ahead or in deficit, and when the window empties if you carry on at this rate.
+- **Reminders before quota evaporates.** Per-window lead times and thresholds, quiet hours, and
+  nothing at all until you switch them on.
+- **A local prompt queue.** Keep work ready so leftover quota has somewhere to go. Run it yourself,
+  or let Tokenmax run it.
+- **Unattended runs, on your terms.** Off by default, preview-only when first enabled, with a
+  runtime cap, a cost cap, path-scoped file access and a separate opt-in for shell.
+- **A session opener.** A Claude window starts on first use, so one tiny request at the right
+  moment means the next window is already running when you sit down.
+- **Nothing leaves your Mac.** No telemetry, no analytics, no server, no account.
+
 The menubar shows a stack of meters and the time left before a window resets ("1h 16m"). The bars
 carry how much is left; the countdown carries how long there is to spend it.
 
@@ -50,7 +68,6 @@ is split by what you came for.
 | [Architecture](docs/ARCHITECTURE.md) | How it is built, and the complete map of what can break when upstream changes |
 | [Security](SECURITY.md) | What the app can reach, the trust boundaries, and how to report a vulnerability |
 | [Contributing](CONTRIBUTING.md) | The patterns worth keeping |
-| [Releasing](docs/RELEASING.md) | Checklist for cutting a release |
 
 ## Quick start
 
@@ -546,9 +563,8 @@ make clean
 ```
 
 `Tokenmax.xcodeproj` is generated from `project.yml` by `xcodegen` and is not tracked — edit
-`project.yml`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the patterns worth keeping,
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) how the pieces fit, and
-[docs/RELEASING.md](docs/RELEASING.md) the checklist for cutting a release.
+`project.yml`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the patterns worth keeping and
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) how the pieces fit.
 
 **Run `make doctor` after every Claude Code update.** Tokenmax passes about a dozen CLI flags it
 does not own, reads a keychain item another app writes, and parses two response shapes it has no
