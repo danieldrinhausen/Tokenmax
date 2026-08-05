@@ -19,6 +19,11 @@ enum TaskRunStatus: String, Codable, Sendable, Equatable, CaseIterable {
     case cancelled
     /// Found unfinished at launch. See `QueueAutoRunCoordinator.recoverInterruptedRuns`.
     case interrupted
+    /// The CLI rejected the command line Tokenmax built — a flag it passes has
+    /// been renamed or removed upstream. Distinct from `failed` because the
+    /// task is fine and retrying cannot help: every run will fail identically
+    /// until Tokenmax is updated. See `ClaudeTaskRunner.rejectedInvocation`.
+    case incompatibleCLI
 
     var isFinished: Bool {
         switch self {
@@ -33,9 +38,13 @@ enum TaskRunStatus: String, Codable, Sendable, Equatable, CaseIterable {
     /// silently pause the whole queue, which is the opposite of what the user
     /// just asked for. `budgetExceeded` is excluded for the same reason — the
     /// limit did its job.
+    ///
+    /// `incompatibleCLI` is included and is the one case where pausing is not
+    /// merely reasonable but necessary: the next task would fail the same way,
+    /// and so would every task after it.
     var pausesQueue: Bool {
         switch self {
-        case .failed, .timedOut, .interrupted: true
+        case .failed, .timedOut, .interrupted, .incompatibleCLI: true
         default: false
         }
     }
@@ -50,6 +59,7 @@ enum TaskRunStatus: String, Codable, Sendable, Equatable, CaseIterable {
         case .budgetExceeded: "Budget reached"
         case .cancelled: "Cancelled"
         case .interrupted: "Interrupted"
+        case .incompatibleCLI: "Update needed"
         }
     }
 }
@@ -83,6 +93,10 @@ struct TaskRunRecord: Codable, Identifiable, Sendable, Equatable {
 
     var providerID: String
     var model: String
+    /// The thinking grade the run was invoked with, or nil for the CLI default.
+    /// Recorded alongside the model because "which Opus, thinking how hard" is
+    /// one question when reading back what a run cost.
+    var effort: String?
     var workingDirectory: String
 
     var status: TaskRunStatus
@@ -129,6 +143,7 @@ struct TaskRunRecord: Codable, Identifiable, Sendable, Equatable {
         startedAt: Date = Date(),
         providerID: String = ClaudeCodeProvider.providerID,
         model: String,
+        effort: String? = nil,
         workingDirectory: String,
         status: TaskRunStatus = .starting,
         sessionRemainingBefore: Double? = nil
@@ -141,6 +156,7 @@ struct TaskRunRecord: Codable, Identifiable, Sendable, Equatable {
         self.startedAt = startedAt
         self.providerID = providerID
         self.model = model
+        self.effort = effort
         self.workingDirectory = workingDirectory
         self.status = status
         self.sessionRemainingBefore = sessionRemainingBefore
@@ -157,6 +173,7 @@ struct TaskRunRecord: Codable, Identifiable, Sendable, Equatable {
         finishedAt = try container.decodeIfPresent(Date.self, forKey: .finishedAt)
         providerID = try container.decodeIfPresent(String.self, forKey: .providerID) ?? ClaudeCodeProvider.providerID
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? "sonnet"
+        effort = try container.decodeIfPresent(String.self, forKey: .effort)
         workingDirectory = try container.decodeIfPresent(String.self, forKey: .workingDirectory) ?? ""
         // An unreadable status must not read as "finished and fine". Anything
         // we cannot classify is something the user should look at.

@@ -86,6 +86,12 @@ enum UsageClientError: Error, LocalizedError {
     case unauthorized
     case badStatus(Int)
     case transport(String)
+    /// A 200 whose body no longer contains any window this app knows how to
+    /// read. Every field of `OAuthUsageResponse` is optional — which is the
+    /// right shape for an endpoint that may add windows — but it means a
+    /// *renamed* window decodes to all-nil and would otherwise be reported as
+    /// "no quota data" rather than "this app can no longer read the response".
+    case schemaDrift([String])
 
     var errorDescription: String? {
         switch self {
@@ -93,6 +99,8 @@ enum UsageClientError: Error, LocalizedError {
         case .unauthorized: "Claude Code needs to be re-authenticated."
         case let .badStatus(code): "Usage request failed with HTTP \(code)."
         case let .transport(message): message
+        case let .schemaDrift(keys):
+            "The usage response has changed shape (\(keys.joined(separator: ", "))). Tokenmax needs updating."
         }
     }
 }
@@ -187,9 +195,45 @@ actor ClaudeOAuthUsageClient {
         }
 
         let decoded = try JSONDecoder().decode(OAuthUsageResponse.self, from: data)
+        try checkForDrift(decoded, data: data)
+
         let fetchedAt = now()
         cached = (decoded, fetchedAt)
         Log.shared.write("usage: ok five_hour=\(decoded.fiveHour?.utilization ?? -1) seven_day=\(decoded.sevenDay?.utilization ?? -1)")
         return (decoded, fetchedAt)
+    }
+
+    private func checkForDrift(_ decoded: OAuthUsageResponse, data: Data) throws {
+        guard let keys = Self.driftedKeys(decoded, data: data) else { return }
+        Log.shared.write("usage: SCHEMA DRIFT — 200 with no known windows; keys=\(keys.joined(separator: ","))")
+        throw UsageClientError.schemaDrift(keys)
+    }
+
+    /// The body's top-level keys when a 200 has drifted out of recognition, or
+    /// nil when the response is merely empty.
+    ///
+    /// Both halves of the test are needed. All-nil on its own is not drift: an
+    /// account with nothing to report can legitimately return
+    /// `"five_hour": null`, and failing that would be worse than the silence it
+    /// replaces. Requiring the raw keys to be *disjoint* from the expected set
+    /// separates "the windows are empty" from "the windows are called something
+    /// else now", and only the second is a Tokenmax problem.
+    ///
+    /// Static and pure so the decision can be tested without a network stub.
+    static func driftedKeys(_ decoded: OAuthUsageResponse, data: Data) -> [String]? {
+        guard decoded.fiveHour == nil,
+              decoded.sevenDay == nil,
+              decoded.sevenDayOpus == nil,
+              decoded.sevenDaySonnet == nil
+        else { return nil }
+
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        let keys = Set((object ?? [:]).keys)
+        let known: Set<String> = [
+            "five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet", "extra_usage",
+        ]
+
+        guard !keys.isEmpty, keys.isDisjoint(with: known) else { return nil }
+        return keys.sorted()
     }
 }

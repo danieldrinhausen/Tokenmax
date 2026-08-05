@@ -68,10 +68,21 @@ final class AutoRunNotifier {
     /// it back if they never learn it happened.
     func failed(record: TaskRunRecord) {
         post(
-            title: settings.pauseAfterFailure ? "Tokenmax paused the queue" : "A queued task failed",
+            title: title(for: record),
             body: "\(record.taskTitle): \(record.errorMessage ?? "the task did not finish.")",
             identifier: "autorun-failed-\(record.id.uuidString)"
         )
+    }
+
+    /// A rejected command line gets its own title because the user's next move
+    /// is different: nothing about the task or the queue needs looking at, and
+    /// resuming would only reproduce the failure. Everything else keeps the
+    /// wording it had.
+    private func title(for record: TaskRunRecord) -> String {
+        if record.status == .incompatibleCLI {
+            return "Tokenmax needs updating for this CLI"
+        }
+        return settings.pauseAfterFailure ? "Tokenmax paused the queue" : "A queued task failed"
     }
 
     private func post(title: String, body: String, identifier: String) {

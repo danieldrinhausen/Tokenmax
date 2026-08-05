@@ -60,6 +60,61 @@ struct OAuthUsageDecodingTests {
         #expect(windows.contains { $0.kind == .session })
         #expect(windows.contains { $0.kind == .modelSpecificWeekly && $0.id == "claude.weekly.opus" })
     }
+
+    // MARK: - Schema drift
+
+    private func drift(_ json: String) throws -> [String]? {
+        let data = Data(json.utf8)
+        return ClaudeOAuthUsageClient.driftedKeys(
+            try JSONDecoder().decode(OAuthUsageResponse.self, from: data),
+            data: data
+        )
+    }
+
+    @Test("A renamed window set is reported as drift, not as no data")
+    func renamedWindowsAreDrift() throws {
+        // Every field is optional, so this decodes cleanly to all-nil. Without
+        // the tripwire it would surface as "no quota" and hide an upstream
+        // change indefinitely.
+        let keys = try drift("""
+        {
+          "five_hour_window": { "utilization": 23.5 },
+          "seven_day_window": { "utilization": 41.2 }
+        }
+        """)
+
+        #expect(keys == ["five_hour_window", "seven_day_window"])
+    }
+
+    @Test("Explicitly empty windows are not drift")
+    func emptyWindowsAreNotDrift() throws {
+        // An account with nothing to report. The keys are still the ones we
+        // expect, so this is silence, not a schema change.
+        #expect(try drift("""
+        { "five_hour": null, "seven_day": null }
+        """) == nil)
+    }
+
+    @Test("An added window alongside a known one is not drift")
+    func addedWindowIsNotDrift() throws {
+        // The endpoint is expected to gain windows over time. As long as one
+        // known key is present, this app is still reading the right response.
+        #expect(try drift("""
+        { "five_hour": null, "thirty_day": { "utilization": 5 } }
+        """) == nil)
+    }
+
+    @Test("An empty body is not drift")
+    func emptyBodyIsNotDrift() throws {
+        #expect(try drift("{}") == nil)
+    }
+
+    @Test("A readable response is never drift")
+    func readableResponseIsNotDrift() throws {
+        #expect(try drift("""
+        { "five_hour": { "utilization": 23.5 } }
+        """) == nil)
+    }
 }
 
 @Suite("Statusline decoding")

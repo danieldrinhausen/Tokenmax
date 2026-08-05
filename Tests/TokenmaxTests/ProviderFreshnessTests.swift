@@ -161,6 +161,45 @@ struct ProviderFreshnessTests {
         #expect(UsageState.needsReauthentication.snapshot == nil)
     }
 
+    /// A request inside the OAuth client's three-minute floor returns the
+    /// earlier response. That is not a successful token renewal, so it must
+    /// not hide the state that lets the session opener attempt its recovery.
+    @Test("A cached response does not clear an awaiting token renewal")
+    func cachedResponseRetainsTokenExpiry() {
+        let previous = UsageSnapshot(
+            providerID: "claude-code",
+            planName: "Pro",
+            windows: [],
+            fetchedAt: Date(timeIntervalSince1970: 1_000),
+            fetchDuration: 0.1,
+            errorMessage: nil
+        )
+        let cached = UsageSnapshot(
+            providerID: "claude-code",
+            planName: "Pro",
+            windows: [],
+            fetchedAt: previous.fetchedAt,
+            fetchDuration: 0.1,
+            errorMessage: nil
+        )
+        let newer = UsageSnapshot(
+            providerID: "claude-code",
+            planName: "Pro",
+            windows: [],
+            fetchedAt: previous.fetchedAt.addingTimeInterval(1),
+            fetchDuration: 0.1,
+            errorMessage: nil
+        )
+        // The state carries the last good reading through either outcome; the
+        // decision about what a replay *means* now lives on the coordinator as
+        // a stored fact — see `AwaitingTokenRenewalTests`, which drives the real
+        // sequence rather than a snapshot comparison that could not see a
+        // rate-limit arriving on top.
+        #expect(UsageState.tokenExpired(lastGood: previous).hasLastGood)
+        #expect(cached.fetchedAt == previous.fetchedAt)
+        #expect(newer.fetchedAt > previous.fetchedAt)
+    }
+
     @Test("Falls back to the statusline when the network call fails")
     func fallsBackToStatusline() async throws {
         let payload = try JSONDecoder().decode(

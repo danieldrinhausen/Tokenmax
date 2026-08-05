@@ -11,12 +11,14 @@ enum UsageWindowKind: String, Codable, Sendable, CaseIterable {
 enum UsageSource: String, Codable, Sendable {
     case claudeOAuth
     case statusline
+    case codexAppServer
     case manual
 
     var displayName: String {
         switch self {
         case .claudeOAuth: "Claude account"
         case .statusline: "Claude Code status line"
+        case .codexAppServer: "Codex App Server"
         case .manual: "Manual"
         }
     }
@@ -181,4 +183,12 @@ enum UsageState: Sendable {
         default: nil
         }
     }
+
+    /// A cached OAuth response is useful for rendering the last known quota,
+    /// but it does not mean an expired Claude Code token became usable again.
+    /// Keep the recovery state until a source actually observed data later than
+    /// the snapshot that was present when the token failure occurred.
+    /// Whether this state is carrying a reading at all, regardless of how the
+    /// last refresh went.
+    var hasLastGood: Bool { snapshot != nil }
 }

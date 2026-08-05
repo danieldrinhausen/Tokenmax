@@ -180,7 +180,16 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
     /// makes it the one limit that holds even if Tokenmax is killed mid-run.
     var maximumBudgetUSD: Double = 0.50
 
+    /// An alias (`opus`, `sonnet`, `fable`) or a full model id
+    /// (`claude-opus-5`). Deliberately a free-form `String`: an alias resolves
+    /// to the newest model of that family at run time, so a new release needs no
+    /// change here, and a full id typed into the editor is stored as-is.
     var model: String = "sonnet"
+
+    /// Passed to the CLI as `--effort`. nil leaves the flag off entirely, which
+    /// is what preserves the behaviour of every task written before this
+    /// existed — the CLI picks its own default.
+    var effort: String?
 
     /// Grants `Edit` and `Write`. Off means a read-only run: the task can
     /// investigate and report but cannot touch the working tree.
@@ -191,16 +200,33 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
     /// runners, anything on the PATH.
     var allowShellCommands: Bool = false
 
-    static let modelOptions = ["haiku", "sonnet", "opus"]
+    /// Aliases rather than pinned ids on purpose: `--model opus` resolves to the
+    /// newest Opus at run time, so this list does not go stale when a model
+    /// version ships. The editor's "Other…" field covers pinning a full id.
+    static let modelOptions = ["haiku", "sonnet", "opus", "fable"]
     static let runtimeOptions = [5, 10, 15, 30, 45, 60]
     static let budgetOptions = [0.10, 0.25, 0.50, 1.00, 2.00, 5.00]
+
+    /// The levels `claude --effort` accepts.
+    static let effortOptions = ["low", "medium", "high", "xhigh", "max"]
 
     static func modelDisplayName(_ raw: String) -> String {
         switch raw {
         case "haiku": "Haiku"
         case "sonnet": "Sonnet"
         case "opus": "Opus"
-        default: raw.capitalized
+        case "fable": "Fable"
+        // A full model id, or an alias added after this build shipped. Shown as
+        // typed rather than mangled by `capitalized`.
+        default: raw
+        }
+    }
+
+    static func effortDisplayName(_ raw: String?) -> String {
+        switch raw {
+        case nil, "": "Default"
+        case "xhigh": "Extra high"
+        case let value?: value.capitalized
         }
     }
 
@@ -213,6 +239,7 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
             ?? d.maximumRuntimeMinutes
         maximumBudgetUSD = try container.decodeIfPresent(Double.self, forKey: .maximumBudgetUSD) ?? d.maximumBudgetUSD
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? d.model
+        effort = try container.decodeIfPresent(String.self, forKey: .effort)
         allowFileChanges = try container.decodeIfPresent(Bool.self, forKey: .allowFileChanges) ?? d.allowFileChanges
         allowShellCommands = try container.decodeIfPresent(Bool.self, forKey: .allowShellCommands)
             ?? d.allowShellCommands

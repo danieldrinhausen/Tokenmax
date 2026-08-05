@@ -78,6 +78,13 @@ enum ClaudeTaskRunner {
         var arguments = [
             "--print",
             "--model", policy.model,
+        ]
+        // Omitted entirely when unset, rather than sent as a default: a task
+        // written before this existed must invoke the CLI exactly as it did.
+        if let effort = policy.effort, !effort.isEmpty {
+            arguments += ["--effort", effort]
+        }
+        arguments += [
             "--output-format", "stream-json",
             // stream-json requires it in print mode.
             "--verbose",
@@ -173,6 +180,68 @@ enum ClaudeTaskRunner {
         return envelope
     }
 
+    /// Whether stderr says the CLI rejected the command line itself, rather
+    /// than the task going wrong.
+    ///
+    /// Tokenmax passes about a dozen flags it does not own, and a CLI release
+    /// that renames one turns every run into an identical instant failure. That
+    /// is worth telling apart from a task that genuinely failed: the fix is to
+    /// update Tokenmax, not to debug the prompt, and no amount of retrying will
+    /// help. Matched on stderr because the CLI exits before emitting a result
+    /// envelope, so there is nothing else to read.
+    static func rejectedInvocation(stderr: String) -> String? {
+        let lowered = stderr.lowercased()
+        let signals = [
+            "unknown option",
+            "unknown argument",
+            "unrecognized option",
+            "invalid option",
+            "unknown flag",
+            "unknown command",
+        ]
+        guard signals.contains(where: lowered.contains) else { return nil }
+
+        // Pull the offending flag out of the message so the error names it.
+        // Falls back to the raw stderr tail when the shape is unfamiliar.
+        let flag = stderr
+            .split(whereSeparator: { " \n\t'\"".contains($0) })
+            .first { $0.hasPrefix("--") }
+        return flag.map(String.init)
+    }
+
+    /// What to tell the user about a run Tokenmax killed.
+    ///
+    /// A killed run is the hardest kind to diagnose: there is no result envelope
+    /// to read, and if the CLI hung before writing anything to stdout the
+    /// transcript is empty too. The stderr tail is then the *only* evidence that
+    /// the run left behind, and reporting a fixed sentence instead of it — as
+    /// this did — leaves the user with something they cannot act on.
+    ///
+    /// The byte count is included for the same reason. "Produced no output at
+    /// all" and "was working and ran long" are different problems with different
+    /// fixes, and only this number tells them apart.
+    static func stoppedExplanation(
+        _ reason: TaskRunStatus,
+        stderr: String,
+        bytesWritten: Int
+    ) -> String {
+        var message = reason == .timedOut
+            ? "The task exceeded its runtime limit and was stopped."
+            : "Stopped."
+
+        if reason == .timedOut, bytesWritten == 0 {
+            message += " It produced no output at all before being stopped, "
+                + "which usually means the CLI never started work rather than "
+                + "that the task was too large."
+        }
+
+        let tail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty {
+            message += "\n\n\(String(tail.suffix(400)))"
+        }
+        return message
+    }
+
     /// Turns an exit code and the final envelope into an outcome.
     ///
     /// Budget exhaustion is separated from failure on purpose: the task did not
@@ -180,6 +249,23 @@ enum ClaudeTaskRunner {
     /// is usually still worth looking at. Reporting it as "failed" would also
     /// trip `pauseAfterFailure` and stop the queue over a working limit.
     static func classify(exitCode: Int32, envelope: ResultEnvelope?, stderr: String) -> Result {
+        // Checked before the envelope: a rejected command line produces no
+        // envelope at all, and the generic "exited without a result" message
+        // that would otherwise apply buries the one fact that matters.
+        if exitCode != 0, let flag = rejectedInvocation(stderr: stderr) {
+            return Result(
+                status: .incompatibleCLI,
+                exitCode: exitCode,
+                resultText: nil,
+                sessionID: nil,
+                costUSD: nil,
+                errorMessage: """
+                    The Claude CLI rejected \(flag). This is a Tokenmax problem, \
+                    not a problem with the task — the CLI has changed its options. \
+                    Run `make doctor` to see which flags moved.
+                    """
+            )
+        }
         if let envelope {
             let subtype = envelope.subtype?.lowercased() ?? ""
             let text = envelope.result ?? ""
@@ -250,6 +336,21 @@ enum ClaudeTaskRunner {
                 errorMessage: "Working directory not found: \(task.workingDirectory ?? "(none)")"
             )
         }
+        // The last line of defence, and the one that also covers manual runs.
+        // Spawning into a directory macOS will not let us open does not fail —
+        // it *hangs*, inside the CLI's first read, until the runtime limit kills
+        // it. Refusing here costs a syscall and turns fifteen wasted minutes
+        // into an instant, actionable message.
+        guard task.workingDirectoryReadable else {
+            return Result(
+                status: .failed, exitCode: nil, resultText: nil, sessionID: nil, costUSD: nil,
+                errorMessage: """
+                    macOS is blocking access to \(task.workingDirectory ?? "the working directory"). \
+                    Open the task and use Grant Access, or allow Tokenmax under System Settings → \
+                    Privacy & Security → Files and Folders.
+                    """
+            )
+        }
 
         let policy = task.autoRun
         let text = prompt ?? task.prompt
@@ -257,7 +358,8 @@ enum ClaudeTaskRunner {
         Log.shared.write(
             "autorun: running \(task.title) in \(directory.path) "
                 + (sessionID.map { "(resuming \($0)) " } ?? "")
-                + "(model=\(policy.model), tools=\(policy.allowedTools.joined(separator: ",")), "
+                + "(model=\(policy.model), effort=\(policy.effort ?? "default"), "
+                + "tools=\(policy.allowedTools.joined(separator: ",")), "
                 + "cap=\(policy.maximumRuntimeMinutes)m, budget=$\(policy.maximumBudgetUSD))"
         )
 
@@ -535,9 +637,16 @@ private final class RunBox: @unchecked Sendable {
         // the spawn is honoured once `attach(process:)` arrives.
         if stopReason == nil { stopReason = reason }
         guard let process, process.isRunning else { lock.unlock(); return }
+        let bytesWritten = logBytes
         lock.unlock()
 
-        Log.shared.write("autorun: stopping run (\(reason.rawValue)), pid \(process.pid)")
+        // The byte count is the first thing worth knowing about a killed run:
+        // zero means the CLI never produced anything, which is a different
+        // problem from a task that was working and simply ran long.
+        Log.shared.write(
+            "autorun: stopping run (\(reason.rawValue)), pid \(process.pid), "
+                + "\(bytesWritten) bytes of output so far"
+        )
         process.terminateGroup()
 
         DispatchQueue.global().asyncAfter(deadline: .now() + ClaudeTaskRunner.terminationGrace) { [weak self] in
@@ -577,6 +686,7 @@ private final class RunBox: @unchecked Sendable {
         let stderr = String(data: stderrTail, encoding: .utf8) ?? ""
         let envelope = self.envelope
         let stopReason = self.stopReason
+        let bytesWritten = logBytes
         lock.unlock()
 
         // A run we stopped ourselves is reported as what we did to it, not as
@@ -588,9 +698,9 @@ private final class RunBox: @unchecked Sendable {
                 resultText: envelope?.result,
                 sessionID: envelope?.sessionId,
                 costUSD: envelope?.totalCostUsd,
-                errorMessage: stopReason == .timedOut
-                    ? "The task exceeded its runtime limit and was stopped."
-                    : "Stopped."
+                errorMessage: ClaudeTaskRunner.stoppedExplanation(
+                    stopReason, stderr: stderr, bytesWritten: bytesWritten
+                )
             )
         }
 

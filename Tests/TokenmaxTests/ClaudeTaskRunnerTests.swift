@@ -120,6 +120,30 @@ struct ClaudeTaskRunnerTests {
         #expect(arguments.last == "Do it")
     }
 
+    /// A task written before the thinking grade existed has to invoke the CLI
+    /// exactly as it did, which means no flag at all rather than a default one.
+    @Test("The effort flag is omitted entirely when unset")
+    func effortOmittedWhenUnset() {
+        var unset = policy()
+        unset.effort = nil
+        #expect(!ClaudeTaskRunner.arguments(prompt: "Do it", policy: unset).contains("--effort"))
+
+        var empty = policy()
+        empty.effort = ""
+        #expect(!ClaudeTaskRunner.arguments(prompt: "Do it", policy: empty).contains("--effort"))
+    }
+
+    @Test("A chosen thinking grade reaches the CLI")
+    func effortReachesCLI() {
+        var chosen = policy()
+        chosen.effort = "xhigh"
+        let arguments = ClaudeTaskRunner.arguments(prompt: "Do it", policy: chosen)
+
+        #expect(value(after: "--effort", in: arguments) == "xhigh")
+        // The prompt stays the last positional argument.
+        #expect(arguments.last == "Do it")
+    }
+
     @Test("Conversations are saved, so a run can be replied to")
     func sessionsArePersisted() {
         // The opener passes this flag and should; a task must not. Without the
@@ -301,5 +325,95 @@ struct ClaudeTaskRunnerTests {
     func classifyFallsBackToExitCode() {
         let result = ClaudeTaskRunner.classify(exitCode: 9, envelope: nil, stderr: "   ")
         #expect(result.errorMessage?.contains("exit code 9") == true)
+    }
+
+    // MARK: - CLI drift
+
+    @Test("A rejected flag is told apart from a failed task")
+    func classifyRejectedFlag() {
+        // The wording varies between CLI versions and argument parsers, so the
+        // detector has to cope with more than one phrasing.
+        let phrasings = [
+            "error: unknown option '--max-budget-usd'",
+            "Unrecognized option --max-budget-usd",
+            "invalid option: --max-budget-usd",
+        ]
+        for stderr in phrasings {
+            let result = ClaudeTaskRunner.classify(exitCode: 1, envelope: nil, stderr: stderr)
+            #expect(result.status == .incompatibleCLI, "not detected: \(stderr)")
+            #expect(result.errorMessage?.contains("--max-budget-usd") == true)
+        }
+    }
+
+    @Test("A rejected flag stops the queue rather than burning through it")
+    func rejectedFlagPausesQueue() {
+        // Every later task would fail the same way, so this is the one outcome
+        // where pausing is necessary rather than merely defensible.
+        #expect(TaskRunStatus.incompatibleCLI.pausesQueue)
+    }
+
+    @Test("An ordinary failure is not mistaken for CLI drift")
+    func ordinaryFailureIsNotDrift() {
+        // "option" appears in plenty of normal output; only the rejection
+        // phrasings should trip the detector.
+        let result = ClaudeTaskRunner.classify(
+            exitCode: 1,
+            envelope: nil,
+            stderr: "The --model option was set to sonnet but the test suite failed"
+        )
+        #expect(result.status == .failed)
+    }
+
+    // MARK: - Stopped runs
+
+    @Test("A timed-out run reports the CLI's stderr instead of swallowing it")
+    func timeoutKeepsStderr() {
+        // A killed run has no result envelope, so stderr is the only evidence
+        // it leaves behind. Reporting a fixed sentence instead made every
+        // timeout undiagnosable.
+        let message = ClaudeTaskRunner.stoppedExplanation(
+            .timedOut,
+            stderr: "Error: could not reach the credential store",
+            bytesWritten: 4096
+        )
+        #expect(message.contains("exceeded its runtime limit"))
+        #expect(message.contains("could not reach the credential store"))
+    }
+
+    @Test("A timeout with no output at all says so")
+    func timeoutWithNoOutputIsCalledOut() {
+        // Zero bytes means the CLI never started work — a different problem
+        // from a task that ran long, and the user cannot tell them apart
+        // without being told.
+        let message = ClaudeTaskRunner.stoppedExplanation(
+            .timedOut, stderr: "", bytesWritten: 0
+        )
+        #expect(message.contains("no output at all"))
+    }
+
+    @Test("A timeout that produced output does not claim it produced none")
+    func timeoutWithOutputStaysQuiet() {
+        let message = ClaudeTaskRunner.stoppedExplanation(
+            .timedOut, stderr: "", bytesWritten: 1
+        )
+        #expect(!message.contains("no output at all"))
+    }
+
+    @Test("A cancelled run is not described as a timeout")
+    func cancelledIsNotATimeout() {
+        let message = ClaudeTaskRunner.stoppedExplanation(
+            .cancelled, stderr: "", bytesWritten: 0
+        )
+        #expect(!message.contains("runtime limit"))
+        #expect(!message.contains("no output at all"))
+    }
+
+    @Test("A clean exit is never treated as drift")
+    func successIsNotDrift() {
+        let envelope = ClaudeTaskRunner.resultEnvelope(fromJSONLine: """
+        {"type":"result","subtype":"success","is_error":false,"result":"Done"}
+        """)
+        let result = ClaudeTaskRunner.classify(exitCode: 0, envelope: envelope, stderr: "unknown option --x")
+        #expect(result.status == .completed)
     }
 }

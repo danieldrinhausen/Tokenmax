@@ -40,6 +40,7 @@ struct RunTranscript: Sendable, Equatable {
 
     static func parse(log: String) -> RunTranscript {
         var transcript = RunTranscript()
+        var jsonLines = 0
 
         for line in log.split(separator: "\n", omittingEmptySubsequences: true) {
             let line = String(line)
@@ -47,6 +48,8 @@ struct RunTranscript: Sendable, Equatable {
                   let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let type = root["type"] as? String
             else { continue }
+
+            jsonLines += 1
 
             switch type {
             case "assistant":
@@ -56,6 +59,15 @@ struct RunTranscript: Sendable, Equatable {
             default:
                 continue
             }
+        }
+
+        // A log full of well-formed events that yielded nothing to show means
+        // the stream schema moved: the run itself succeeded, so nothing else
+        // reports a problem and the output view is simply blank. This is the
+        // quietest of the upstream couplings, and the only place it can
+        // announce itself is here.
+        if jsonLines > 0, transcript.isEmpty {
+            Log.shared.write("transcript: \(jsonLines) events parsed but none recognised — stream-json schema may have changed")
         }
 
         return transcript
@@ -162,6 +174,7 @@ struct RunTranscript: Sendable, Equatable {
         if let record {
             var meta = [record.startedAt.formatted(date: .abbreviated, time: .shortened)]
             meta.append("model `\(record.model)`")
+            if let effort = record.effort, !effort.isEmpty { meta.append("effort `\(effort)`") }
             if !record.workingDirectory.isEmpty { meta.append("`\(record.workingDirectory)`") }
             lines.append(meta.joined(separator: " · "))
             lines.append("")
