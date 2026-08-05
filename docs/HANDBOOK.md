@@ -1,0 +1,338 @@
+# Tokenmax handbook
+
+The README explains what each feature *is* and why it behaves the way it does.
+This is the other half: what to actually do, in the order you will want to do it.
+
+Nothing here is required reading. Tokenmax works as a quota meter the moment you
+launch it, and every other feature is off until you turn it on.
+
+**Contents**
+
+1. [The first ten minutes](#the-first-ten-minutes)
+2. [Reading the meters](#reading-the-meters)
+3. [Reminders that are worth receiving](#reminders-that-are-worth-receiving)
+4. [Working the queue](#working-the-queue)
+5. [Turning on automation without regretting it](#turning-on-automation-without-regretting-it)
+6. [The session opener](#the-session-opener)
+7. [Recipes](#recipes)
+8. [Questions people ask](#questions-people-ask)
+
+---
+
+## The first ten minutes
+
+**1. Launch it and answer the keychain prompt.**
+
+macOS asks once for access to the `Claude Code-credentials` keychain item. That
+prompt *is* Tokenmax reading your quota — decline it and the meters stay empty.
+Choose **Always Allow**.
+
+If the prompt returns after every rebuild, that is expected for a locally built
+copy and is not a bug. The README's [Building a
+release](../README.md#building-a-release) section explains the one-time
+certificate fix.
+
+**2. Check the menu bar.**
+
+You should see two meters and a countdown. Two bars means session over weekly.
+The countdown is time left in the *session* window.
+
+If you see a stub icon instead, the first reading has not landed yet. Give it a
+few seconds. If it stays empty, jump to
+[Troubleshooting](TROUBLESHOOTING.md#the-meters-are-empty-or-say-unknown).
+
+**3. Decide what the icon should show.**
+
+**Settings → General** switches between bars, countdown, or both. There is no
+wrong answer, but the countdown alone is the most legible at a glance, and the
+bars alone are the least distracting.
+
+**4. Grant folder access when you add your first task.**
+
+If the project is in Documents, Desktop, Downloads or iCloud Drive, macOS asks
+once. Say yes — the CLI cannot read your project otherwise.
+
+One grant covers a whole area: allowing Documents covers every project under it.
+Projects in `~/Projects` or `~/dev` never prompt, because those are not
+protected. If your work is spread across several protected areas, **Full Disk
+Access** (System Settings → Privacy & Security) is one grant instead of four.
+
+This matters more than it looks — see
+[before you turn on automation](#step-0--grant-folder-access-first).
+
+**5. Stop here if you want.**
+
+Everything above is read-only. Tokenmax has spent nothing, changed nothing, and
+sent nothing anywhere except Anthropic's own usage endpoint. The rest of this
+document is opt-in.
+
+---
+
+## Reading the meters
+
+The bar carries **how much is left**. The countdown carries **how long there is
+to spend it**. Those are different questions and the icon answers both because
+neither is useful alone — 40% remaining is comfortable with four hours to go and
+a waste with twenty minutes to go.
+
+Under each meter is the pace line:
+
+```
+Session
+▓▓▓▓▓▓▓▓▓▓▓▓░░░│░░░░░░░░░░░░
+59% left                    Resets in 3h 34m
+12% in deficit          Projected empty in 2h 4m
+```
+
+The `│` marker is where a perfectly even burn would have left you *right now*.
+
+- **Ahead of the marker** — you have a reserve. You can afford a heavier session.
+- **Behind the marker** — you are in deficit, and at this average rate the window
+  empties before it resets.
+
+"Projected empty" only ever appears next to a deficit, because that is precisely
+the condition it describes. The two halves come from one comparison, so they
+cannot contradict each other.
+
+**When the bars light up**, the session window is inside your reminder lead time
+and still holds usable quota. That is the app saying: this is the moment to spend
+it, because it is about to evaporate.
+
+Two silences are deliberate. Tokenmax says nothing about pace in the **first 3%
+of a window** (dividing by near-zero makes one early prompt look like a runaway),
+and it says nothing when the data is **stale** — carrying a last-good reading
+forward is honest, extrapolating from it is not.
+
+---
+
+## Reminders that are worth receiving
+
+**Settings → Notifications.** Permission is requested here, never at launch.
+
+The single decision that matters is **lead time**: how long before a reset you
+want to hear about leftover quota. Too short and there is no time to use it; too
+long and you get told about a window you are still actively using.
+
+A practical starting point: **45–60 minutes for the session window**, and **a few
+hours for the weekly**, since a week's leftovers need a longer runway.
+
+Then set **minimum quota** — below this, staying quiet is the right answer. There
+is no point being told that 4% remains.
+
+Two behaviours worth knowing before you tune anything:
+
+- **Changing a rule re-arms the current window.** If a reminder already fired
+  under a four-hour lead and you change the lead to 45 minutes, the window
+  re-arms rather than staying suppressed under a rule you just replaced.
+- **Stale data never cancels a scheduled reminder.** A run of failed refreshes
+  cannot silently leave you with nothing.
+
+If a reminder does not arrive, every suppression is logged with its reason —
+see [Troubleshooting](TROUBLESHOOTING.md#a-reminder-did-not-arrive).
+
+---
+
+## Working the queue
+
+The queue is a list of prompts you have not run yet. Its point is that leftover
+quota is only useful if you have something ready to spend it on.
+
+**Add a task** with ⌘N. The fields that matter:
+
+| Field | Why it matters |
+|---|---|
+| **Prompt** | The work itself. |
+| **Working directory** | Where it runs. Also the boundary file tools are confined to. |
+| **Runtime estimate** | Required for automation. Without it the task can only be run by hand. |
+| **Runtime limit** | Hard ceiling. The run is killed here. |
+| **Spend limit** | Enforced by the CLI itself via `--max-budget-usd`. |
+| **Automation** | Whether Tokenmax may ever start this on its own. |
+
+Two ways to run a card:
+
+- **Run with Provider** — headless, streams to a log, result viewable in-app.
+- **Open in Terminal** (under ⋯) — validates the directory, copies the prompt,
+  opens your terminal there, hands over. Nothing is executed for you.
+
+**View Result** shows the final answer first, then any tools the run *denied* —
+that is usually why a run looks like it under-delivered — then the steps it took.
+The raw NDJSON is one click away under **Raw Log**.
+
+### Replying to a run
+
+`claude -p` cannot ask a question and wait. When a run needs a decision it says
+so and exits. The result sheet's **reply box** continues that same conversation
+with the task's own model, permissions, and limits unchanged.
+
+This matters most for a run that happened while you were away: it stopped on an
+ambiguity at 3am and the thread is still there in the morning.
+
+Two consequences of how the CLI works: each turn replays the whole conversation
+as context, so a long thread costs progressively more (the running total is in
+the header), and transcripts are stored per working directory, so changing a
+task's directory makes its earlier threads unreachable.
+
+---
+
+## Turning on automation without regretting it
+
+This is the feature that spends your money without asking. Treat it accordingly.
+
+### Step 0 — grant folder access first
+
+The failure mode this prevents is the worst one the app has: an automatic run
+starts at 3am, macOS asks for permission to read the project folder, nobody is
+awake to answer, and the run blocks until its runtime limit kills it. No output,
+no transcript, and the queue paused behind it.
+
+Nothing about it looks like a permissions problem from the outside, which is why
+it is worth ruling out before you rely on unattended runs at all.
+
+Open each automatic task once and confirm no permission warning appears under the
+working directory. Or grant **Full Disk Access** and stop thinking about it —
+System Settings → Privacy & Security → Full Disk Access → **+** → Tokenmax.
+
+Check it landed with `make logs`: the launch probe records `access: ok` or
+`access: DENIED` for every folder your tasks live in.
+
+### Step 1 — run it in preview for a few days
+
+**Settings → Queue Automation** starts in **preview only** even after you switch
+it on. Preview evaluates every condition and tells you what it *would* have done,
+spending nothing.
+
+Leave it there for a few days. You are checking one thing: does it want to run at
+moments you would also have chosen? If it keeps proposing runs at times that feel
+wrong, the thresholds are wrong, and finding that out for free is the entire point
+of the mode.
+
+### Step 2 — write tasks that are safe to run unattended
+
+A task suitable for automation is one where a bad outcome is *cheap*. Good
+candidates:
+
+- generating tests for existing code
+- writing documentation from source
+- refactors that are fully covered by a test suite
+- research and summarisation that only reads
+
+Poor candidates: anything touching credentials, anything whose failure mode is a
+force-push, anything that needs a judgement call you would want to make yourself.
+
+### Step 3 — set the capability toggles deliberately
+
+**Allow file changes** confines file tools to the working directory using
+`Write(**)`-style path scoping. Without that scoping an allowlisted `Write` is
+auto-approved for *any* path on the machine, which is why it is scoped.
+
+**Allow shell commands** is a separate opt-in precisely because it removes that
+confinement — a shell command can reach the whole machine. Turn it on per task,
+not by habit.
+
+`--dangerously-skip-permissions` is never used, by anything, ever.
+
+### Step 4 — go live conservatively
+
+Defaults worth keeping at first: **one task per session window**, **stop on the
+first failure**, and never starting a second task until a usage reading newer
+than the first one lands.
+
+A task runs automatically only when *all* of this holds — the task is marked
+**Always allow automatic execution**, its working directory exists, it has a
+runtime estimate, the reading is fresh, both quotas are above threshold, the
+session is inside the lead window, no other run is in flight, the per-session
+budgets have room, and the task's **runtime limit** fits before the safety
+margin. When something blocks a run, the popover and Settings name which
+condition failed.
+
+---
+
+## The session opener
+
+A Claude window starts on **first use**, not on a schedule. The opener sends one
+tiny request after a reset so the next window is already running when you sit
+down later.
+
+**Switch this on only if you want a window open at a predictable later time.**
+Opening one early also starts its five-hour clock — that is the trade, and it is
+why the feature ships off.
+
+Two of its rules are invariants rather than settings: **all tools are always
+disabled**, and it **never runs under an API key**. A switch for either would
+only be a way to turn the safety off.
+
+Use **Check eligibility** in Settings to see every guard evaluated against the
+current state. It spends nothing.
+
+---
+
+## Recipes
+
+**"I want to know when quota is about to be wasted, and nothing else."**
+Enable reminders, set a 45-minute session lead. Leave the queue, automation and
+opener off. This is Tokenmax as a pure meter with an alarm.
+
+**"I want a backlog ready for leftover quota, but I will start each run myself."**
+Enable the queue. Leave automation off. Add tasks as they occur to you, and when
+a reminder fires, hit **Run Next**.
+
+**"I want overnight work on a fixed budget."**
+Enable the queue and automation. Mark two or three low-risk tasks as automatic,
+each with a runtime estimate, a runtime limit, and a spend limit you would be
+content to lose. Keep *pause after first failure* on. Leave shell access off
+unless a specific task genuinely needs it.
+
+**"I want a window already warm when I start work at 9am."**
+Enable the session opener with a delay that lands it before you sit down. Accept
+that the five-hour clock starts when it fires, not when you arrive.
+
+---
+
+## Questions people ask
+
+**Does Tokenmax send my prompts anywhere?**
+No. The only network requests it ever makes are to `api.anthropic.com` for quota,
+using the token Claude Code already stored. Prompts stay on your Mac and are
+passed to the local CLI. There is no telemetry, no analytics, no server.
+
+**Will this get my account flagged?**
+It reads a usage endpoint your own client already calls, floored at one request
+per 180 seconds — far below normal client traffic. It is your account and your
+plan, and the disclaimer in the README is the honest statement of the position:
+satisfy yourself that how you use it fits Anthropic's terms.
+
+**Why does the quota sometimes disagree with what Claude Code shows?**
+Two sources with different freshness. The usage endpoint can be polled any time;
+the statusline fallback only updates while a session is running. When both are
+available the fresher, higher-confidence reading wins.
+
+**Can I use this with an API key instead of a subscription?**
+For quota display, no — there is no window to report; API-key billing is metered
+per token. Tokenmax labels that state as billed and unmetered and refuses to
+start quota-gated automatic work under it.
+
+**Will it ask for folder permission for every project?**
+
+No — once per protected *area*, not per folder. Allowing Documents covers every
+project under it forever. Desktop, Downloads and iCloud Drive are separate grants,
+asked the first time you use each. Anywhere unprotected — `~/Projects`, `~/dev`,
+`/Users/Shared` — never asks at all.
+
+If it stops asking entirely, that is the expected end state: macOS asks once per
+app and remembers. A prompt reappearing later means the app's identity changed,
+which for a locally built copy means it was rebuilt — see [Building a
+release](../README.md#building-a-release).
+
+**What happens if my Mac is asleep?**
+Reminders are delivered by macOS on wake rather than at the scheduled instant.
+The opener fires shortly after wake. Neither is something an app can work around.
+
+**Does any of this survive a crash?**
+Yes. All writes are atomic, the opener records its cycle *before* spawning
+anything (so a crash cannot produce a second opener), and runs found unfinished
+at launch are marked interrupted rather than silently retried.
+
+**How do I get rid of it completely?**
+Quit, delete `/Applications/Tokenmax.app`, and remove
+`~/Library/Application Support/Tokenmax/`. If you installed the statusline shim,
+delete the `statusLine` key from `~/.claude/settings.json`.

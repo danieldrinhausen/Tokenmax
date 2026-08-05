@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question about using Tokenmax
+    url: ../../blob/main/docs/HANDBOOK.md
+    about: The handbook covers setup, tuning, automation and the common questions.
+  - name: Something is not working
+    url: ../../blob/main/docs/TROUBLESHOOTING.md
+    about: Symptom-by-symptom fixes. Try `make doctor` first — it takes seconds.
+  - name: Report a security vulnerability
+    url: ../../security/advisories/new
+    about: Private disclosure. Please do not open a public issue for these.

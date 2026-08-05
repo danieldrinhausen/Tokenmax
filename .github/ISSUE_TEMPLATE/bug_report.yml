@@ -1,0 +1,74 @@
+name: Bug report
+description: Something behaves differently than documented
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Two things answer most reports on their own:
+        the output of `make doctor` and the relevant lines from `make logs`.
+
+        **Not a bug, probably:** the Gatekeeper warning on first launch, the
+        keychain prompt returning after a local rebuild, and quota being briefly
+        stale. [Troubleshooting](../blob/main/docs/TROUBLESHOOTING.md) covers all
+        three.
+
+        **Security problem?** Do not file it here — use
+        [private reporting](../security/advisories/new) instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: make doctor output
+      description: >
+        Paste the full output. This checks the Claude CLI, its flags, the
+        keychain item, both endpoints and the statusline payload — if something
+        upstream has moved, this is where it shows.
+      render: text
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log lines
+      description: >
+        From `make logs`. The log records decisions with their reasons —
+        `opener: extraUsageEnabled`, `autorun: noSessionWindow`, `usage: ...` —
+        and those lines are usually the whole answer.
+
+        SCRUB ANYTHING PRIVATE FIRST: the log records queue task text and
+        working directory paths.
+      render: text
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "26.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Downloaded a release DMG
+        - Built from source
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Tokenmax version
+      placeholder: "0.1.0, or a commit SHA if built from source"
+    validations:
+      required: true

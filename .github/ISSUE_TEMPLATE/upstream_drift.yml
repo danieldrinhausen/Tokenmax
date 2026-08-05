@@ -1,0 +1,59 @@
+name: Upstream change broke something
+description: A Claude Code or Codex update changed something Tokenmax depends on
+labels: ["upstream-drift"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Tokenmax depends on several things it does not control — CLI flags, an
+        undocumented usage endpoint, another app's keychain format, two response
+        schemas. When one of those moves, this is the right template.
+
+        [The drift map](../blob/main/docs/ARCHITECTURE.md#the-drift-map) lists
+        every one of them and how each failure announces itself.
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: Which symptom?
+      options:
+        - Every run fails immediately / "Update needed"
+        - Result view is blank but runs succeed
+        - Quota display stopped working
+        - make doctor reports a failure
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: make doctor output
+      description: The full output, including the failing check.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: cli-version
+    attributes:
+      label: Claude Code (or Codex) version
+      description: "`claude --version`"
+      placeholder: "2.1.220"
+    validations:
+      required: true
+
+  - type: input
+    id: previous-version
+    attributes:
+      label: Last version that worked, if known
+      placeholder: "2.1.180"
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Anything else
+      description: >
+        Log lines are especially useful here — `usage: SCHEMA DRIFT` or
+        `transcript: ... none recognised` identify the moved surface exactly.
+      render: text

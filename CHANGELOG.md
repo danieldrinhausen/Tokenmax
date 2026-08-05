@@ -5,8 +5,56 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`make doctor`.** Checks the surfaces Tokenmax depends on but does not own:
+  that the Claude CLI is where it looks, that every flag it passes still exists
+  in `--help`, that the keychain item still has the expected shape, that both
+  endpoints still answer, and that the statusline payload still carries the keys
+  the shim reads. Costs no quota, and names the source file behind anything it
+  finds. Worth running after every Claude Code update.
+- **Handbook, troubleshooting and architecture documentation**, plus a security
+  policy. The architecture notes include the full map of what breaks when
+  upstream changes and how each failure announces itself.
+
+### Fixed
+
+- **A task in a folder macOS protects no longer hangs for its entire runtime
+  limit.** Documents, Desktop and Downloads are gated by TCC, but `stat` is not
+  — so a folder Tokenmax had no permission to read still reported as existing.
+  The task looked eligible, the CLI was spawned, and it then blocked on a
+  consent dialog that an unattended run has nobody to answer: no output, no
+  transcript, no explanation, and a paused queue fifteen minutes later.
+  Readability is now checked with the permission itself, so such a task is
+  refused up front (*"Auto-run blocked · no permission to read this folder"*)
+  rather than started. The task editor raises the request while the user is
+  still there to grant it, and the app declares why it wants the access.
+
 ### Changed
 
+- **A stopped run now reports what the CLI actually said.** The stderr tail was
+  captured and then discarded for any run Tokenmax killed, leaving a fixed
+  sentence in place of the only evidence a timed-out run leaves behind. Timeouts
+  now include it, and say explicitly when a run produced no output at all —
+  which distinguishes a CLI that never started from a task that was genuinely
+  too large.
+- **A CLI that rejects Tokenmax's command line is now told apart from a task
+  that failed.** A renamed or removed flag used to surface as an ordinary run
+  failure, which pointed at the task rather than at the real cause and invited
+  retrying something that could never succeed. Such runs are now reported as
+  **"Update needed"**, name the offending flag, and pause the queue — the one
+  case where pausing is necessary rather than merely defensible, since every
+  following task would fail identically.
+- **A usage response that has changed shape is no longer reported as "no
+  quota".** Every field of the response is optional, which is right for an
+  endpoint that may add windows, but it meant a *renamed* window decoded to
+  all-nil and read as an empty account. Drift is now distinguished from
+  emptiness — an explicitly null window is still just silence — and reported as
+  a schema change that needs a Tokenmax update.
+- **A transcript that parses no recognisable events now says so in the log.**
+  Previously a `stream-json` schema change left the result view blank while the
+  run itself succeeded, so nothing anywhere reported a problem. The raw log was
+  and remains unaffected.
 - **"Skip when usage credits may be charged" now defaults to off.** Credits only
   bill *past* the plan allowance, and the opener only ever runs into a window
   that has just reset with weekly quota above your threshold — a charge cannot

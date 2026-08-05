@@ -1,8 +1,9 @@
 # Tokenmax 0.1
 
-A macOS menubar app that shows remaining Claude Code quota, counts down to reset, projects whether
-your current pace runs out early or leaves quota on the table, keeps a local prompt queue, and
-notifies you before a window resets so leftover quota gets used instead of evaporating.
+A macOS menubar app that shows remaining Claude Code and Codex quota, counts down to reset,
+projects whether your current pace runs out early or leaves quota on the table, keeps a local
+prompt queue, and notifies you before a window resets so leftover quota gets used instead of
+evaporating.
 
 The menubar shows two meters — session over weekly — and the time left in the session window
 ("1h 16m"). The bars carry how much is left; the countdown carries how long there is to spend it.
@@ -20,6 +21,20 @@ that would disappear into one of them.
 > **Not affiliated with Anthropic.** Tokenmax is an independent tool that reads quota data
 > Claude Code already holds on your Mac. See [Disclaimer](#disclaimer) — the primary data source
 > is an undocumented endpoint and can change or stop working without notice.
+
+## Documentation
+
+This README is the reference: what each feature is, and why it behaves the way it does. The rest
+is split by what you came for.
+
+| | |
+|---|---|
+| [Handbook](docs/HANDBOOK.md) | What to actually do, in the order you will want to do it — first launch, tuning reminders, enabling automation without regretting it, recipes, FAQ |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Symptom → cause → fix. Start here when something is wrong |
+| [Architecture](docs/ARCHITECTURE.md) | How it is built, and the complete map of what can break when upstream changes |
+| [Security](SECURITY.md) | What the app can reach, the trust boundaries, and how to report a vulnerability |
+| [Contributing](CONTRIBUTING.md) | The patterns worth keeping |
+| [Releasing](docs/RELEASING.md) | Checklist for cutting a release |
 
 ## Install
 
@@ -41,6 +56,26 @@ macOS will then prompt once for access to the `Claude Code-credentials` keychain
 Tokenmax reading your quota. Choose **Always Allow**; see
 [Where the quota data comes from](#where-the-quota-data-comes-from).
 
+### Folder access
+
+If your projects live in **Documents, Desktop, Downloads, or iCloud Drive**, macOS will also ask for
+access to that folder the first time you point a task at one. Tokenmax asks while you are setting
+the task up, which is deliberate: the CLI it runs cannot read your project without this, and an
+unattended run that meets the dialog at 3am has nobody to answer it — it stalls until its runtime
+limit stops it.
+
+**Grant it before you rely on automation.** One grant covers a whole area: allowing Documents covers
+every project under it, forever. Desktop, Downloads and iCloud Drive are separate grants, asked for
+the first time you use each. Projects in an unprotected location — `~/Projects`, `~/dev`,
+`~/src` — never prompt at all.
+
+If your work is spread across several of those, **Full Disk Access** is the simpler answer: System
+Settings → Privacy & Security → Full Disk Access → **+** → Tokenmax. One grant instead of four, and
+no chance of an unattended run meeting a dialog in a location you did not anticipate.
+
+Changed your mind after clicking *Don't Allow*? macOS never re-asks — fix it under System Settings →
+Privacy & Security → **Files and Folders**.
+
 **From source.**
 
 ```
@@ -51,6 +86,17 @@ make install && make run
 Requires macOS 14+ to run, Xcode 26+ to build. No Apple Developer account needed.
 
 ## Where the quota data comes from
+
+### Codex
+
+Tokenmax reads Codex quota through the local `codex app-server` JSON-RPC interface. It reuses the
+login already managed by the Codex CLI and never reads or stores its credentials. ChatGPT-managed
+Codex login reports the session and weekly quota windows; API-key login is labelled as billed and
+unmetered, so Tokenmax will not start quota-gated automatic Codex tasks for it. Codex tasks run
+through the same App Server protocol with a per-task read-only or workspace-write sandbox.
+
+Codex does not offer Tokenmax a Claude-style per-run USD cap or independent no-shell permission;
+the task editor states those limits explicitly. Codex Session Opener is intentionally not available.
 
 The Claude Code CLI has **no** `usage` subcommand, and session transcripts carry no rate-limit
 state. Tokenmax uses two real sources instead:
@@ -328,21 +374,41 @@ to run under an API key, and stops on any quota guard it cannot verify.
 make dmg                        # dist/Tokenmax-0.1.0.dmg
 ```
 
-Ad-hoc signing (the default) is fine for local use with one catch: there is no certificate, so the
-bundle has no stable designated requirement and the keychain ACL falls back to the raw code
-hash — which changes on every rebuild. macOS then re-asks for the Claude credentials after each
-install and **"Always Allow" never sticks**.
+Ad-hoc signing is the fallback, and it has one catch worth understanding: with no certificate the
+bundle has no stable *designated requirement*, so macOS identifies it by its raw code hash — which
+changes on every rebuild. Each build therefore looks like a different program, and every permission
+keyed to that identity is discarded:
 
-A self-signed code-signing certificate fixes that, free and without an Apple Developer account:
+- **"Always Allow" never sticks** for the Claude credentials.
+- **File-access grants are thrown away**, so a task in Documents, Desktop or Downloads meets a
+  consent dialog on its next run — and an unattended run has nobody to answer it, so it blocks until
+  its runtime limit kills it.
+
+Both symptoms are the same cause, and a self-signed code-signing certificate fixes both, free and
+without an Apple Developer account:
 
 1. **Keychain Access → Certificate Assistant → Create a Certificate…** — name it `Tokenmax Dev`,
    Identity Type **Self Signed Root**, Certificate Type **Code Signing**. Override the defaults to
    push the expiry well past the 365-day default.
-2. Build with it: `make dmg SIGN_ID="Tokenmax Dev"`.
-3. On first launch, click **Always Allow** once more — the new identity is unknown to the existing
-   ACL. From then on the requirement is certificate-based and survives rebuilds and updates.
+2. Build normally. `make` **detects the identity automatically** — there is no flag to remember,
+   because one forgotten `SIGN_ID=` silently reinstates the problem. Without a certificate the build
+   falls back to ad-hoc, so a fresh clone still needs no setup. Force it with `make install SIGN_ID=-`.
+3. On the first launch after switching, grant the keychain and folder access once more — the new
+   identity is unknown to the existing grants. From then on they survive every rebuild.
 
-Keep `PRODUCT_BUNDLE_IDENTIFIER` stable or the requirement changes and the prompting starts again.
+You can confirm it took:
+
+```
+codesign -d -r- /Applications/Tokenmax.app
+# designated => identifier "com.tokenmax.Tokenmax" and certificate leaf = H"…"
+```
+
+A requirement naming the certificate rather than a code hash is the whole point: recompiling changes
+the hash, and the requirement no longer mentions it.
+
+macOS does not need to *trust* the certificate for this — it only needs the identity to be stable.
+Keep `PRODUCT_BUNDLE_IDENTIFIER` stable too, or the requirement changes and the prompting starts
+again. None of this replaces notarization: recipients of the DMG still see the Gatekeeper prompt.
 
 The image still is not notarized, so recipients get the Gatekeeper prompt described under
 [Install](#install). Notarization is the only way to remove that step, and it needs the $99/year
@@ -367,7 +433,8 @@ Anthropic's terms for your account. The software is provided as is, without warr
 
 ```
 make build     # compile
-make test      # 343 tests
+make test      # full suite, no network, no side effects
+make doctor    # check everything Tokenmax depends on but does not own
 make install   # build, sign, install to /Applications
 make dmg       # build a distributable disk image
 make logs      # tail the log
@@ -375,8 +442,15 @@ make clean
 ```
 
 `Tokenmax.xcodeproj` is generated from `project.yml` by `xcodegen` and is not tracked — edit
-`project.yml`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the patterns worth keeping, and
+`project.yml`. [CONTRIBUTING.md](CONTRIBUTING.md) covers the patterns worth keeping,
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) how the pieces fit, and
 [docs/RELEASING.md](docs/RELEASING.md) the checklist for cutting a release.
+
+**Run `make doctor` after every Claude Code update.** Tokenmax passes about a dozen CLI flags it
+does not own, reads a keychain item another app writes, and parses two response shapes it has no
+control over. The doctor checks all of them in a couple of seconds, costs no quota, and names the
+source file behind anything it finds. It is the cheapest way to catch upstream drift before a
+queued run does — see [Architecture → The drift map](docs/ARCHITECTURE.md#the-drift-map).
 
 ## License
 
