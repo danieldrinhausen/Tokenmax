@@ -14,10 +14,19 @@ xcuserdata/
 AGENTS.md
 CLAUDE.md
 
-# Design note for an unimplemented feature, which also describes a separate
-# unpublished app (Copper/PasteFlow). Kept locally; publishing it would ship the
-# design of something that does not exist and pre-announce one that is not ready.
-docs/QUICK_CAPTURE_PLAN.md
+# Planning and design notes are never published — a rule, not a case-by-case
+# call. They describe work that does not exist yet, so a reader finding one in
+# `docs/` reasonably mistakes it for a description of the app, and they tend to
+# reference other unshipped projects: `QUICK_CAPTURE_PLAN.md` detailed a separate
+# unpublished app down to its type names. Keep them on disk, out of the repo.
+*_PLAN.md
+*-PLAN.md
+*_plan.md
+*-plan.md
+PLAN.md
+ROADMAP.md
+docs/plans/
+docs/planning/
 
 # Release artefacts built by `make dmg`.
 dist/
