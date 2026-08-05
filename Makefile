@@ -29,9 +29,15 @@ DMG        := $(DIST_DIR)/$(APP)-$(VERSION).dmg
 SIGN_ID ?= $(shell security find-identity -v -p codesigning 2>/dev/null \
 	| grep -q '"Tokenmax Dev"' && echo "Tokenmax Dev" || echo "-")
 
-.PHONY: all generate build sign install run stop test dmg clean logs
+.PHONY: all generate build sign install run stop test doctor dmg clean logs
 
 all: install
+
+# Checks the surfaces this app does not own — CLI flags, the keychain blob,
+# the usage endpoints, the statusline payload. Run it after every Claude Code
+# update; it is the cheapest way to find drift before a queued run does.
+doctor:
+	@./Tools/doctor.sh
 
 generate:
 	@xcodegen generate --quiet
