@@ -14,6 +14,11 @@ xcuserdata/
 AGENTS.md
 CLAUDE.md
 
+# Design note for an unimplemented feature, which also describes a separate
+# unpublished app (Copper/PasteFlow). Kept locally; publishing it would ship the
+# design of something that does not exist and pre-announce one that is not ready.
+docs/QUICK_CAPTURE_PLAN.md
+
 # Release artefacts built by `make dmg`.
 dist/
 *.dmg

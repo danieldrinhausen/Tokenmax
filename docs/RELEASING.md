@@ -43,8 +43,10 @@ machine restarts.
 
       git log --all --format='%ae %ce' | sort -u
 
-- [ ] Decide whether `docs/QUICK_CAPTURE_PLAN.md` ships. It is a design note for
-      an unimplemented feature, marked as such. Fine to keep, fine to drop.
+- [x] `docs/QUICK_CAPTURE_PLAN.md` does **not** ship — untracked and gitignored
+      on 2026-08-05. Beyond describing an unimplemented feature, it details
+      Copper/PasteFlow, a separate unpublished app; publishing it would
+      pre-announce that one. The file stays on disk.
 
 ### Signing (do this before the first DMG)
 
