@@ -61,7 +61,23 @@ window the bars show. The text can also be switched off, leaving bars alone.
 There is no wrong answer, but the countdown alone is the most legible at a
 glance, and the bars alone are the least distracting.
 
-**4. Grant folder access when you add your first task.**
+**4. Add Codex, if you use it.**
+
+There is nothing to configure. If the `codex` CLI is installed and signed in,
+Tokenmax finds it and adds a Codex section to the popover on the next refresh.
+It reuses the login the CLI already manages and never reads or stores those
+credentials.
+
+A **ChatGPT-managed** login reports quota windows. An **API-key** login is
+billed and unmetered, so there is no window to report — Tokenmax labels it as
+such rather than showing an empty meter, and will not start quota-gated
+automatic Codex tasks against it.
+
+If you do not use Codex, **Settings → Data Source** switches it off: its popover
+section, its bars and its reminders all disappear. Nothing is deleted, so
+switching it back on restores your arrangement.
+
+**5. Grant folder access when you add your first task.**
 
 If the project is in Documents, Desktop, Downloads or iCloud Drive, macOS asks
 once. Say yes — the CLI cannot read your project otherwise.
@@ -74,7 +90,7 @@ Access** (System Settings → Privacy & Security) is one grant instead of four.
 This matters more than it looks — see
 [before you turn on automation](#step-0--grant-folder-access-first).
 
-**5. Stop here if you want.**
+**6. Stop here if you want.**
 
 Everything above is read-only. Tokenmax has spent nothing, changed nothing, and
 sent nothing anywhere except Anthropic's own usage endpoint. The rest of this
@@ -116,6 +132,58 @@ Two silences are deliberate. Tokenmax says nothing about pace in the **first 3%
 of a window** (dividing by near-zero makes one early prompt look like a runaway),
 and it says nothing when the data is **stale** — carrying a last-good reading
 forward is honest, extrapolating from it is not.
+
+---
+
+## Codex, and where it differs
+
+Codex is a second provider, not a second copy of the first. It gets its own
+meters, its own reminder thresholds and its own opt-in for unattended runs, and
+none of those inherit from Claude. That is deliberate: the two have different
+window lengths, different execution boundaries and different costs, so a setting
+tuned for one would be wrong for the other.
+
+**Meters.** Codex reports a weekly window. Some accounts report a session window
+too; where one is not reported you get *"Not reported for this account"* rather
+than a meter reading zero, because those are different facts. Its quotas can be
+drawn in the menu bar like any other — **Settings → General**, drag *Codex week*
+onto a bar.
+
+**Reminders.** Codex's weekly window has its own lead time and its own minimum
+remaining quota under **Settings → Notifications**. Turning on Claude's weekly
+reminder does not turn on Codex's, and the thresholds are not shared.
+
+**Running tasks.** A task belongs to one provider. Codex tasks run through the
+same App Server interface used to read quota, and the differences worth knowing
+before you queue one:
+
+| | Claude Code | Codex |
+|---|---|---|
+| Execution boundary | Per-tool allowlist, file tools scoped to the working directory | **Sandbox**: read-only, or workspace-write |
+| Per-run cost cap | A USD ceiling Tokenmax enforces | **None** — the CLI offers nothing to enforce |
+| Shell access | A separate per-task opt-in | Part of the sandbox choice |
+| Thinking grades | `low` … `max` | `minimal`, `low`, `medium`, `high` — not the same set |
+| Model | Alias or full id | Blank means *whatever your own Codex config selects* |
+| Session opener | Yes | **Not available**, intentionally |
+
+The missing USD cap is the one to sit with. For a Claude task you can say "stop
+after a dollar"; for a Codex task the runtime limit is the only ceiling
+Tokenmax can enforce, so set it deliberately rather than leaving the default.
+
+**Unattended runs — not in 0.1.** Codex automation is gated behind its own
+setting, separate from Claude's, so that enabling unattended Claude runs never
+silently grants a second unattended agent. That setting defaults to off and
+**this build exposes no control for it**, which means Codex tasks never start on
+their own. Queue them and run them yourself with **Run with Provider**; the
+scheduler will not pick them up.
+
+Claude automation is unaffected — it has its own switch under **Settings → Queue
+Automation** and works as documented.
+
+**Switching it off.** **Settings → Data Source** stops polling Codex, hides its
+section and bars, cancels its pending reminders and refuses to auto-run its
+tasks. It hides rather than deletes: your rules, bar layout and Codex tasks stay
+on disk and come back exactly as they were.
 
 ---
 

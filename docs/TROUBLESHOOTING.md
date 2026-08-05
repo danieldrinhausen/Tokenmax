@@ -99,6 +99,42 @@ both are available, the fresher and higher-confidence reading wins.
 A gap of a few percent between them is normal. A gap of tens of percent is worth
 an issue.
 
+### There is no Codex section at all
+
+In order:
+
+1. **Is Codex switched on?** **Settings → Data Source** has a *Monitor Codex
+   usage* toggle. Off, it hides everything Codex — that is the switch doing its
+   job, not a fault.
+2. **Is the CLI installed where Tokenmax looks?** It checks
+   `/opt/homebrew/bin/codex`, `/usr/local/bin/codex` and `/usr/bin/codex`, then
+   your `PATH`. A `codex` installed somewhere else entirely will not be found.
+3. **Is it signed in?** Tokenmax asks the App Server for the account and treats
+   "no auth mode" as not signed in. Sign in with the CLI as you normally would
+   and refresh.
+
+### Codex says "Not reported for this account"
+
+Not a fault, and deliberately not the same as an empty meter. Codex reports
+whichever windows your account actually has; where a session window is not
+among them, saying so is more honest than drawing a bar at zero, which would
+read as "you have nothing left".
+
+An **API-key** login is the other case: it is billed and unmetered, so there is
+no window to report at all. Tokenmax labels it as billed and will not start
+quota-gated automatic Codex tasks against it, because there is no quota
+condition to gate on.
+
+### Codex quota is stale while Claude's is fine
+
+They are read over completely different transports — Claude over HTTPS to the
+usage endpoint, Codex by starting a local `codex app-server` and speaking
+JSON-RPC to it. One can fail while the other succeeds.
+
+Tokenmax starts a fresh read-only server per refresh and lets it exit rather
+than keeping an agent process alive. If those spawns are failing, `make logs`
+records it. A Codex CLI mid-upgrade is the usual cause, and it resolves itself.
+
 ---
 
 ## Reminders
@@ -252,6 +288,28 @@ Automation**. The common ones:
 - automation is still in **preview only** mode
 
 Preview mode is the one people forget. It is deliberately sticky.
+
+**A Codex task will never start automatically in 0.1.** Codex automation is
+gated behind its own setting, deliberately separate from Claude's so that
+enabling unattended Claude runs cannot hand you a second unattended agent by
+inheritance. That setting defaults to off, and this build ships no control for
+it — so a Codex task can satisfy every condition above and still sit there.
+That is the current behaviour, not a misconfiguration on your side.
+
+Run Codex tasks yourself with **Run with Provider**. Claude automation is
+unaffected.
+
+### A Codex task ignored the cost cap
+
+There is no cost cap for Codex to ignore. Tokenmax enforces a per-run USD
+ceiling for Claude because the CLI reports cost; the Codex CLI offers nothing
+equivalent, so the task editor states the limit plainly rather than showing a
+control that does not work.
+
+For a Codex task the **runtime limit is the only ceiling**, which makes it worth
+setting deliberately instead of leaving the default. The execution boundary is
+also a sandbox — read-only, or workspace-write — rather than a per-tool
+allowlist, so "can it change files" is answered by the sandbox choice alone.
 
 ### "Replying to this run is not available"
 

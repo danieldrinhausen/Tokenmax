@@ -52,6 +52,42 @@ is split by what you came for.
 | [Contributing](CONTRIBUTING.md) | The patterns worth keeping |
 | [Releasing](docs/RELEASING.md) | Checklist for cutting a release |
 
+## Quick start
+
+Five minutes, and everything here is read-only — Tokenmax spends nothing until you
+explicitly turn something on.
+
+**1. Install.** Download the `.dmg` from [Releases](../../releases), drag Tokenmax to
+Applications, launch it. The first launch is refused with *"Apple could not verify…"*
+because the app is signed but not notarized: **System Settings → Privacy & Security →
+Open Anyway**. Once per download, [details below](#install).
+
+**2. Allow the keychain prompt.** macOS asks for the `Claude Code-credentials` item. That
+prompt *is* Tokenmax reading your quota — choose **Always Allow**. Decline it and the
+meters stay empty.
+
+**3. Look at the menu bar.** Two bars and a countdown: Claude session over Claude week,
+counting down to the session reset. If you see a stub, the first reading has not landed —
+give it a few seconds.
+
+**4. Add Codex, if you use it.** Nothing to configure: if the `codex` CLI is installed and
+signed in, Tokenmax picks it up and adds its section to the popover. A ChatGPT-managed
+login reports quota; an API-key login is unmetered and is labelled as billed instead.
+Don't use Codex? **Settings → Data Source** switches it off and it disappears.
+
+**5. Choose what the icon shows.** **Settings → General** — two or three bars, each
+drawing a quota you drag into place, and a countdown that can track a different window
+entirely.
+
+**6. Queue something.** ⌘N in the queue window. If the project lives in Documents,
+Desktop, Downloads or iCloud Drive, macOS asks for folder access — say yes *now*, while
+you are here to answer it. [Why that matters](#folder-access).
+
+That is the whole read-only tour. Reminders, the session opener and unattended runs are
+each separately opt-in and each spend real quota — the
+[handbook](docs/HANDBOOK.md#turning-on-automation-without-regretting-it) walks through
+turning them on without regretting it.
+
 ## Install
 
 **From a release.** Download the `.dmg` from
@@ -397,15 +433,25 @@ until a usage reading newer than the first one lands.
 
 ## Not in 0.1
 
-Sequential multi-task execution · per-task MCP config · git-state guards · Codex adapter ·
-multiple accounts.
+Sequential multi-task execution · per-task MCP config · git-state guards · multiple accounts ·
+Codex session opener.
+
+**Unattended Codex runs.** Codex tasks are queued and run on demand, but never automatically.
+The gate is a setting kept deliberately separate from Claude's, so that enabling unattended Claude
+runs cannot grant a second unattended agent by inheritance — and this build ships no control to
+turn it on. Claude automation is unaffected.
 
 ## Privacy and security
 
 Everything stays on your Mac. Tokenmax has **no telemetry, no analytics and no server**; the only
-network requests it ever makes are to `api.anthropic.com`, with the OAuth token Claude Code already
-stored in your login keychain. It never writes credentials to disk and never refreshes the token
-itself.
+network requests it makes itself are to `api.anthropic.com`, with the OAuth token Claude Code
+already stored in your login keychain. It never writes credentials to disk and never refreshes the
+token itself.
+
+Codex quota is read locally rather than over the network: Tokenmax starts a short-lived
+`codex app-server` and speaks JSON-RPC to it. That process reaches OpenAI on its own account, under
+the login the Codex CLI manages — Tokenmax neither reads nor stores those credentials, and switching
+Codex off under **Settings → Data Source** stops it being started at all.
 
 What it does hold locally, in `~/Library/Application Support/Tokenmax/`: your queued prompt text,
 the working directories you pointed tasks at, run transcripts, and quota history. Nothing there is
