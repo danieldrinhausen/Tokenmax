@@ -37,17 +37,27 @@ xattr -dr com.apple.quarantine /Applications/Tokenmax.app
 
 ### The keychain prompt comes back every time
 
-Two different situations:
+**You build it yourself.** Expect one prompt per build. macOS records the
+"Always Allow" grant against the app's **code hash**, which changes every time
+you compile, so each new binary is a program it has never seen. Nothing is
+wrong; the previous grant simply does not apply to the build you just made.
 
-**You built it yourself.** Ad-hoc signing has no certificate, so the bundle has
-no stable designated requirement and the keychain ACL falls back to the raw code
-hash — which changes on every rebuild. "Always Allow" cannot stick because macOS
-considers each build a different program. The fix is a free self-signed
-certificate; see [Building a release](../README.md#building-a-release).
+A self-signed certificate does *not* avoid this, despite giving the bundle a
+stable designated requirement. Inspected on a cert-signed build: the keychain
+ACL for `Claude Code-credentials` held 85 Tokenmax entries, every one of them a
+bare `cdhash`, and none using the designated requirement — while a
+Developer ID-signed app in the same ACL did get a requirement-based grant. The
+certificate is still worth having (it is what keeps macOS *file-access* grants
+from being discarded, which is the failure that strands an unattended run), but
+it does not stop the keychain re-prompt.
 
-**You installed a release and it still re-prompts.** That should not happen.
-Check that the bundle identifier has not changed, and file an issue with your
-macOS version.
+So a rebuild-heavy session means a prompt per rebuild. It settles as soon as you
+stop rebuilding.
+
+**You installed a release and it re-prompts.** One prompt per downloaded version
+is normal, for the same reason — a new version is a new binary. If it asks again
+for a version you have already allowed, that is a bug: check that the bundle
+identifier has not changed and file an issue with your macOS version.
 
 ### The app launches but nothing appears
 
@@ -212,10 +222,13 @@ blocking Tokenmax from reading this folder"* with a **Grant Access** button. Or
 allow Tokenmax under **System Settings → Privacy & Security → Files and
 Folders**.
 
-**This comes back after every local rebuild.** TCC grants are keyed to the code
-signature, and ad-hoc signing produces a new one each time, so the permission
-does not carry over. It is the same root cause as the keychain prompt, and the
-same [self-signed certificate](../README.md#building-a-release) fixes both.
+**This comes back after every local rebuild if you build ad-hoc.** TCC grants are
+keyed to the code signature, and ad-hoc signing produces a new one each time, so
+the permission does not carry over. A
+[self-signed certificate](../README.md#building-a-release) fixes this one, and it
+is the reason to bother with the certificate at all. It does *not* fix the
+keychain prompt, which macOS keys to the code hash regardless — see
+[The keychain prompt comes back every time](#the-keychain-prompt-comes-back-every-time).
 
 ### Will it keep asking for folder permission?
 

@@ -36,8 +36,8 @@ carry how much is left; the countdown carries how long there is to spend it.
 each one shows — Claude session, Claude week, Codex session, Codex week — by dragging a quota onto
 a bar; dragging one that is already placed swaps the two. The countdown is chosen separately under
 **Count down to**, because the most useful deadline is not always one the bars have room for, and
-tying the two would mean changing the icon to change the text. The same pane switches the countdown
-text off entirely and offers **Start Tokenmax at login**.
+tying the two would mean changing the icon to change the text. The icon can show **bars only, the
+countdown only, or both**. The same pane offers **Start Tokenmax at login**.
 
 A quota belonging to a provider you have switched off is never drawn, but its slot is remembered —
 turn the provider back on and your arrangement returns rather than a rebuilt one.
@@ -85,20 +85,24 @@ Open Anyway**. Once per download, [details below](#install).
 prompt *is* Tokenmax reading your quota — choose **Always Allow**. Decline it and the
 meters stay empty.
 
-**3. Look at the menu bar.** Two bars and a countdown: Claude session over Claude week,
-counting down to the session reset. If you see a stub, the first reading has not landed —
-give it a few seconds. Click the icon for the popover; **right-click** it for Settings,
-Open Queue, Refresh and Quit. There is no Dock icon, so that menu is where Tokenmax quits
-from.
+**3. Look at the menu bar.** Out of the box that is two bars — Claude session over Claude
+week — and a countdown to the session reset. It is only a starting point; step 5 changes
+every part of it. If you see a stub, the first reading has not landed — give it a few
+seconds.
+
+Click the icon for the popover, which also shows the version you are running.
+**Right-click** the icon for Settings, Open Queue, Refresh and Quit. There is no Dock icon,
+so that menu is where Tokenmax quits from.
 
 **4. Add Codex, if you use it.** Nothing to configure: if the `codex` CLI is installed and
 signed in, Tokenmax picks it up and adds its section to the popover. A ChatGPT-managed
 login reports quota; an API-key login is unmetered and is labelled as billed instead.
 Don't use Codex? **Settings → Data Source** switches it off and it disappears.
 
-**5. Choose what the icon shows.** **Settings → General** — two or three bars, each
-drawing a quota you drag into place, and a countdown that can track a different window
-entirely.
+**5. Make the icon yours.** **Settings → General** — two or three bars, which of the four
+quotas each one draws (drag a quota onto a bar; drop it on an occupied one to swap), and a
+countdown that can follow a different window from any of them. The same pane chooses
+between bars, the countdown, or both, and sets the highlight colour.
 
 **6. Queue something.** ⌘N in the queue window. If the project lives in Documents,
 Desktop, Downloads or iCloud Drive, macOS asks for folder access — say yes *now*, while
@@ -293,8 +297,14 @@ windows are configured independently.
 </p>
 
 A reminder is scheduled at `resetAt − leadTime` with the identifier
-`claude-{window}-{ISO8601 resetAt}`. Because the identifier derives from the reset timestamp,
-rescheduling is idempotent — repeated refreshes cannot stack duplicates.
+`{provider}-{window}-{ISO8601 resetAt}` — `claude-session-…`, `codex-weekly-…`. Because the
+identifier derives from the reset timestamp, rescheduling is idempotent: repeated refreshes cannot
+stack duplicates.
+
+The timestamp in the identifier is rounded to the nearest 5 minutes, while the fire time still uses
+the exact one. Reset times from the endpoint jitter between fetches — the same window has been seen
+reporting both `09:00:00Z` and `08:59:59Z` — and a one-second drift would make the "already fired"
+lookup miss and deliver a second banner for the same window.
 
 Reminders are suppressed when the data is stale, the reset time is unknown, the fire time has
 passed, less than the minimum quota remains, the queue is empty (if configured), the window already
@@ -476,16 +486,16 @@ turn it on. Claude automation is unaffected.
 
 ## Privacy and security
 
-Everything stays on your Mac. Tokenmax has **no telemetry, no analytics and no server**; the
-network requests it makes itself go to `api.anthropic.com`, with the OAuth token Claude Code
+Your data stays on your Mac. Tokenmax has **no telemetry, no analytics and no server**; the
+requests it makes about your usage go to `api.anthropic.com`, with the OAuth token Claude Code
 already stored in your login keychain. It never writes credentials to disk and never refreshes the
 token itself.
 
-The one exception is the update check: once a day Tokenmax asks `api.github.com` for the newest
-published release, so it can tell you a newer version exists. It is an unauthenticated GET for a
-public list — nothing about you or your usage is sent, and nothing is downloaded or installed.
-**Settings → About → Check for updates automatically** switches it off, and off means no request is
-made at all.
+It makes exactly one request that is not about your quota: once a day it asks `api.github.com`
+whether a newer release has been published, so it can tell you. That is an unauthenticated GET for
+a public list — nothing about you or your usage is sent, and nothing is downloaded or installed as
+a result. **Settings → About → Check for updates automatically** switches it off, and off means no
+request is made rather than an answer ignored.
 
 Codex quota is read locally rather than over the network: Tokenmax starts a short-lived
 `codex app-server` and speaks JSON-RPC to it. That process reaches OpenAI on its own account, under
@@ -517,8 +527,8 @@ keyed to that identity is discarded:
   consent dialog on its next run — and an unattended run has nobody to answer it, so it blocks until
   its runtime limit kills it.
 
-Both symptoms are the same cause, and a self-signed code-signing certificate fixes both, free and
-without an Apple Developer account:
+A self-signed code-signing certificate fixes the second of those — free, and without an Apple
+Developer account:
 
 1. **Keychain Access → Certificate Assistant → Create a Certificate…** — name it `Tokenmax Dev`,
    Identity Type **Self Signed Root**, Certificate Type **Code Signing**. Override the defaults to
@@ -527,7 +537,15 @@ without an Apple Developer account:
    because one forgotten `SIGN_ID=` silently reinstates the problem. Without a certificate the build
    falls back to ad-hoc, so a fresh clone still needs no setup. Force it with `make install SIGN_ID=-`.
 3. On the first launch after switching, grant the keychain and folder access once more — the new
-   identity is unknown to the existing grants. From then on they survive every rebuild.
+   identity is unknown to the existing grants.
+
+**File-access grants then survive every rebuild. The keychain prompt does not.** Measured on a
+cert-signed build: the ACL for `Claude Code-credentials` held 85 Tokenmax entries, all keyed by bare
+`cdhash` and none by the designated requirement — while a Developer ID-signed app in the same ACL
+did get a requirement-based grant. macOS appears not to extend that treatment to a self-signed root,
+however thoroughly it is trusted. So expect one keychain prompt per build you compile; it is the
+file-access half that the certificate is really buying, and that is the half an unattended run
+depends on.
 
 You can confirm it took:
 
