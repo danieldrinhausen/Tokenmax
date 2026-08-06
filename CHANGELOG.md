@@ -5,6 +5,21 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **The running version is visible in the app.** Beside the name in the popover
+  header, and in a new **Settings → About** pane with the build number and the
+  macOS the app needs. A bug report no longer has to start in Finder.
+- **A daily update check.** Tokenmax asks GitHub once a day whether a newer
+  release has been published and links to it when there is one. It never
+  installs anything itself — deliberately: the alternatives were the project's
+  first third-party dependency, or a hand-written self-replacing bundle in an
+  app that is signed but not notarized.
+
+  It is the only request Tokenmax makes to a host unrelated to quota, so it has
+  a switch in **Settings → About**, and off means no request rather than an
+  ignored answer.
+
 ## [0.1.2] - 2026-08-06
 
 ### Added
