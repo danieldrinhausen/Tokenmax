@@ -17,8 +17,12 @@ protocol UsageProvider: Sendable {
 }
 
 enum ProviderError: Error, LocalizedError, Equatable {
-    case notInstalled
-    case notAuthenticated
+    /// Carries the provider's display name because this error is the one both
+    /// providers raise. Hardcoding "Claude Code" here meant a missing `codex`
+    /// binary logged "Claude Code is not installed." — which sends you looking
+    /// at a CLI that was installed and working the whole time.
+    case notInstalled(String)
+    case notAuthenticated(String)
     case accessDenied
     /// The access token was rejected but a refresh token is still on file, so
     /// Claude Code will rotate it on its own the next time it runs. Transient,
@@ -32,8 +36,8 @@ enum ProviderError: Error, LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .notInstalled: "Claude Code is not installed."
-        case .notAuthenticated: "Claude Code is installed but not authenticated."
+        case let .notInstalled(name): "\(name) is not installed."
+        case let .notAuthenticated(name): "\(name) is installed but not authenticated."
         case .accessDenied: "Tokenmax needs keychain access to read Claude usage."
         case .tokenExpired: "Claude Code's access token expired; it refreshes on next use."
         case .needsReauthentication: "Claude Code needs to be re-authenticated."

@@ -18,9 +18,9 @@ final class CodexProvider: UsageProvider {
     }
 
     func fetchUsage() async throws -> ProviderUsage {
-        guard CodexCLIClient.isInstalled else { throw ProviderError.notInstalled }
+        guard CodexCLIClient.isInstalled else { throw ProviderError.notInstalled(displayName) }
         let (account, limits) = try await client.readAccountAndLimits()
-        guard account.authMode != nil else { throw ProviderError.notAuthenticated }
+        guard account.authMode != nil else { throw ProviderError.notAuthenticated(displayName) }
         guard account.isChatGPTManaged else {
             throw ProviderError.underlying("Codex is authenticated with an API key. It can run tasks, but this account has no ChatGPT quota meter.")
         }
