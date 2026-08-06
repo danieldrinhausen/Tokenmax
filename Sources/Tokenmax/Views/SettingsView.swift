@@ -6,6 +6,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case sessionOpener
     case queueAutomation
     case dataSource
+    case about
 
     var id: String { rawValue }
 
@@ -16,6 +17,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .sessionOpener: "Session Opener"
         case .queueAutomation: "Queue Automation"
         case .dataSource: "Data Source"
+        case .about: "About"
         }
     }
 
@@ -26,6 +28,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .sessionOpener: "bolt.badge.clock"
         case .queueAutomation: "play.circle"
         case .dataSource: "antenna.radiowaves.left.and.right"
+        case .about: "info.circle"
         }
     }
 }
@@ -69,6 +72,7 @@ struct SettingsView: View {
         case .sessionOpener: SessionOpenerSettingsView()
         case .queueAutomation: QueueAutomationSettingsView()
         case .dataSource: DataSourceSettingsView()
+        case .about: AboutSettingsView()
         }
     }
 }

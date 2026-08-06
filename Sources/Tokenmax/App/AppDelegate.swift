@@ -21,8 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_: Notification) {
         // Menubar-only: no Dock icon, no ⌘-Tab entry.
         NSApp.setActivationPolicy(.accessory)
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        Log.shared.write("launched Tokenmax \(version)")
+        Log.shared.write("launched Tokenmax \(AppInfo.version) (\(AppInfo.build))")
 
         // Bar colour is `labelColor`, which resolves to white on a dark menu
         // bar and black on a light one. Cached images have to be thrown away

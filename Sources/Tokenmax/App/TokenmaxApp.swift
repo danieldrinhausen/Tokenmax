@@ -17,6 +17,7 @@ struct TokenmaxApp: App {
     @StateObject private var sessionOpener: SessionOpenerCoordinator
     @StateObject private var autoRun: QueueAutoRunCoordinator
     @StateObject private var modelCatalog = ModelCatalogStore()
+    @StateObject private var updates: UpdateCheckCoordinator
 
     init() {
         let settingsStore = SettingsStore()
@@ -35,6 +36,7 @@ struct TokenmaxApp: App {
             taskStore: taskStore,
             settingsStore: settingsStore
         )
+        let updates = UpdateCheckCoordinator(settingsStore: settingsStore)
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
         _taskStore = StateObject(wrappedValue: taskStore)
@@ -43,6 +45,7 @@ struct TokenmaxApp: App {
         _notificationCoordinator = StateObject(wrappedValue: notificationCoordinator)
         _sessionOpener = StateObject(wrappedValue: sessionOpener)
         _autoRun = StateObject(wrappedValue: autoRun)
+        _updates = StateObject(wrappedValue: updates)
     }
 
     var body: some Scene {
@@ -76,6 +79,7 @@ struct TokenmaxApp: App {
                 notificationCoordinator.start()
                 sessionOpener.start()
                 autoRun.start()
+                updates.start()
                 // Here rather than in `applicationDidFinishLaunching` because
                 // the stores live in this struct, and because the status item
                 // it watches for does not exist until this scene has been built.
@@ -118,7 +122,8 @@ struct TokenmaxApp: App {
             notificationCoordinator: notificationCoordinator,
             sessionOpener: sessionOpener,
             autoRun: autoRun,
-            modelCatalog: modelCatalog
+            modelCatalog: modelCatalog,
+            updates: updates
         )
     }
 }
@@ -133,6 +138,7 @@ struct SharedEnvironment: ViewModifier {
     let sessionOpener: SessionOpenerCoordinator
     let autoRun: QueueAutoRunCoordinator
     let modelCatalog: ModelCatalogStore
+    let updates: UpdateCheckCoordinator
 
     func body(content: Content) -> some View {
         content
@@ -147,6 +153,7 @@ struct SharedEnvironment: ViewModifier {
             .environmentObject(sessionOpener)
             .environmentObject(autoRun)
             .environmentObject(modelCatalog)
+            .environmentObject(updates)
     }
 }
 

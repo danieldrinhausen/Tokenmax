@@ -7,6 +7,7 @@ struct MenuBarPopoverView: View {
     @EnvironmentObject private var notifications: NotificationCoordinator
     @EnvironmentObject private var opener: SessionOpenerCoordinator
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
+    @EnvironmentObject private var updates: UpdateCheckCoordinator
 
     @Environment(\.openWindow) private var openWindow
 
@@ -41,9 +42,22 @@ struct MenuBarPopoverView: View {
     /// section, or the first provider silently inherits the title position and
     /// the second looks like a subsection of the first.
     private var appHeader: some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text("Tokenmax").font(.system(size: 14, weight: .semibold))
+            // Beside the name rather than in an About box alone: the first
+            // thing anyone needs when reporting a problem is which build they
+            // are on, and the popover is the one surface always a click away.
+            Text(AppInfo.version)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Spacer()
+            if let version = updates.availableVersion, let page = updates.releasePage {
+                Link(destination: page) {
+                    Label("\(version.description) available", systemImage: "arrow.down.circle")
+                        .font(.caption)
+                }
+                .help("Open the release page on GitHub")
+            }
         }
     }
 

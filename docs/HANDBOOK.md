@@ -50,6 +50,11 @@ few seconds. If it stays empty, jump to
 and Quit without opening the popover first. Quit lives only here — there is no
 Dock icon to quit from.
 
+The version you are running sits beside the name at the top of the popover, and
+in **Settings → About** with the build number. Tokenmax checks GitHub once a day
+for a newer release and links to it when there is one; it never installs
+anything itself. Switch the check off in the same place.
+
 **3. Decide what the icon should show.**
 
 **Settings → General** decides both halves independently. Choose **2 or 3 bars**,

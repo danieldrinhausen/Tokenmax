@@ -278,6 +278,15 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// does not delete anything.
     var queueEnabled: Bool = true
 
+    /// Whether Tokenmax asks GitHub once a day if there is a newer release.
+    ///
+    /// On by default, and worth a switch anyway: it is the only request the app
+    /// makes to a host unrelated to the quota it exists to read, and somebody
+    /// running this on a locked-down machine should be able to say no without
+    /// giving up the app. Off means no request is made at all — not a request
+    /// whose answer is ignored.
+    var checkForUpdates: Bool = true
+
     var terminalApplication: String = "Terminal"
     var statuslineShimInstalled: Bool = false
 
@@ -412,6 +421,7 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.menuBarHighlightGlow
         showProjections = try container.decodeIfPresent(Bool.self, forKey: .showProjections) ?? d.showProjections
         queueEnabled = try container.decodeIfPresent(Bool.self, forKey: .queueEnabled) ?? d.queueEnabled
+        checkForUpdates = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         terminalApplication = try container.decodeIfPresent(String.self, forKey: .terminalApplication)
             ?? d.terminalApplication
         statuslineShimInstalled = try container.decodeIfPresent(Bool.self, forKey: .statuslineShimInstalled)

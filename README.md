@@ -474,10 +474,16 @@ turn it on. Claude automation is unaffected.
 
 ## Privacy and security
 
-Everything stays on your Mac. Tokenmax has **no telemetry, no analytics and no server**; the only
-network requests it makes itself are to `api.anthropic.com`, with the OAuth token Claude Code
+Everything stays on your Mac. Tokenmax has **no telemetry, no analytics and no server**; the
+network requests it makes itself go to `api.anthropic.com`, with the OAuth token Claude Code
 already stored in your login keychain. It never writes credentials to disk and never refreshes the
 token itself.
+
+The one exception is the update check: once a day Tokenmax asks `api.github.com` for the newest
+published release, so it can tell you a newer version exists. It is an unauthenticated GET for a
+public list — nothing about you or your usage is sent, and nothing is downloaded or installed.
+**Settings → About → Check for updates automatically** switches it off, and off means no request is
+made at all.
 
 Codex quota is read locally rather than over the network: Tokenmax starts a short-lived
 `codex app-server` and speaks JSON-RPC to it. That process reaches OpenAI on its own account, under
