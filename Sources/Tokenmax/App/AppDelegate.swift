@@ -29,6 +29,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openWindowCount += 1
         if openWindowCount == 1 {
             NSApp.setActivationPolicy(.regular)
+        }
+        raise()
+    }
+
+    /// Activation belongs to every window that opens, not only the first. The
+    /// count is already at one whenever the queue window is up, so tying this
+    /// to `== 1` meant Settings opened from the popover never asked to come
+    /// forward at all — it was placed behind whatever the user had in front.
+    ///
+    /// Twice, deliberately. The `.accessory` → `.regular` switch is not in
+    /// effect for the rest of the runloop pass that requests it, and an
+    /// `activate` issued inside that same pass can be dropped. The second call
+    /// costs nothing when the first one worked and is the one that lands when
+    /// it did not.
+    private func raise() {
+        NSApp.activate(ignoringOtherApps: true)
+        Task { @MainActor in
             NSApp.activate(ignoringOtherApps: true)
         }
     }

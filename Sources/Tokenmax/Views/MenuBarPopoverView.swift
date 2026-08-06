@@ -522,7 +522,7 @@ struct MenuBarPopoverView: View {
     private var footer: some View {
         HStack(spacing: 8) {
             if settingsStore.settings.queueEnabled {
-                Button("Open Queue") { openQueue() }
+                Button("Open Queue") { open(TokenmaxWindow.queue) }
             }
             // The footer button sits below every provider section, so it
             // refreshes every provider. The per-provider Refresh links in the
@@ -541,7 +541,7 @@ struct MenuBarPopoverView: View {
             Spacer()
 
             Menu {
-                Button("Settings…") { openWindow(id: TokenmaxWindow.settings) }
+                Button("Settings…") { open(TokenmaxWindow.settings) }
                 Divider()
                 Button("Quit Tokenmax") { NSApplication.shared.terminate(nil) }
             } label: {
@@ -552,8 +552,15 @@ struct MenuBarPopoverView: View {
         }
     }
 
-    private func openQueue() {
+    /// Activation first, then the window. `openWindow` only orders the window
+    /// to the front *within* this app; putting the app itself in front of every
+    /// other one is a separate step, and it cannot be left to the window's
+    /// `onAppear` — reopening a window that is merely buried does not appear
+    /// again, so that hook never runs a second time and the window stays where
+    /// it was. The queue button always did this; Settings did not, which is why
+    /// Settings was the one that went missing.
+    private func open(_ id: String) {
         NSApp.activate(ignoringOtherApps: true)
-        openWindow(id: TokenmaxWindow.queue)
+        openWindow(id: id)
     }
 }
