@@ -6,6 +6,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var appearanceObserver: NSKeyValueObservation?
 
+    private var menuBarContextMenu: MenuBarContextMenu?
+
+    /// Called from the menubar label's `onAppear`, which is where the stores it
+    /// needs are in scope. Held here so it outlives that view and so the event
+    /// monitor is torn down with the app rather than leaked per redraw.
+    func installMenuBarContextMenu(settingsStore: SettingsStore, usage: ProviderUsageCoordinator) {
+        guard menuBarContextMenu == nil else { return }
+        let menu = MenuBarContextMenu(settingsStore: settingsStore, usage: usage)
+        menu.install()
+        menuBarContextMenu = menu
+    }
+
     func applicationDidFinishLaunching(_: Notification) {
         // Menubar-only: no Dock icon, no ⌘-Tab entry.
         NSApp.setActivationPolicy(.accessory)

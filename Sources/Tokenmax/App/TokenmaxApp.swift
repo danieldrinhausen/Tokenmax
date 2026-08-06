@@ -76,6 +76,10 @@ struct TokenmaxApp: App {
                 notificationCoordinator.start()
                 sessionOpener.start()
                 autoRun.start()
+                // Here rather than in `applicationDidFinishLaunching` because
+                // the stores live in this struct, and because the status item
+                // it watches for does not exist until this scene has been built.
+                appDelegate.installMenuBarContextMenu(settingsStore: settingsStore, usage: usage)
                 // Asked now, not when a task runs. Reading a protected folder
                 // raises a consent dialog that blocks until answered, and an
                 // unattended run is exactly when nobody will answer it — so the
@@ -185,6 +189,10 @@ private struct MenuBarLabel: View {
         // is always alive and has access to `openWindow`.
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxOpenQueue)) { _ in
             openWindow(id: TokenmaxWindow.queue)
+        }
+        // Same reason: the right-click menu is AppKit and has no `openWindow`.
+        .onReceive(NotificationCenter.default.publisher(for: .tokenmaxOpenSettings)) { _ in
+            openWindow(id: TokenmaxWindow.settings)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxAppearanceChanged)) { _ in
             appearanceGeneration &+= 1

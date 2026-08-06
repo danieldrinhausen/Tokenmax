@@ -540,15 +540,11 @@ struct MenuBarPopoverView: View {
 
             Spacer()
 
-            Menu {
-                Button("Settings…") { open(TokenmaxWindow.settings) }
-                Divider()
-                Button("Quit Tokenmax") { NSApplication.shared.terminate(nil) }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
+            // Settings used to sit behind an ellipsis menu next to Quit. It is
+            // the one thing here anybody opens more than once, so it gets the
+            // button; Quit, which is used once and never in a hurry, moved to
+            // the menubar icon's right-click menu.
+            Button("Settings…") { open(TokenmaxWindow.settings) }
         }
     }
 

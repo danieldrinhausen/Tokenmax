@@ -371,6 +371,7 @@ final class UsageRefreshCoordinator: ObservableObject {
 extension Notification.Name {
     static let tokenmaxUsageUpdated = Notification.Name("com.tokenmax.usageUpdated")
     static let tokenmaxOpenQueue = Notification.Name("com.tokenmax.openQueue")
+    static let tokenmaxOpenSettings = Notification.Name("com.tokenmax.openSettings")
     static let tokenmaxAppearanceChanged = Notification.Name("com.tokenmax.appearanceChanged")
 }
 
