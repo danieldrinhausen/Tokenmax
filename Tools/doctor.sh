@@ -180,10 +180,28 @@ else
     pass "~/.claude/settings.json is valid JSON"
     if /usr/bin/jq -e '.statusLine' "$settings" >/dev/null 2>&1; then
         shim="$(/usr/bin/jq -r '.statusLine.command // empty' "$settings")"
-        if [ -n "$shim" ] && [ ! -x "${shim%% *}" ]; then
-            fail "statusLine command is not executable: $shim"
-        else
-            pass "statusLine configured"
+        if [ -n "$shim" ]; then
+            # The first word may be a bare command name resolved through PATH
+            # ("bash script.sh"), not a path. Testing -x on it directly failed
+            # for every interpreter-style command and reported a broken shim
+            # that ran perfectly well.
+            shim_bin="${shim%% *}"
+            case "$shim_bin" in
+                /*) resolved="$shim_bin" ;;
+                *) resolved="$(command -v "$shim_bin" 2>/dev/null || true)" ;;
+            esac
+
+            # Whatever follows the interpreter, if anything, is the script.
+            shim_arg=""
+            [ "$shim" != "$shim_bin" ] && shim_arg="${shim#* }" && shim_arg="${shim_arg%% *}"
+
+            if [ -z "$resolved" ] || [ ! -x "$resolved" ]; then
+                fail "statusLine command is not executable: $shim"
+            elif [ -n "$shim_arg" ] && [ ! -r "$shim_arg" ]; then
+                fail "statusLine script is not readable: $shim_arg"
+            else
+                pass "statusLine configured"
+            fi
         fi
     fi
 
