@@ -537,10 +537,22 @@ Developer account:
 1. **Keychain Access → Certificate Assistant → Create a Certificate…** — name it `Tokenmax Dev`,
    Identity Type **Self Signed Root**, Certificate Type **Code Signing**. Override the defaults to
    push the expiry well past the 365-day default.
-2. Build normally. `make` **detects the identity automatically** — there is no flag to remember,
+2. **Let `codesign` use the key.** Certificate Assistant authorises the private key for itself and
+   two legacy daemons — not for `codesign` — so every build otherwise raises a password dialog, and
+   a build with nobody watching fails with `errSecInternalComponent`. Expand the new certificate,
+   double-click the **private key** beneath it, and under **Access Control** add `/usr/bin/codesign`.
+   Clicking **Always Allow** on the next build dialog does the same thing; **Allow** authorises a
+   single use, which is why it keeps returning.
+3. Build normally. `make` **detects the identity automatically** — there is no flag to remember,
    because one forgotten `SIGN_ID=` silently reinstates the problem. Without a certificate the build
    falls back to ad-hoc, so a fresh clone still needs no setup. Force it with `make install SIGN_ID=-`.
-3. On the first launch after switching, grant the keychain and folder access once more — the new
+
+   The certificate does **not** need to be trusted. Certificate Assistant leaves a self-signed root
+   untrusted and that is fine — trust decides what Gatekeeper will launch, not whether `codesign`
+   can sign with the identity. Detection deliberately does not filter on validity, because
+   `security find-identity -v` hides an untrusted certificate and would drop the build back to
+   ad-hoc without saying so.
+4. On the first launch after switching, grant the keychain and folder access once more — the new
    identity is unknown to the existing grants.
 
 **File-access grants then survive every rebuild. The keychain prompt does not.** Measured on a
