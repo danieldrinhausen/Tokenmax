@@ -65,6 +65,7 @@ is split by what you came for.
 
 | | |
 |---|---|
+| [tokenmax on the web](https://danieldrinhausen.github.io/Tokenmax/) | The short version, with screenshots — send this to someone rather than the README |
 | [Handbook](docs/HANDBOOK.md) | What to actually do, in the order you will want to do it — first launch, tuning reminders, enabling automation without regretting it, recipes, FAQ |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Symptom → cause → fix. Start here when something is wrong |
 | [Architecture](docs/ARCHITECTURE.md) | How it is built, and the complete map of what can break when upstream changes |
