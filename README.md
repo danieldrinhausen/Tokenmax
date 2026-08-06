@@ -184,8 +184,10 @@ state. Tokenmax uses two real sources instead:
 | Fallback | Claude Code `statusLine` hook | Documented | Only during a session |
 
 The primary reads the OAuth token Claude Code already stores in your login keychain
-(`Claude Code-credentials`). **macOS will prompt once for access** — choose *Always Allow*. The
-grant is bound to the code signature, so it re-prompts after each rebuild during development.
+(`Claude Code-credentials`). **macOS prompts once per version** — choose *Always Allow*. The grant
+is bound to the app's code hash, so it asks again for each new binary: once per release you install,
+and once per rebuild if you are compiling it yourself. A code-signing certificate does not change
+this — see [Building a release](#building-a-release).
 
 Tokenmax never writes credentials to disk, never refreshes the token itself (that would race
 Claude Code's own refresh), and sends nothing anywhere except Anthropic.
@@ -471,13 +473,14 @@ with `Write(**)`-style path scoping — without it, an allowlisted `Write` is au
 path on the machine. Shell access is a separate opt-in precisely because it removes that confinement.
 `--dangerously-skip-permissions` is never used.
 
-One task per session window by default, stop on the first failure, and never start a second task
-until a usage reading newer than the first one lands.
+**One task per session window by default**, raisable to 2, 3 or 5 under *Maximum tasks per session*.
+Tasks run one at a time, never concurrently: the run stops on the first failure, and a second task
+never starts until a usage reading newer than the first one lands — otherwise the second decision
+would be made from the quota figures the first one has already spent.
 
 ## Not in 0.1
 
-Sequential multi-task execution · per-task MCP config · git-state guards · multiple accounts ·
-Codex session opener.
+Per-task MCP config · git-state guards · multiple accounts · Codex session opener.
 
 **Unattended Codex runs.** Codex tasks are queued and run on demand, but never automatically.
 The gate is a setting kept deliberately separate from Claude's, so that enabling unattended Claude
