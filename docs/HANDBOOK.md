@@ -46,6 +46,10 @@ If you see a stub icon instead, the first reading has not landed yet. Give it a
 few seconds. If it stays empty, jump to
 [Troubleshooting](TROUBLESHOOTING.md#the-meters-are-empty-or-say-unknown).
 
+**Right-click the icon** (or control-click it) for Settings, Open Queue, Refresh
+and Quit without opening the popover first. Quit lives only here — there is no
+Dock icon to quit from.
+
 **3. Decide what the icon should show.**
 
 **Settings → General** decides both halves independently. Choose **2 or 3 bars**,

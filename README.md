@@ -85,7 +85,9 @@ meters stay empty.
 
 **3. Look at the menu bar.** Two bars and a countdown: Claude session over Claude week,
 counting down to the session reset. If you see a stub, the first reading has not landed —
-give it a few seconds.
+give it a few seconds. Click the icon for the popover; **right-click** it for Settings,
+Open Queue, Refresh and Quit. There is no Dock icon, so that menu is where Tokenmax quits
+from.
 
 **4. Add Codex, if you use it.** Nothing to configure: if the `codex` CLI is installed and
 signed in, Tokenmax picks it up and adds its section to the popover. A ChatGPT-managed
@@ -106,6 +108,8 @@ each separately opt-in and each spend real quota — the
 turning them on without regretting it.
 
 ## Install
+
+**Requires macOS 14 (Sonoma) or later**, on Apple silicon or Intel.
 
 **From a release.** Download the `.dmg` from
 [Releases](../../releases), drag Tokenmax to Applications, and launch it.

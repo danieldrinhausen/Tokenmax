@@ -5,6 +5,35 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-06
+
+### Added
+
+- **The menu bar icon answers a right-click.** Settings, Open Queue, Refresh and
+  Quit, without opening the popover first. Control-click does the same.
+
+### Changed
+
+- **Settings is a plain button in the popover footer.** It used to share an
+  ellipsis menu with Quit, which put the one thing anyone opens repeatedly two
+  clicks away. Quit moved to the icon's right-click menu, where macOS menu bar
+  apps keep it.
+
+### Fixed
+
+- **Windows opened from the menu bar no longer land behind other apps.** Opening
+  Settings or the queue while no Tokenmax window was already up placed the new
+  window behind whatever was in front — reliably, not occasionally, since the
+  app returns to its no-window state every time the last one closes.
+
+  Two things were wrong. Activation was requested only for the *first* window,
+  so a second one never asked at all. And activation alone does not work here:
+  macOS 14 made it cooperative, so an app that is not already frontmost is not
+  granted focus for asking, and it only becomes eligible after its switch out of
+  accessory mode has settled — a moment too late for the window that caused the
+  switch. The window is now ordered forward first and the app activated after,
+  which is the order that gets both the stacking and the keyboard focus right.
+
 ## [0.1.1] - 2026-08-05
 
 ### Fixed
