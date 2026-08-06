@@ -183,8 +183,25 @@ between network calls.
 (`claudeAiOauth` → `accessToken` / `refreshToken` / `expiresAt` /
 `subscriptionType`).
 
-- **Failure mode:** quota display dies; task execution keeps working.
-- **Prevention:** `make doctor` verifies the shape.
+Two couplings, not one, and the second is the easier to miss:
+
+1. **The shape of the blob** — the key names above.
+2. **Which blob.** Several generic-password items share the service name
+   `Claude Code-credentials`. Observed on 2.1.223: the login under an account
+   named for the macOS user, and a second item under `unknown` holding only
+   `mcpOAuth` server tokens. Neither the count nor the account naming is ours
+   to rely on, so the login is identified by *content* — the item carrying
+   `claudeAiOauth` — never by position or account name.
+
+- **Failure mode:** quota display dies; task execution keeps working. Reading
+  the wrong item fails as `.malformed`, which reads like a format change and
+  sends you looking at the wrong coupling.
+- **Prevention:** `make doctor` checks every item under the service, not just
+  the first.
+- **Cost of a wrong guess:** each item opened is a separate macOS consent
+  dialog, so candidates are ordered (login-shaped account first) and the
+  winner is remembered for the process. Ordering is an optimisation only —
+  `decode` still decides.
 - **Never:** write credentials to disk, or refresh the token — that would race
   Claude Code's own refresh.
 

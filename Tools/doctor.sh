@@ -103,21 +103,64 @@ fi
 
 section "Claude credentials (keychain)"
 
-if security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1; then
-    blob="$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || true)"
-    if [ -z "$blob" ]; then
+# More than one item shares this service name: the login, plus an
+# MCP-server-token item that carries no claudeAiOauth. Checking only the first
+# match reported a broken credential on a machine that was fine — the same bug
+# ClaudeKeychain.decode now avoids by selecting on content.
+accounts="$(security dump-keychain 2>/dev/null | awk '
+    /^keychain: / { if (want && acct != "") print acct; want = 0; acct = "" }
+    /"acct"<blob>="/ {
+        line = $0
+        sub(/.*"acct"<blob>="/, "", line)
+        sub(/"[[:space:]]*$/, "", line)
+        acct = line
+    }
+    /"svce"<blob>="Claude Code-credentials"/ { want = 1 }
+    END { if (want && acct != "") print acct }
+')"
+
+if [ -z "$accounts" ] && security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1; then
+    # Listed nowhere we can enumerate (a non-default keychain, say), but a
+    # direct read still finds it. Fall back to the unscoped lookup.
+    accounts="$(printf '\n')"
+fi
+
+if [ -n "$accounts" ]; then
+    login_blob=""
+    login_acct=""
+    any_readable=0
+    item_count=0
+
+    while IFS= read -r acct; do
+        item_count=$((item_count + 1))
+        if [ -n "$acct" ]; then
+            blob="$(security find-generic-password -s "Claude Code-credentials" -a "$acct" -w 2>/dev/null || true)"
+        else
+            blob="$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || true)"
+        fi
+        [ -n "$blob" ] && any_readable=1
+        if printf '%s' "$blob" | grep -q "claudeAiOauth"; then
+            login_blob="$blob"
+            login_acct="$acct"
+        fi
+    done <<EOF
+$accounts
+EOF
+
+    if [ "$any_readable" -eq 0 ]; then
         warn "keychain item exists but could not be read without prompting"
         note "Expected when Tokenmax is ad-hoc signed; see Makefile:12"
-    elif printf '%s' "$blob" | grep -q "claudeAiOauth"; then
-        pass "credential item present and still shaped as claudeAiOauth"
+    elif [ -n "$login_blob" ]; then
+        pass "credential item present and still shaped as claudeAiOauth (account: ${login_acct:-default})"
+        [ "$item_count" -gt 1 ] && note "$item_count items share this service name; Tokenmax picks the one carrying claudeAiOauth"
         for key in accessToken refreshToken subscriptionType; do
-            if ! printf '%s' "$blob" | grep -q "$key"; then
-                fail "claudeAiOauth.$key missing — ClaudeKeychain.swift:80 will throw .malformed"
+            if ! printf '%s' "$login_blob" | grep -q "$key"; then
+                fail "claudeAiOauth.$key missing — ClaudeKeychain.decode will return nil"
             fi
         done
     else
-        fail "credential item no longer contains claudeAiOauth"
-        note "Quota display will break. Fix ClaudeKeychain.swift:80"
+        fail "no item under this service contains claudeAiOauth ($item_count checked)"
+        note "Quota display will break. Fix ClaudeKeychain.swift (Payload/decode)"
     fi
 else
     warn "no 'Claude Code-credentials' keychain item — log in with the CLI first"

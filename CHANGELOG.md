@@ -5,6 +5,26 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Quota is read from the right keychain item.** Several generic-password
+  items share the service name `Claude Code-credentials` — the login, and a
+  second item holding only `mcpOAuth` server tokens. The read asked for one
+  match by service name alone and got whichever the keychain listed first, so
+  on an affected Mac it decoded the MCP item, found no `claudeAiOauth`, and
+  reported "The Claude Code credentials could not be read." while Claude Code
+  was signed in and working. Granting keychain access again could not help:
+  the grant was for an item that was never the problem.
+
+  The login is now identified by content — the item carrying `claudeAiOauth` —
+  rather than by match order or account name.
+
+  Because macOS asks for consent per item, opening the wrong one first also
+  cost a dialog for nothing. Candidates are ordered so the login is opened
+  first and the winning account is remembered for the rest of the process;
+  `decode` still has the final say, so a wrong guess costs one prompt, never a
+  wrong answer.
+
 ## [0.1.3] - 2026-08-06
 
 ### Added
