@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-06
+
 ### Fixed
 
 - **`make test` no longer raises keychain dialogs.** The suite is hosted inside
@@ -15,6 +17,11 @@ versions follow [semver](https://semver.org/).
   credentials, and unanswerable in the sense that mattered: its cdhash changes
   on every build, so "Always Allow" had nothing stable to attach to. Test runs
   now refuse the real keychain, and a test asserts the refusal.
+
+- **Provider errors now name the provider that failed.** A missing Codex CLI
+  used to be reported as "Claude Code is not installed", even when Claude Code
+  was installed and working. The shared error now carries the display name of
+  the provider that raised it.
 
 ## [0.1.3] - 2026-08-06
 
