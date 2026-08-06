@@ -25,7 +25,9 @@ evaporating.
   runtime cap, a cost cap, path-scoped file access and a separate opt-in for shell.
 - **A session opener.** A Claude window starts on first use, so one tiny request at the right
   moment means the next window is already running when you sit down.
-- **Nothing leaves your Mac.** No telemetry, no analytics, no server, no account.
+- **Nothing about you leaves your Mac.** No telemetry, no analytics, no server, no account. The
+  only request not about your quota is a daily "is there a newer release?" to GitHub, which you can
+  switch off.
 
 The menubar shows a stack of meters and the time left before a window resets ("1h 16m"). The bars
 carry how much is left; the countdown carries how long there is to spend it.
@@ -502,7 +504,7 @@ to run under an API key, and stops on any quota guard it cannot verify.
 ## Building a release
 
 ```
-make dmg                        # dist/Tokenmax-0.1.0.dmg
+make dmg                        # dist/Tokenmax-<version>.dmg
 ```
 
 Ad-hoc signing is the fallback, and it has one catch worth understanding: with no certificate the

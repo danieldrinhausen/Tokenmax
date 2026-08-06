@@ -48,6 +48,7 @@ means a new case.
 | `Opener/` | Session opener decision and execution |
 | `AutoRun/` | Task execution, transcripts, automation |
 | `Queue/` | Task storage, list filtering and sorting |
+| `Update/` | Version comparison and the daily release check |
 | `Persistence/` | Atomic JSON storage, file locations |
 | `Views/` | SwiftUI, no business rules |
 
@@ -220,6 +221,28 @@ SwiftUI layout behaviour shifts between versions.
 
 `MenuBarIconRendererTests` and `IconSnapshotDump` are the tripwire — run them
 each September.
+
+Window *activation* is the part that has already moved once. macOS 14 made it
+cooperative, which quietly broke `AppDelegate.raise` — see the comment there
+before changing the order of those calls.
+
+Two smaller couplings sit in `MenuBarContextMenu`, both to AppKit internals
+rather than to public API: that a status item's click arrives on a window whose
+view tree contains an `NSStatusBarButton`, and that a local event monitor sees it
+before `MenuBarExtra` does. Neither is contractual. If the right-click menu ever
+stops appearing, that is where it went.
+
+### 9. The GitHub releases API — lowest risk
+
+`GitHubReleaseClient` reads `tag_name` and `html_url` from
+`/repos/.../releases/latest`.
+
+- **Failure mode:** the update check reports that it could not complete. Nothing
+  else in the app depends on it.
+- **Detection:** `UpdateCheckError.schemaDrift`, surfaced in Settings → About and
+  the log. A check that fails never claims "up to date".
+- **Note:** an unauthenticated caller gets 60 requests an hour per IP. At one
+  request a day there is no realistic way to reach it.
 
 ---
 

@@ -26,9 +26,13 @@ is held in memory for the lifetime of a request, is **never written to disk**,
 and is **never refreshed** by Tokenmax — refreshing would race Claude Code's own
 refresh. It is sent to exactly one place: `api.anthropic.com`.
 
-**Network.** The only outbound requests are to `api.anthropic.com`, for quota and
-the model catalogue. There is no telemetry, no analytics, no crash reporting and
-no server of any kind. Nothing you type is transmitted anywhere by Tokenmax.
+**Network.** Outbound requests go to `api.anthropic.com`, for quota and the model
+catalogue, and — once a day, unless switched off under **Settings → About** — an
+unauthenticated `GET` to `api.github.com` for the newest published release, so
+the app can tell you a newer version exists. That request carries no credentials
+and no identifying information, and nothing is downloaded or installed as a
+result of it. There is no telemetry, no analytics, no crash reporting and no
+server of any kind. Nothing you type is transmitted anywhere by Tokenmax.
 
 **Local files.** It reads and writes `~/Library/Application Support/Tokenmax/`.
 It reads `~/.claude/settings.json`, and writes to it **only** when you explicitly

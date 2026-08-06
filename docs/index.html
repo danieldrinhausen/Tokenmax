@@ -617,10 +617,15 @@ make install &amp;&amp; make run</code></pre>
     <div class="band-inner">
       <p class="rail">Privacy</p>
       <div class="col">
-        <h2>Nothing leaves your Mac.</h2>
+        <h2>Nothing about you leaves your Mac.</h2>
         <p>
-          No telemetry, no analytics, no server. The only network requests Tokenmax makes
+          No telemetry, no analytics, no server. The network requests Tokenmax makes
           go to Anthropic, with a token that was already on your machine.
+        </p>
+        <p>
+          The one exception is a daily "is there a newer release?" to GitHub — an
+          unauthenticated request for a public list, sending nothing about you and
+          downloading nothing. Switch it off under <strong>Settings&nbsp;→&nbsp;About</strong>.
         </p>
         <p>
           Your queued prompts, working directories and run transcripts stay in

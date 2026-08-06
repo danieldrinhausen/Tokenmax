@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-06
+
 ### Added
 
 - **The running version is visible in the app.** Beside the name in the popover
