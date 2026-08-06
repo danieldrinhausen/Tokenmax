@@ -5,6 +5,17 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`make test` no longer raises keychain dialogs.** The suite is hosted inside
+  the app, so `TokenmaxApp.init()` ran for real during a test run and the
+  coordinators it builds read the login keychain. That host is ad-hoc signed
+  and cannot satisfy the requirement stored by the installed, certificate-signed
+  copy, so macOS asked for consent — twice per run, once per object that reads
+  credentials, and unanswerable in the sense that mattered: its cdhash changes
+  on every build, so "Always Allow" had nothing stable to attach to. Test runs
+  now refuse the real keychain, and a test asserts the refusal.
+
 ## [0.1.3] - 2026-08-06
 
 ### Added

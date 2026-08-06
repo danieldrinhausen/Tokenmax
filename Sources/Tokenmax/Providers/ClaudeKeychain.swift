@@ -28,6 +28,8 @@ enum ClaudeKeychain {
         case accessDenied
         case malformed
         case unexpected(OSStatus)
+        /// Refused because this is a test run. See `RuntimeEnvironment`.
+        case suppressedUnderTest
 
         var errorDescription: String? {
             switch self {
@@ -35,6 +37,7 @@ enum ClaudeKeychain {
             case .accessDenied: "Tokenmax was denied access to the Claude Code keychain item."
             case .malformed: "The Claude Code credentials could not be read."
             case let .unexpected(status): "Keychain error \(status)."
+            case .suppressedUnderTest: "Keychain access is refused during tests."
             }
         }
     }
@@ -52,6 +55,13 @@ enum ClaudeKeychain {
     }
 
     static func readCredentials() throws -> Credentials {
+        // Guarded here rather than at the call sites because the call sites are
+        // not the point: anything constructed with default arguments reaches
+        // this function, and the app builds several such objects at launch.
+        // One guard at the boundary is the only version that stays true as
+        // callers are added.
+        guard !RuntimeEnvironment.isTesting else { throw KeychainError.suppressedUnderTest }
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

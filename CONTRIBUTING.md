@@ -24,6 +24,18 @@ project file.
 Tests run with `TOKENMAX_SUPPORT_DIR=/tmp/tokenmax-tests`, so they never touch
 your real queue or settings in `~/Library/Application Support/Tokenmax/`.
 
+**The test host is the app.** `xcodebuild test` runs the suite inside
+`Tokenmax.app`, so `TokenmaxApp.init()` executes for real and builds live
+coordinators before a single test does. `TOKENMAX_TESTING=1` makes
+`ClaudeKeychain` refuse outright because of it — otherwise every test run
+raised two keychain consent dialogs from an ad-hoc-signed host that no grant
+can ever satisfy, since its cdhash changes on each build. `TestIsolationTests`
+asserts the refusal, so reintroducing a real read fails the suite rather than
+surprising the next person with a dialog.
+
+That covers the keychain and the Claude network path that depends on it. It
+does not make the suite hermetic: some tests deliberately spawn processes.
+
 ## What a good change looks like
 
 **Keep the decisions pure.** The pattern the codebase leans on is a plain

@@ -126,7 +126,8 @@ final class ClaudeCodeProvider: UsageProvider {
             switch error {
             case .notFound: throw ProviderError.notAuthenticated
             case .accessDenied: throw ProviderError.accessDenied
-            case .malformed, .unexpected: throw ProviderError.underlying(error.localizedDescription)
+            case .malformed, .unexpected, .suppressedUnderTest:
+                throw ProviderError.underlying(error.localizedDescription)
             }
         }
     }
