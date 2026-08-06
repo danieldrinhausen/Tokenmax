@@ -54,7 +54,7 @@ final class ClaudeCodeProvider: UsageProvider {
     }
 
     func fetchUsage() async throws -> ProviderUsage {
-        guard cliInstalled() else { throw ProviderError.notInstalled }
+        guard cliInstalled() else { throw ProviderError.notInstalled(displayName) }
 
         let credentials = try loadCredentials()
 
@@ -124,7 +124,7 @@ final class ClaudeCodeProvider: UsageProvider {
             return try readCredentials()
         } catch let error as ClaudeKeychain.KeychainError {
             switch error {
-            case .notFound: throw ProviderError.notAuthenticated
+            case .notFound: throw ProviderError.notAuthenticated(displayName)
             case .accessDenied: throw ProviderError.accessDenied
             case .malformed, .unexpected: throw ProviderError.underlying(error.localizedDescription)
             }
