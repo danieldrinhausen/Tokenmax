@@ -26,7 +26,13 @@ DMG        := $(DIST_DIR)/$(APP)-$(VERSION).dmg
 # Create the certificate once: Keychain Access → Certificate Assistant →
 # Create a Certificate…, named "Tokenmax Dev", Self Signed Root, Code Signing.
 # See README → Building a release.
-SIGN_ID ?= $(shell security find-identity -v -p codesigning 2>/dev/null \
+#
+# Note the absent `-v`. Certificate Assistant leaves a self-signed root
+# untrusted, so `-v` reports "0 valid identities found" and this fell back to
+# ad-hoc on a machine where the certificate had just been created as documented
+# — losing the file-access grants the certificate is bought for. Trust governs
+# Gatekeeper, not whether codesign can use the identity.
+SIGN_ID ?= $(shell security find-identity -p codesigning 2>/dev/null \
 	| grep -q '"Tokenmax Dev"' && echo "Tokenmax Dev" || echo "-")
 
 .PHONY: all generate build sign install run stop test doctor dmg dmg-image clean logs
