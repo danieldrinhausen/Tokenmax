@@ -88,6 +88,59 @@ struct PersistenceCompatibilityTests {
         #expect(task.selectedEffort == nil)
     }
 
+    // MARK: - Scheduled appointments
+
+    /// nil is "use the ordinary burn schedule", which is what every task
+    /// written before appointments existed means.
+    @Test("A task written before scheduling existed has no appointment")
+    func loadsTaskWithoutSchedule() throws {
+        let task = try decode(TokenmaxTask.self, """
+        { "title": "Old task", "prompt": "Do it", "estimatedMinutes": 20 }
+        """)
+
+        #expect(task.estimatedMinutes == 20)
+        #expect(task.scheduledStart == nil)
+    }
+
+    @Test("An appointment survives a round trip")
+    func scheduledStartRoundTrips() throws {
+        var task = TokenmaxTask(title: "Friday burn", prompt: "Do it")
+        let when = Date(timeIntervalSince1970: 1_785_600_000)
+        task.scheduledStart = when
+
+        let data = try JSONStore.makeEncoder().encode(task)
+        let decoded = try JSONStore.makeDecoder().decode(TokenmaxTask.self, from: data)
+        #expect(decoded.scheduledStart == when)
+    }
+
+    /// `RunTrigger` gained a case, and old state files must keep loading. An
+    /// unknown trigger decodes as `.manual`, which is the value that keeps a
+    /// mystery run *out* of the per-window automatic allowance.
+    @Test("A run record with an unrecognised trigger decodes as manual")
+    func unknownTriggerDecodesAsManual() throws {
+        let record = try decode(TaskRunRecord.self, """
+        {
+          "taskID": "3E2E4E5A-0000-4000-8000-000000000001",
+          "taskTitle": "From the future", "windowID": "w1", "trigger": "telepathy",
+          "startedAt": "2026-08-07T09:00:00Z", "model": "sonnet",
+          "workingDirectory": "/tmp", "status": "completed"
+        }
+        """)
+
+        #expect(record.trigger == .manual)
+        #expect(record.taskTitle == "From the future")
+    }
+
+    @Test("An automation block written before appointments keeps a grace period")
+    func loadsAutoRunWithoutScheduleGrace() throws {
+        let settings = try decode(AppSettings.self, """
+        { "queueAutoRun": { "enabled": true, "startDelaySeconds": 60 } }
+        """)
+
+        #expect(settings.queueAutoRun.startDelaySeconds == 60)
+        #expect(settings.queueAutoRun.scheduleGraceMinutes == QueueAutoRunSettings().scheduleGraceMinutes)
+    }
+
     // MARK: - Usage credits
 
     /// Both guards must arrive switched *on* for a file that predates them.

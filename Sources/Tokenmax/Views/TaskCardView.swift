@@ -220,14 +220,21 @@ struct ReadyTaskCardView: View {
 
     private var icon: String {
         guard let autoRunBlock else { return "checkmark.seal" }
-        return autoRunBlock == .notApprovedForAutomation ? "hand.raised" : "exclamationmark.circle"
+        switch autoRunBlock {
+        case .notApprovedForAutomation: return "hand.raised"
+        case .notYetScheduled: return "calendar.badge.clock"
+        default: return "exclamationmark.circle"
+        }
     }
 
     /// "Manual only" is a setting, not a problem — it must not read as a warning
-    /// next to a genuinely broken working directory.
+    /// next to a genuinely broken working directory. An appointment that has
+    /// not come round yet is the same kind of non-problem.
     private var tint: Color {
         guard let autoRunBlock else { return .secondary }
-        return autoRunBlock == .notApprovedForAutomation ? .secondary : .orange
+        return autoRunBlock == .notApprovedForAutomation || autoRunBlock == .notYetScheduled
+            ? .secondary
+            : .orange
     }
 
     private var text: String {
@@ -244,6 +251,13 @@ struct ReadyTaskCardView: View {
             "Auto-run waiting · not enough time before the reset"
         case .runtimeExceedsWindowBudget:
             "Auto-run waiting · longer than the remaining session budget"
+        // The date itself, not the sentence: "Scheduled for Fri 16:00" is the
+        // one thing worth reading at a glance on a card that is merely waiting.
+        case .notYetScheduled:
+            task.scheduledStart.map { "Scheduled for \($0.formatted(.dateTime.weekday().hour().minute()))" }
+                ?? "Scheduled"
+        case .scheduleExpired:
+            "Auto-run missed · its scheduled time has passed"
         case let .some(reason):
             "Auto-run blocked · \(reason.explanation)"
         }

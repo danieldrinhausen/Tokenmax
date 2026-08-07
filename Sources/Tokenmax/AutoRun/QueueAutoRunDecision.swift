@@ -61,6 +61,11 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         case workingDirectoryMissing
         case noRuntimeEstimate
         case runtimeExceedsWindowBudget
+        /// Dated for later. A waiting appointment, not a problem.
+        case notYetScheduled
+        /// Dated for a moment that has passed by more than the grace period —
+        /// almost always a Mac that was asleep at the time.
+        case scheduleExpired
 
         /// Only reachable from a reply: run records outlive the tasks they came
         /// from, so a thread can still be open in a sheet after its task has
@@ -74,7 +79,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
             switch self {
             case .disabled, .queueDisabled, .outsideLeadWindow, .quietHours,
                  .runInFlight, .maximumTasksReached, .maximumRuntimeReached,
-                 .dataStale, .awaitingFreshUsage, .noApprovedTask:
+                 .dataStale, .awaitingFreshUsage, .noApprovedTask,
+                 .notYetScheduled:
                 false
             default:
                 true
@@ -135,6 +141,10 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "No estimated runtime has been set."
             case .runtimeExceedsWindowBudget:
                 "Its runtime limit is longer than the remaining automatic runtime for this session."
+            case .notYetScheduled:
+                "Waiting for the time it is scheduled to run."
+            case .scheduleExpired:
+                "Its scheduled time passed while Tokenmax was not running. Give it a new time to run it."
             case .taskUnavailable:
                 "The task this run came from no longer exists."
             case .notResumable:
@@ -276,6 +286,48 @@ enum QueueAutoRun {
             .addingTimeInterval(-Double(task.maximumRuntimeMinutes) * 60)
     }
 
+    // MARK: - Appointments
+
+    /// The identity of a run that belongs to an appointment rather than to a
+    /// session window.
+    ///
+    /// A dated run may happen when no window is open at all, so there is no
+    /// reset timestamp to key it by. Derived from the appointment instead,
+    /// which is stable, unique per task per appointment, and — because
+    /// `automaticRuns(inWindow:)` filters on the trigger anyway — never shares
+    /// an allowance with the burn schedule.
+    static func scheduledWindowID(for task: TokenmaxTask) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let stamp = task.scheduledStart.map(formatter.string(from:)) ?? "unknown"
+        return "scheduled-\(task.id.uuidString)-\(stamp)"
+    }
+
+    /// Whether an appointment has come round and has not been missed.
+    static func isDue(_ task: TokenmaxTask, settings: QueueAutoRunSettings, now: Date) -> Bool {
+        guard let start = task.scheduledStart else { return false }
+        return now >= start && !isExpired(task, settings: settings, now: now)
+    }
+
+    /// Whether an appointment is far enough in the past to be abandoned rather
+    /// than honoured late. See `QueueAutoRunSettings.scheduleGraceMinutes`.
+    static func isExpired(_ task: TokenmaxTask, settings: QueueAutoRunSettings, now: Date) -> Bool {
+        guard let start = task.scheduledStart else { return false }
+        return now > start.addingTimeInterval(Double(settings.scheduleGraceMinutes) * 60)
+    }
+
+    /// The first task whose appointment is due, in queue order.
+    ///
+    /// Checked ahead of the ordinary queue order in `decide`: at the moment an
+    /// appointment comes round, a higher-priority undated task must not take
+    /// the one available slot.
+    static func dueScheduledTask(_ input: Input) -> TokenmaxTask? {
+        input.tasks.first { task in
+            isDue(task, settings: input.settings, now: input.now)
+                && eligibility(for: task, resetAt: nil, settings: input.settings, now: input.now) == nil
+        }
+    }
+
     // MARK: - Per-task eligibility
 
     /// Why this task cannot be run automatically right now, or nil if it can.
@@ -298,6 +350,17 @@ enum QueueAutoRun {
         // Required even though the budget uses the ceiling: a task nobody has
         // sized is a task nobody has thought about running unattended.
         guard task.estimatedMinutes != nil else { return .noRuntimeEstimate }
+
+        // An appointment answers the timing question by itself, so the three
+        // gates below — all of which exist to fit a task into the window that
+        // is paying for it — do not apply. Everything above this line does: a
+        // date is not approval, a missing directory is still missing, and a
+        // task nobody sized is still unsized.
+        if task.scheduledStart != nil {
+            if isExpired(task, settings: settings, now: now) { return .scheduleExpired }
+            if !isDue(task, settings: settings, now: now) { return .notYetScheduled }
+            return nil
+        }
 
         if let remainingWindowRuntime,
            Double(task.maximumRuntimeMinutes) * 60 > remainingWindowRuntime
@@ -366,10 +429,58 @@ enum QueueAutoRun {
             guard !input.awaitingFreshUsage else { return .skip(reason: .awaitingFreshUsage) }
         }
 
-        guard let session = input.sessionWindow, let resetAt = session.resetAt, !session.hasNotStarted else {
-            return .skip(reason: .noSessionWindow)
+        // An appointment overrides *when* to run and nothing else. Established
+        // here so the gates below can be read as one list with three explicit
+        // exemptions, rather than as two parallel code paths that have to be
+        // kept in step.
+        let due = dueScheduledTask(input)
+
+        // A window that has not started is not a window. The burn schedule has
+        // nothing to reason about without one; an appointment does not need one
+        // and may itself be what opens it.
+        let session = input.sessionWindow.flatMap {
+            $0.resetAt != nil && !$0.hasNotStarted ? $0 : nil
+        }
+        guard let dueTask = due else {
+            guard let session, let resetAt = session.resetAt else {
+                return .skip(reason: .noSessionWindow)
+            }
+            return decideForBurnWindow(input, session: session, resetAt: resetAt)
         }
 
+        // Keyed to the live window when there is one, so a failure pause and
+        // the run history still line up; otherwise to the appointment itself.
+        let window = session?.resetAt.map { windowID(resetAt: $0, providerID: input.providerID) }
+            ?? scheduledWindowID(for: dueTask)
+
+        if input.state.isPaused(window) { return .skip(reason: .pausedAfterFailure) }
+
+        if settings.respectQuietHours, input.quietHours.contains(input.now) {
+            return .skip(reason: .quietHours)
+        }
+
+        // Skipped for an appointment: the lead window, and the per-window task
+        // and runtime allowances. All three exist to ration an opportunistic
+        // burn against the window paying for it, and a dated run is not part of
+        // that ration — `RunTrigger.scheduled` keeps it out of the arithmetic
+        // too. Every quota, account and safety gate below still applies, so an
+        // appointment can spend no more than the same task would have.
+        if let reason = quotaGates(input, session: session) { return .skip(reason: reason) }
+
+        switch settings.mode {
+        case .previewOnly: return .preview(taskID: dueTask.id, windowID: window)
+        case .askBeforeRunning: return .ask(taskID: dueTask.id, windowID: window)
+        case .automatic: return .run(taskID: dueTask.id, windowID: window)
+        }
+    }
+
+    /// The ordinary path: spend what is about to expire.
+    private static func decideForBurnWindow(
+        _ input: Input,
+        session: UsageWindow,
+        resetAt: Date
+    ) -> QueueAutoRunDecision {
+        let settings = input.settings
         let window = windowID(resetAt: resetAt, providerID: input.providerID)
 
         if input.state.isPaused(window) { return .skip(reason: .pausedAfterFailure) }
@@ -398,19 +509,50 @@ enum QueueAutoRun {
         )
         guard remainingRuntime > 0 else { return .skip(reason: .maximumRuntimeReached) }
 
-        guard let sessionRemaining = session.remainingPercent,
-              sessionRemaining >= settings.minimumSessionRemainingPercent
-        else {
-            return .skip(reason: .sessionQuotaLow)
+        if let reason = quotaGates(input, session: session) { return .skip(reason: reason) }
+
+        guard let task = nextEligibleTask(input) else {
+            return .skip(reason: noEligibleTaskReason(input))
+        }
+
+        switch settings.mode {
+        case .previewOnly: return .preview(taskID: task.id, windowID: window)
+        case .askBeforeRunning: return .ask(taskID: task.id, windowID: window)
+        case .automatic: return .run(taskID: task.id, windowID: window)
+        }
+    }
+
+    /// The guards on what is left to spend, shared by both paths.
+    ///
+    /// An appointment overrides the schedule, never these — which is what makes
+    /// "run it on Friday at four" safe to offer: the weekly floor still holds,
+    /// so a dated run can reach no further into the allowance than the same
+    /// task would have reached on its own.
+    ///
+    /// `session` is nil when no window is open, which only an appointment can
+    /// reach. There is nothing to check in that case: a window that has not
+    /// started has its whole allowance intact.
+    private static func quotaGates(
+        _ input: Input,
+        session: UsageWindow?
+    ) -> QueueAutoRunDecision.SkipReason? {
+        let settings = input.settings
+
+        if let session {
+            guard let sessionRemaining = session.remainingPercent,
+                  sessionRemaining >= settings.minimumSessionRemainingPercent
+            else {
+                return .sessionQuotaLow
+            }
         }
 
         // The five-hour and weekly allowances share one budget, so a run is
         // never free of the weekly one.
         guard let weeklyRemaining = input.weeklyWindow?.remainingPercent else {
-            return .skip(reason: .weeklyQuotaUnknown)
+            return .weeklyQuotaUnknown
         }
         guard weeklyRemaining >= settings.minimumWeeklyRemainingPercent else {
-            return .skip(reason: .weeklyQuotaLow)
+            return .weeklyQuotaLow
         }
 
         // Categorical where the thresholds above are numeric, and it holds even
@@ -420,21 +562,39 @@ enum QueueAutoRun {
         // otherwise be an invisible dead end, Settings names the reason and
         // offers the toggle as the way out.
         if settings.skipWhenExtraUsageEnabled {
-            guard let extra = input.extraUsageEnabled else { return .skip(reason: .extraUsageUnknown) }
-            if extra { return .skip(reason: .extraUsageEnabled) }
+            guard let extra = input.extraUsageEnabled else { return .extraUsageUnknown }
+            if extra { return .extraUsageEnabled }
         }
 
-        guard let task = nextEligibleTask(input) else {
-            // Distinguish "nothing is approved" from "something is approved but
-            // will not fit". They need different fixes from the user.
-            return .skip(reason: approvedTasks(input).isEmpty ? .noApprovedTask : .insufficientTime)
-        }
+        return nil
+    }
 
-        switch settings.mode {
-        case .previewOnly: return .preview(taskID: task.id, windowID: window)
-        case .askBeforeRunning: return .ask(taskID: task.id, windowID: window)
-        case .automatic: return .run(taskID: task.id, windowID: window)
+    /// Why nothing could be picked, in the terms that tell the user what to fix.
+    ///
+    /// "Nothing is approved", "everything is waiting for its time", and
+    /// "something is approved but will not fit before the reset" need three
+    /// different actions, so they are three different sentences.
+    private static func noEligibleTaskReason(_ input: Input) -> QueueAutoRunDecision.SkipReason {
+        let approved = approvedTasks(input)
+        if approved.isEmpty { return .noApprovedTask }
+
+        // A scheduling reason is reported only when it explains *every*
+        // approved task: one dated for tomorrow must not mask a second that
+        // will genuinely not fit before the reset, which is the actionable half.
+        let reasons = approved.map { task in
+            eligibility(
+                for: task,
+                resetAt: input.sessionWindow?.resetAt,
+                settings: input.settings,
+                remainingWindowRuntime: remainingWindowRuntime(input),
+                now: input.now
+            )
         }
+        if reasons.allSatisfy({ $0 == .scheduleExpired }) { return .scheduleExpired }
+        if reasons.allSatisfy({ $0 == .notYetScheduled || $0 == .scheduleExpired }) {
+            return .notYetScheduled
+        }
+        return .insufficientTime
     }
 
     // MARK: - Manual trigger

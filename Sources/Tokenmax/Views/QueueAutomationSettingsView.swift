@@ -69,6 +69,16 @@ struct QueueAutomationSettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
+                Picker("Run a missed appointment up to", selection: auto.scheduleGraceMinutes) {
+                    ForEach(QueueAutoRunSettings.scheduleGraceOptions, id: \.self) { minutes in
+                        Text("\(minutes) minutes late").tag(minutes)
+                    }
+                }
+                Text("A task given a specific time is skipped if that time passed while the Mac was asleep. Beyond this window it stops waiting and asks for a new time, rather than starting hours late against a project that has moved on.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 Picker("When the reset arrives mid-task", selection: auto.resetBoundaryBehavior) {
                     ForEach(ResetBoundaryBehavior.allCases) { behavior in
                         Text(behavior.displayName).tag(behavior)

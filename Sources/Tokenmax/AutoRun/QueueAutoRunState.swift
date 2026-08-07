@@ -70,6 +70,12 @@ enum TaskRunStatus: String, Codable, Sendable, Equatable, CaseIterable {
 enum RunTrigger: String, Codable, Sendable, Equatable {
     case automatic
     case manual
+    /// Started because the user dated it, not because the window schedule
+    /// found it. Kept apart from `automatic` so it does not consume the
+    /// per-window task and runtime allowances — those budget the opportunistic
+    /// burn, and an appointment is not part of it. Same reasoning as a reply,
+    /// which is a `manual` run for the same purpose.
+    case scheduled
 }
 
 /// One execution of one task.

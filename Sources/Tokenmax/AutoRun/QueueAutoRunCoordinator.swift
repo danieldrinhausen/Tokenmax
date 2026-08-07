@@ -227,6 +227,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return
         }
 
+        expireMissedSchedules()
+
         // A countdown already running just needs the clock checked.
         if let pending = pendingRun {
             if Date() >= pending.startsAt {
@@ -273,6 +275,31 @@ final class QueueAutoRunCoordinator: ObservableObject {
             notifyEligible(taskID: taskID, windowID: windowID)
         case .preview, .skip:
             break
+        }
+    }
+
+    /// Takes tasks whose appointment went by unheeded out of the ready queue.
+    ///
+    /// Almost always a closed lid: nothing evaluates while the Mac is asleep,
+    /// so a Friday-afternoon appointment can be hours old by the time anything
+    /// looks at it. Left in `ready` it would sit there looking scheduled
+    /// forever, which is indistinguishable from a broken feature — and the
+    /// grace period is exactly the statement that running it now is not what
+    /// the user asked for.
+    private func expireMissedSchedules() {
+        let settings = settingsStore.settings.queueAutoRun
+        let now = Date()
+        for task in taskStore.tasks where task.status == .ready
+            && QueueAutoRun.isExpired(task, settings: settings, now: now)
+        {
+            Log.shared.write("autorun: schedule expired — \(task.title)")
+            var cleared = task
+            cleared.scheduledStart = nil
+            taskStore.update(cleared)
+            taskStore.markNeedsAttention(
+                task,
+                message: QueueAutoRunDecision.SkipReason.scheduleExpired.explanation
+            )
         }
     }
 
@@ -425,7 +452,11 @@ final class QueueAutoRunCoordinator: ObservableObject {
     private func beginRun(taskID: UUID, windowID: String, trigger: RunTrigger) {
         guard activeRun == nil else { return }
         guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return }
-        run(task, windowID: windowID, trigger: trigger)
+        // Recorded as what it is, so the per-window allowances — which count
+        // only `.automatic` runs — stay a budget for the opportunistic burn.
+        // A hand-started run of a dated task is still `.manual`.
+        let effective: RunTrigger = trigger == .automatic && task.scheduledStart != nil ? .scheduled : trigger
+        run(task, windowID: windowID, trigger: effective)
     }
 
     /// `reply` continues `resuming`'s conversation instead of starting the task
@@ -474,6 +505,15 @@ final class QueueAutoRunCoordinator: ObservableObject {
             activeRun = record
             lastRun = record
             progressText = "Starting…"
+            // Consumed here, on the far side of the launch barrier: an
+            // appointment cleared before the record is safely on disk would be
+            // lost to a failed write, and one cleared after the run finishes
+            // would fire again if the task went back to `ready`.
+            if task.scheduledStart != nil {
+                var consumed = task
+                consumed.scheduledStart = nil
+                taskStore.update(consumed)
+            }
             taskStore.setStatus(.running, for: task)
             notifications.started(task: task)
 

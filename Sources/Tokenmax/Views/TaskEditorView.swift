@@ -357,12 +357,89 @@ struct TaskEditorView: View {
                 }
             }
 
+            configurationGroup("Schedule") {
+                scheduleFields
+            }
+
             if draft.executionMode != .manual, draft.estimatedMinutes == nil {
                 Text("An estimate is required for automatic runs.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// A one-off appointment, as an alternative to waiting for a burn window.
+    ///
+    /// The callout is load-bearing rather than decoration. "Run it at four on
+    /// Friday" sounds like it overrides everything, and it overrides exactly
+    /// one thing — so the panel says which gates still apply, and warns about
+    /// the two settings that will otherwise silently stop it: a task not marked
+    /// for automatic execution, and automation left in preview mode.
+    @ViewBuilder
+    private var scheduleFields: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle("Run once at a specific time", isOn: scheduleEnabled)
+                .font(.system(size: 12))
+
+            if draft.scheduledStart != nil {
+                DatePicker(
+                    "",
+                    selection: scheduledStart,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+                .labelsHidden()
+                .datePickerStyle(.field)
+                .frame(width: 220, alignment: .leading)
+
+                Text("Tokenmax ignores the burn-window schedule for this task and starts it at that time — even if no session is open, which starts a new one. Every other guard still applies: your session and weekly quota floors, quiet hours, the usage-credit check, and the task's own limits. It runs once; the time is cleared when it starts.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !scheduleWarnings.isEmpty {
+                    ForEach(scheduleWarnings, id: \.self) { warning in
+                        Label(warning, systemImage: "exclamationmark.triangle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The configuration that makes an appointment a no-op. Both are elsewhere
+    /// in the app, so without saying so here the task simply never runs.
+    private var scheduleWarnings: [String] {
+        var warnings: [String] = []
+        if draft.executionMode != .automatic {
+            warnings.append("This task is not set to “Always allow automatic execution”, so the scheduled time will pass without it running.")
+        }
+        if draft.estimatedMinutes == nil {
+            warnings.append("A scheduled task still needs a runtime estimate.")
+        }
+        return warnings
+    }
+
+    private var scheduleEnabled: Binding<Bool> {
+        Binding(
+            get: { draft.scheduledStart != nil },
+            set: { on in
+                // Tomorrow at this hour rather than "now": an appointment for a
+                // moment already past would fire the instant the sheet closes.
+                draft.scheduledStart = on
+                    ? Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+                    : nil
+            }
+        )
+    }
+
+    private var scheduledStart: Binding<Date> {
+        Binding(
+            get: { draft.scheduledStart ?? Date() },
+            set: { draft.scheduledStart = $0 }
+        )
     }
 
     /// Presets plus an "Other…" escape hatch, for the same reason the model

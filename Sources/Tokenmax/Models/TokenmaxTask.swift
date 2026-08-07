@@ -75,6 +75,20 @@ struct TokenmaxTask: Codable, Identifiable, Sendable, Equatable {
 
     var estimatedMinutes: Int?
 
+    /// A one-off appointment: run this task at this moment, rather than
+    /// whenever the session next happens to be near its reset.
+    ///
+    /// The burn-window schedule answers "spend what is about to expire", which
+    /// is the wrong question for "I am away on Friday afternoon, use the week's
+    /// leftover allowance then". Only the *timing* is overridden — every quota,
+    /// account and safety gate still applies, so an appointment can spend no
+    /// more than the same task would have spent unattended.
+    ///
+    /// Cleared when the run launches rather than when it finishes: a task that
+    /// ends in `needsAttention` and is put back to `ready` must not fire again
+    /// on a date that has long passed.
+    var scheduledStart: Date?
+
     var createdAt: Date = .init()
     var updatedAt: Date = .init()
     var startedAt: Date?
@@ -131,6 +145,7 @@ struct TokenmaxTask: Codable, Identifiable, Sendable, Equatable {
         autoRun = try container.decodeIfPresent(TaskExecutionPolicy.self, forKey: .autoRun) ?? TaskExecutionPolicy()
         codex = try container.decodeIfPresent(CodexExecutionPolicy.self, forKey: .codex) ?? CodexExecutionPolicy()
         estimatedMinutes = try container.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
+        scheduledStart = try container.decodeIfPresent(Date.self, forKey: .scheduledStart)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
         startedAt = try container.decodeIfPresent(Date.self, forKey: .startedAt)

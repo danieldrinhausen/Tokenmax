@@ -468,6 +468,27 @@ credits, the session is inside the lead window, no other run is in flight, the p
 runtime budgets have room, and the task's **runtime limit** — not its estimate — fits before the
 safety margin. Anything else, and the popover and Settings say which condition failed.
 
+### Running a task at a set time
+
+The schedule above answers "spend what is about to expire", which is the wrong question for "I am
+away on Friday afternoon — use the week's leftover allowance then". A task can instead be given a
+**specific time** in its editor. At that moment it runs, regardless of where the session is in its
+cycle, and if no session is open the run starts one.
+
+Only the timing is overridden. The session and weekly quota floors, quiet hours, the usage-credit
+check, the account gates and the task's own limits all still apply, so an appointment can reach no
+further into your allowance than the same task would have on its own. It also does not consume the
+per-session task and runtime allowances, which budget the opportunistic burn rather than work you
+asked for by name.
+
+It runs once — the time is cleared when the run starts — and it expires if it is missed. Nothing
+evaluates while the Mac is asleep, so an appointment more than **Run a missed appointment up to**
+minutes old stops waiting and asks for a new time rather than starting hours late against a project
+that has moved on.
+
+Two settings elsewhere will otherwise stop it silently, so the editor warns about both: the task
+must be marked **Always allow automatic execution**, and it still needs a runtime estimate.
+
 The credit guard deserves a note, because it is the one default that differs from the session
 opener's. Past the plan allowance Claude Code does not stop — it bills usage credits — and this
 feature exists to spend the tail of a window, which is exactly where that boundary sits. So it is

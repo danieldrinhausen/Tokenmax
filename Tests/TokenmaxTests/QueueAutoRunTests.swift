@@ -46,7 +46,8 @@ struct QueueAutoRunTests {
         runtimeCap: Int = 15,
         directory: String? = nil,
         status: TaskStatus = .ready,
-        sortIndex: Double = 0
+        sortIndex: Double = 0,
+        scheduledStart: Date? = nil
     ) -> TokenmaxTask {
         var task = TokenmaxTask(
             title: title,
@@ -58,7 +59,13 @@ struct QueueAutoRunTests {
         )
         task.estimatedMinutes = estimate
         task.autoRun.maximumRuntimeMinutes = runtimeCap
+        task.scheduledStart = scheduledStart
         return task
+    }
+
+    /// A task dated `minutes` from the fixed `now`. Negative is in the past.
+    private func scheduled(minutesFromNow minutes: Double, estimate: Int? = 10) -> TokenmaxTask {
+        task(estimate: estimate, scheduledStart: now.addingTimeInterval(minutes * 60))
     }
 
     private func settings(
@@ -790,5 +797,197 @@ struct QueueAutoRunTests {
     @Test("A new task stops itself when the quota runs out")
     func quotaWatchdogDefaultsOn() {
         #expect(TaskExecutionPolicy().stopWhenQuotaExhausted)
+    }
+
+    // MARK: - Scheduled appointments
+
+    @Test("A task dated for later waits rather than running early")
+    func futureAppointmentWaits() {
+        #expect(skipReason(input(tasks: [scheduled(minutesFromNow: 60)])) == .notYetScheduled)
+    }
+
+    /// The whole point: outside the lead window, which is where the ordinary
+    /// schedule refuses, an appointment runs anyway.
+    @Test("A due appointment runs outside the burn lead window")
+    func dueAppointmentIgnoresLeadWindow() {
+        // Four hours from a reset is far outside the 45-minute lead time.
+        let far = session(resetInMinutes: 240)
+        #expect(skipReason(input(session: far, tasks: [task()])) == .outsideLeadWindow)
+        #expect(skipReason(input(session: far, tasks: [scheduled(minutesFromNow: -1)])) == nil)
+    }
+
+    /// The user confirmed this explicitly: an appointment on an afternoon they
+    /// were not coding must still fire, and starting the task is what opens the
+    /// window. Without this the feature is silently useless on exactly the days
+    /// it was asked for.
+    @Test("A due appointment runs when no session window is open at all")
+    func dueAppointmentOpensItsOwnWindow() {
+        #expect(skipReason(input(noSessionWindow: true, tasks: [task()])) == .noSessionWindow)
+        #expect(skipReason(input(noSessionWindow: true, tasks: [scheduled(minutesFromNow: -1)])) == nil)
+    }
+
+    /// An appointment is not part of the opportunistic burn, so it is not
+    /// rationed by the burn's per-window allowances — `RunTrigger.scheduled`
+    /// keeps it out of the arithmetic on the other side too.
+    @Test("A due appointment is not blocked by the per-window task allowance")
+    func dueAppointmentIgnoresWindowBudgets() {
+        var state = QueueAutoRunState()
+        state.record(TaskRunRecord(
+            taskID: UUID(),
+            taskTitle: "Already ran",
+            windowID: QueueAutoRun.windowID(resetAt: now.addingTimeInterval(30 * 60)),
+            trigger: .automatic,
+            startedAt: now.addingTimeInterval(-600),
+            model: "sonnet",
+            workingDirectory: realDirectory
+        ))
+
+        #expect(skipReason(input(tasks: [task()], state: state)) == .maximumTasksReached)
+        #expect(skipReason(input(tasks: [scheduled(minutesFromNow: -1)], state: state)) == nil)
+    }
+
+    /// A scheduled run must not consume the burn window's allowance either,
+    /// or one appointment would silently cancel that evening's automatic task.
+    @Test("A scheduled run does not spend the window's automatic allowance")
+    func scheduledRunsDoNotCountAgainstTheWindow() {
+        let window = QueueAutoRun.windowID(resetAt: now.addingTimeInterval(30 * 60))
+        var state = QueueAutoRunState()
+        state.record(TaskRunRecord(
+            taskID: UUID(),
+            taskTitle: "Appointment",
+            windowID: window,
+            trigger: .scheduled,
+            startedAt: now.addingTimeInterval(-600),
+            model: "sonnet",
+            workingDirectory: realDirectory
+        ))
+
+        #expect(state.automaticRuns(inWindow: window).isEmpty)
+        #expect(state.totalRuntime(inWindow: window, now: now) == 0)
+        #expect(skipReason(input(tasks: [task()], state: state)) == nil)
+    }
+
+    /// The negative half of every bypass above: an appointment overrides *when*
+    /// to run and nothing else. Each of these would have been a way to spend
+    /// past a guard the user set by simply dating a task.
+    @Test("A due appointment is still refused by every quota and safety guard")
+    func dueAppointmentRespectsEveryOtherGuard() {
+        let due = scheduled(minutesFromNow: -1)
+
+        #expect(skipReason(input(session: session(remaining: 5), tasks: [due])) == .sessionQuotaLow)
+        #expect(skipReason(input(weeklyRemaining: 2, tasks: [due])) == .weeklyQuotaLow)
+        #expect(skipReason(input(weeklyRemaining: nil, tasks: [due])) == .weeklyQuotaUnknown)
+        #expect(skipReason(input(extraUsageEnabled: true, tasks: [due])) == .extraUsageEnabled)
+        #expect(skipReason(input(extraUsageEnabled: nil, tasks: [due])) == .extraUsageUnknown)
+        #expect(skipReason(input(isStale: true, tasks: [due])) == .dataStale)
+        #expect(skipReason(input(tasks: [due], awaitingFreshUsage: true)) == .awaitingFreshUsage)
+        #expect(skipReason(input(cliInstalled: false, tasks: [due])) == .cliNotInstalled)
+        #expect(skipReason(input(tasks: [due], runInFlight: true)) == .runInFlight)
+        #expect(skipReason(input(queueEnabled: false, tasks: [due])) == .queueDisabled)
+        #expect(skipReason(input(settings: settings(enabled: false), tasks: [due])) == .disabled)
+    }
+
+    @Test("A due appointment still respects quiet hours")
+    func dueAppointmentRespectsQuietHours() {
+        var hours = QuietHours()
+        hours.enabled = true
+        hours.startMinutes = 0
+        hours.endMinutes = 1439
+        #expect(skipReason(input(quietHours: hours, tasks: [scheduled(minutesFromNow: -1)])) == .quietHours)
+    }
+
+    /// Dating a task is not the same as approving it for automation, and the
+    /// two switches live in different places — so this is the mistake most
+    /// likely to be made. The editor warns about it for the same reason.
+    @Test("A dated task that is not approved for automation still does not run")
+    func appointmentIsNotApproval() {
+        var manual = scheduled(minutesFromNow: -1)
+        manual.executionMode = .manual
+        #expect(skipReason(input(tasks: [manual])) == .noApprovedTask)
+    }
+
+    @Test("A dated task without a runtime estimate still does not run")
+    func appointmentStillNeedsAnEstimate() {
+        let unsized = scheduled(minutesFromNow: -1, estimate: nil)
+        #expect(
+            QueueAutoRun.eligibility(for: unsized, resetAt: nil, settings: settings(), now: now)
+                == .noRuntimeEstimate
+        )
+    }
+
+    /// A Mac asleep at four o'clock must not wake at midnight and start work
+    /// against a project that has moved on.
+    @Test("An appointment missed by more than the grace period expires")
+    func missedAppointmentExpires() {
+        var lenient = settings()
+        lenient.scheduleGraceMinutes = 120
+
+        let missed = scheduled(minutesFromNow: -180)
+        #expect(QueueAutoRun.isExpired(missed, settings: lenient, now: now))
+        #expect(!QueueAutoRun.isDue(missed, settings: lenient, now: now))
+        // Named as what it is. "Not enough time before the reset" would send
+        // the user to the wrong setting entirely.
+        #expect(skipReason(input(settings: lenient, tasks: [missed])) == .scheduleExpired)
+
+        // Inside the grace period it is still honoured — a lid closed for an
+        // hour is the common case, and the task is usually still wanted.
+        let late = scheduled(minutesFromNow: -60)
+        #expect(!QueueAutoRun.isExpired(late, settings: lenient, now: now))
+        #expect(QueueAutoRun.isDue(late, settings: lenient, now: now))
+    }
+
+    /// At the moment an appointment comes round, the single available slot must
+    /// go to the task that was dated, not to whatever sorts highest.
+    @Test("A due appointment outranks queue order")
+    func dueAppointmentWinsTheSlot() {
+        let urgent = task(title: "Urgent", sortIndex: -10)
+        let dated = task(title: "Dated", sortIndex: 10, scheduledStart: now.addingTimeInterval(-60))
+
+        let decision = QueueAutoRun.decide(input(tasks: [urgent, dated]))
+        #expect(decision.taskID == dated.id)
+    }
+
+    /// A waiting appointment is a normal state, so it must not be reported as
+    /// the queue running out of time — and it must not mask a second task that
+    /// genuinely will not fit.
+    @Test("Waiting for an appointment is reported as waiting, not as a shortage")
+    func waitingIsNotAShortage() {
+        #expect(skipReason(input(tasks: [scheduled(minutesFromNow: 120)])) == .notYetScheduled)
+
+        // A task that will not fit before the reset alongside a dated one still
+        // reports the shortage, which is the actionable half.
+        let tooLong = task(title: "Long", runtimeCap: 60)
+        #expect(
+            skipReason(input(tasks: [scheduled(minutesFromNow: 120), tooLong])) == .insufficientTime
+        )
+    }
+
+    /// Not merely a waiting state: the mode is the master switch, and an
+    /// appointment must not be a way around preview mode.
+    @Test("A due appointment obeys the automation mode")
+    func dueAppointmentObeysMode() {
+        let due = [scheduled(minutesFromNow: -1)]
+        #expect(QueueAutoRun.decide(input(settings: settings(mode: .previewOnly), tasks: due)).taskID != nil)
+        if case .preview = QueueAutoRun.decide(input(settings: settings(mode: .previewOnly), tasks: due)) {
+        } else {
+            Issue.record("preview mode must not start a scheduled task")
+        }
+        if case .ask = QueueAutoRun.decide(input(settings: settings(mode: .askBeforeRunning), tasks: due)) {
+        } else {
+            Issue.record("ask mode must not start a scheduled task by itself")
+        }
+    }
+
+    /// Two appointments for the same task at different times are different
+    /// runs, and a run with no session window still needs a key of its own.
+    @Test("A scheduled run gets a window key even with no session open")
+    func scheduledWindowIDIsStableAndUnique() {
+        let first = scheduled(minutesFromNow: -1)
+        var second = first
+        second.scheduledStart = now.addingTimeInterval(3600)
+
+        #expect(QueueAutoRun.scheduledWindowID(for: first) == QueueAutoRun.scheduledWindowID(for: first))
+        #expect(QueueAutoRun.scheduledWindowID(for: first) != QueueAutoRun.scheduledWindowID(for: second))
+        #expect(QueueAutoRun.scheduledWindowID(for: first).hasPrefix("scheduled-"))
     }
 }

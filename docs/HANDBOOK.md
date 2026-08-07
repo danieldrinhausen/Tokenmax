@@ -246,6 +246,7 @@ quota is only useful if you have something ready to spend it on.
 | **Runtime limit** | Hard ceiling. The run is killed here. |
 | **Spend limit** | Enforced by the CLI itself via `--max-budget-usd`. Pick a preset or type any amount under **Other…**. It applies per run, so a reply in the thread view gets the same allowance again. |
 | **Automation** | Whether Tokenmax may ever start this on its own. |
+| **Schedule** | Optional. Runs the task once at a set date and time instead of waiting for a burn window, opening a session if none is running. Overrides the timing only — every quota and safety guard still applies — and expires if missed. |
 
 Two ways to run a card:
 

@@ -93,6 +93,15 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
     /// unintended run can be stopped without a confirmation dialog every time.
     var startDelaySeconds: Int = 30
 
+    /// How late a scheduled task may still start after its appointed time.
+    ///
+    /// Without a bound, a Friday-afternoon appointment the Mac slept through
+    /// would fire on Monday morning against a repository that has moved on. The
+    /// window is generous because the common miss is a closed lid rather than a
+    /// crash, and a task run two hours late is usually still the task the user
+    /// wanted.
+    var scheduleGraceMinutes: Int = 120
+
     /// Only tasks whose `executionMode` is `.automatic` may be started
     /// automatically. Switching this off is not offered as a way to run
     /// unmarked tasks — it exists so the guard is visible in Settings.
@@ -136,6 +145,7 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
     static let maximumTasksOptions = [1, 2, 3, 5]
     static let maximumRuntimeOptions = [15, 30, 45, 60, 90]
     static let startDelayOptions = [10, 30, 60, 120]
+    static let scheduleGraceOptions = [30, 60, 120, 240, 480]
 
     init() {}
 
@@ -162,6 +172,8 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
         maximumRuntimeMinutes = try container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes)
             ?? d.maximumRuntimeMinutes
         startDelaySeconds = try container.decodeIfPresent(Int.self, forKey: .startDelaySeconds) ?? d.startDelaySeconds
+        scheduleGraceMinutes = try container.decodeIfPresent(Int.self, forKey: .scheduleGraceMinutes)
+            ?? d.scheduleGraceMinutes
         onlyRunApprovedTasks = try container.decodeIfPresent(Bool.self, forKey: .onlyRunApprovedTasks)
             ?? d.onlyRunApprovedTasks
         pauseAfterFailure = try container.decodeIfPresent(Bool.self, forKey: .pauseAfterFailure) ?? d.pauseAfterFailure
