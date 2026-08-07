@@ -1007,4 +1007,27 @@ struct QueueAutoRunTests {
         #expect(QueueAutoRun.scheduledWindowID(for: first) != QueueAutoRun.scheduledWindowID(for: second))
         #expect(QueueAutoRun.scheduledWindowID(for: first).hasPrefix("scheduled-"))
     }
+
+    /// The burn window must not treat a dated task as ordinary queue fodder.
+    /// Giving a task a time is also a statement about when it may *not* run,
+    /// and the burn schedule is otherwise free to pick anything approved.
+    @Test("A task dated for later is never picked up by the burn window")
+    func futureDatedTaskStaysOutOfTheBurnWindow() {
+        // Everything the burn path wants: inside the lead time, quota fine,
+        // room in the per-window budget. The only task is dated for later.
+        let later = scheduled(minutesFromNow: 240)
+        let decision = QueueAutoRun.decide(input(tasks: [later]))
+        #expect(decision.taskID == nil, "burn window picked a task dated for later: \(decision)")
+        #expect(decision.skipReason == .notYetScheduled)
+    }
+
+    /// The dated task must be passed over rather than blocking the queue: an
+    /// appointment for Friday should not stop today's ordinary burn.
+    @Test("A dated task is skipped over, not in front of, an undated one")
+    func datedTaskDoesNotBlockTheQueue() {
+        let later = scheduled(minutesFromNow: 240)
+        let plain = task(title: "Plain", sortIndex: 10)
+        let decision = QueueAutoRun.decide(input(tasks: [later, plain]))
+        #expect(decision.taskID == plain.id)
+    }
 }

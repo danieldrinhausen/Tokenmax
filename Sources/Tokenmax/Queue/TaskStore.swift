@@ -70,6 +70,12 @@ final class TaskStore: ObservableObject {
         copy.startedAt = nil
         copy.completedAt = nil
         copy.errorMessage = nil
+        // An appointment is a one-off instruction for one task at one moment,
+        // so it does not survive being copied — the same reasoning as the
+        // timestamps above. Carried over it is worse than merely wrong: a date
+        // already in the past but inside the grace period makes the copy due
+        // the instant it is created, and it starts a run nobody asked for.
+        copy.scheduledStart = nil
         add(copy)
     }
 
