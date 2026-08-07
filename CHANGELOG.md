@@ -5,6 +5,66 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-08-07
+
+### Added
+
+- **A task can be given a time to run.** The queue's schedule answers "spend
+  what is about to expire", which is the wrong question for "I am away on Friday
+  afternoon, use the week's leftover allowance then". A task can now carry a
+  specific date and time in its editor. At that moment it runs, wherever the
+  session happens to be in its cycle — and if no session is open, starting the
+  task opens one.
+
+  Only the timing is overridden. The session and weekly quota floors, quiet
+  hours, the account gates and the task's own limits all still apply, so an
+  appointment reaches no further into your allowance than the same task would
+  have on its own. It also does not consume the per-session task and runtime
+  allowances, which budget the opportunistic burn rather than work you asked for
+  by name.
+
+  It runs once — the time is cleared when the run starts — and it expires if it
+  is missed, since nothing evaluates while the Mac is asleep and a task started
+  hours late runs against a project that has moved on. The grace period is
+  configurable under **Settings → Queue Automation → Timing**.
+
+- **The per-task spend limit takes any amount.** It was a six-entry dropdown
+  topping out at $5.00, which was never a considered ceiling but read as one.
+  Presets now reach $100 and an **Other…** field takes anything in between —
+  deliberately burning a plan's leftover allowance in one afternoon is two
+  orders of magnitude away from the ten-cent chore the old list was sized
+  around. A default for new tasks joins the model and thinking grade under
+  **New task defaults**.
+
+- **A task can stop itself when the quota runs out.** Past the plan allowance
+  Claude Code does not stop — it keeps working and bills usage credits. The
+  quota thresholds already keep a run well short of that line; **Stop if the
+  quota runs out**, on by default, ends a run already under way if a window
+  empties anyway. It reacts within a usage refresh rather than instantly, so it
+  is the net rather than the guard.
+
+  **Never run when usage credits could be charged** is a third, categorical
+  option under **Safety**, off by default. Having credits enabled is a normal
+  thing to have and says nothing about proximity to the line. Switch it on if
+  you would rather not depend on the reported percentages being right.
+
+### Changed
+
+- **Two execution modes that never did anything are gone.** "Ask before running"
+  and "Allow once during the current session" sat between "Manual only" and
+  "Always allow automatic execution" and were read by no code: all three
+  non-automatic values behaved identically, while the editor promised a
+  notification and a one-off run that never happened. Existing tasks set to
+  either now read as **Manual only**, which is how they already behaved.
+
+  "Ask before running" still exists queue-wide under **Settings → Queue
+  Automation → Mode**, where it is implemented and does notify.
+
+- **A spend limit outside the preset list no longer disappears.** Such a value
+  bound to a dropdown with no matching entry, so it rendered blank and was
+  silently overwritten the first time the control was touched. It now shows up
+  in the **Other…** field.
+
 ## [0.1.5] - 2026-08-07
 
 ### Fixed
