@@ -107,6 +107,42 @@ struct CodexTaskProcessTests {
         #expect(size <= CodexTaskRunner.maximumLogBytes + 4096)
     }
 
+    /// There is no `turn/failed` notification in the App Server protocol, and
+    /// listening for one meant a failed run reported that it failed and nothing
+    /// else. The reason travels inside `turn/completed` as `turn.error`.
+    @Test("A failed turn carries its reason out of turn/completed", .timeLimit(.minutes(1)))
+    func failedTurnReportsWhy() {
+        let directory = scratch()
+        let result = execute(
+            """
+            echo '{"method":"turn/completed","params":{"threadId":"t","turn":{"id":"1","items":[],"status":"failed","error":{"message":"Sandbox denied the write","additionalDetails":"path outside workspace"}}}}'
+            """,
+            directory: directory
+        )
+
+        #expect(result.status == .failed)
+        #expect(result.errorMessage?.contains("Sandbox denied the write") == true)
+        #expect(result.errorMessage?.contains("path outside workspace") == true)
+    }
+
+    /// `turn.error` is documented as populated only on failure, so a successful
+    /// turn must not acquire an error message from a leftover empty object.
+    @Test("A completed turn reports no error", .timeLimit(.minutes(1)))
+    func completedTurnHasNoError() {
+        let directory = scratch()
+        let result = execute(
+            """
+            echo '{"method":"item/agentMessage/delta","params":{"delta":"All done."}}'
+            echo '{"method":"turn/completed","params":{"threadId":"t","turn":{"id":"1","items":[],"status":"completed"}}}'
+            """,
+            directory: directory
+        )
+
+        #expect(result.status == .completed)
+        #expect(result.errorMessage == nil)
+        #expect(result.resultText == "All done.")
+    }
+
     @Test("A Codex grandchild does not survive the runtime limit", .timeLimit(.minutes(1)))
     func grandchildDiesOnTimeout() async {
         let directory = scratch()

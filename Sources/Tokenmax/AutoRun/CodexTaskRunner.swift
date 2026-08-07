@@ -309,7 +309,20 @@ private final class CodexRunObserver: @unchecked Sendable {
         }
         guard let method = root["method"] as? String, let params = root["params"] as? [String: Any] else { return nil }
         if method == "turn/completed" {
-            completion = (params["turn"] as? [String: Any])?["status"] as? String ?? "failed"
+            let turn = params["turn"] as? [String: Any]
+            completion = turn?["status"] as? String ?? "failed"
+            // The reason travels inside the same notification rather than in one
+            // of its own — `turn.error` is documented as populated only when the
+            // status is `failed`. Read here because there is nowhere else to
+            // read it: a failed turn is otherwise just a status string, and the
+            // run surfaces "it failed" with nothing to act on.
+            if let error = turn?["error"] as? [String: Any] {
+                let message = error["message"] as? String
+                let details = error["additionalDetails"] as? String
+                storedErrorText = [message, details]
+                    .compactMap { $0?.isEmpty == false ? $0 : nil }
+                    .joined(separator: "\n")
+            }
             lock.broadcast()
         }
         if method == "item/agentMessage/delta", let delta = params["delta"] as? String {
@@ -318,7 +331,6 @@ private final class CodexRunObserver: @unchecked Sendable {
             if delta.count > room { resultTruncated = true }
             return String(delta.prefix(90))
         }
-        if method == "turn/failed" { storedErrorText = params["error"] as? String }
         return nil
     }
 

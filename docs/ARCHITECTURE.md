@@ -234,7 +234,22 @@ statusline payload keys.
 
 ### 7. Codex CLI and App Server
 
-Same flag-drift exposure, separate release cadence, no equivalent detection yet.
+Same flag-drift exposure as the Claude CLI, on a separate release cadence, plus
+a second surface the Claude side does not have: Tokenmax speaks JSON-RPC method
+names to the App Server, and no `--help` would ever mention those.
+
+- **Failure mode:** a renamed flag or sandbox value fails every Codex run; a
+  renamed method fails more quietly, because a notification nobody sends simply
+  never arrives.
+- **Prevention:** `make doctor` checks the flags, their short forms, the
+  `--sandbox` and `--ask-for-approval` values, and every method name — the last
+  against the protocol schema `codex app-server generate-json-schema` produces,
+  so it tracks the CLI in hand rather than a copy checked in here. Skipped, not
+  failed, when Codex is not installed.
+- **Already caught one:** `CodexRunObserver` listened for `turn/failed`, which
+  the protocol does not have. Failures were reported without their reason until
+  the check pointed at it. The reason is inside `turn/completed`, as
+  `turn.error`.
 
 ### 8. macOS itself
 

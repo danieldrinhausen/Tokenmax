@@ -40,6 +40,16 @@ versions follow [semver](https://semver.org/).
   is still the same signed, unnotarized image, so the one-time **Open Anyway**
   remains — Homebrew quarantines what it fetches exactly as a browser does.
 
+### Fixed
+
+- **A failed Codex run now says why it failed.** Tokenmax listened for a
+  `turn/failed` notification the App Server protocol does not have, so a failure
+  arrived as a bare status with no reason attached. The reason travels inside
+  `turn/completed`. Found by the new Codex drift checks in `make doctor`, which
+  now cover the flags, sandbox and approval values, and every JSON-RPC method
+  name — the last checked against the protocol schema the installed CLI
+  generates, so it cannot go stale against a copy checked into this repository.
+
 ## [0.1.6] - 2026-08-07
 
 ### Added
