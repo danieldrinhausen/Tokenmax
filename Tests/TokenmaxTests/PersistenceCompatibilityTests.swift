@@ -88,6 +88,46 @@ struct PersistenceCompatibilityTests {
         #expect(task.selectedEffort == nil)
     }
 
+    // MARK: - Usage credits
+
+    /// Both guards must arrive switched *on* for a file that predates them.
+    /// This is the one place where the tolerant-decoder default is deliberately
+    /// the restrictive value: an upgrade that quietly opened the door to billed
+    /// credits would be discovered on an invoice.
+    @Test("An automation block written before the credit guards gets them on")
+    func loadsAutoRunWithoutCreditGuards() throws {
+        let settings = try decode(AppSettings.self, """
+        { "queueAutoRun": { "enabled": true, "mode": "automatic", "leadTimeMinutes": 60 } }
+        """)
+
+        #expect(settings.queueAutoRun.leadTimeMinutes == 60)
+        #expect(settings.queueAutoRun.skipWhenExtraUsageEnabled)
+    }
+
+    @Test("A task written before the quota watchdog existed gets it on")
+    func loadsTaskWithoutQuotaWatchdog() throws {
+        let task = try decode(TokenmaxTask.self, """
+        {
+          "title": "Old task", "prompt": "Do it",
+          "autoRun": { "model": "opus", "allowShellCommands": true }
+        }
+        """)
+
+        #expect(task.autoRun.allowShellCommands)
+        #expect(task.autoRun.stopWhenQuotaExhausted)
+    }
+
+    /// The switch is only useful if "off" survives being written down — the
+    /// whole point is a long-running task the user chose to let finish.
+    @Test("Switching the quota watchdog off survives a round trip")
+    func quotaWatchdogOffRoundTrips() throws {
+        var task = TokenmaxTask(title: "Long job", prompt: "Do it")
+        task.autoRun.stopWhenQuotaExhausted = false
+
+        let data = try JSONStore.makeEncoder().encode(task)
+        #expect(!(try JSONStore.makeDecoder().decode(TokenmaxTask.self, from: data)).autoRun.stopWhenQuotaExhausted)
+    }
+
     // MARK: - Spend limit
 
     /// The editor's free-text field can be emptied or zeroed, and a hand-edited

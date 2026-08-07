@@ -30,6 +30,10 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         case sessionQuotaLow
         case weeklyQuotaUnknown
         case weeklyQuotaLow
+        /// The account can bill for usage past the plan allowance, and this
+        /// feature runs precisely where that allowance ends.
+        case extraUsageEnabled
+        case extraUsageUnknown
         /// A run is in flight. Tokenmax runs one task at a time, always.
         case runInFlight
         case maximumTasksReached
@@ -99,6 +103,10 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "The weekly quota is unknown, so spending cannot be checked."
             case .weeklyQuotaLow:
                 "Weekly quota is below your threshold."
+            case .extraUsageEnabled:
+                "Usage credits are switched on for this account, so a run past the plan allowance would be charged. Turn credits off at claude.ai, or allow them in Settings."
+            case .extraUsageUnknown:
+                "Cannot tell whether usage credits would be charged, so nothing was started."
             case .runInFlight:
                 "A task is already running."
             case .maximumTasksReached:
@@ -173,6 +181,9 @@ enum QueueAutoRun {
         var quietHours: QuietHours
         var sessionWindow: UsageWindow?
         var weeklyWindow: UsageWindow?
+        /// Whether the account bills for usage past the plan allowance. nil is
+        /// "unknown", not "no" — the provider may not report it at all.
+        var extraUsageEnabled: Bool?
         var isStale: Bool
         var cliInstalled: Bool
         /// Ready tasks in queue order. `TaskStore.readyTasks` already sorts by
@@ -193,6 +204,7 @@ enum QueueAutoRun {
             quietHours: QuietHours = .init(),
             sessionWindow: UsageWindow?,
             weeklyWindow: UsageWindow?,
+            extraUsageEnabled: Bool? = false,
             isStale: Bool = false,
             cliInstalled: Bool = true,
             tasks: [TokenmaxTask] = [],
@@ -207,6 +219,7 @@ enum QueueAutoRun {
             self.quietHours = quietHours
             self.sessionWindow = sessionWindow
             self.weeklyWindow = weeklyWindow
+            self.extraUsageEnabled = extraUsageEnabled
             self.isStale = isStale
             self.cliInstalled = cliInstalled
             self.tasks = tasks
@@ -398,6 +411,17 @@ enum QueueAutoRun {
         }
         guard weeklyRemaining >= settings.minimumWeeklyRemainingPercent else {
             return .skip(reason: .weeklyQuotaLow)
+        }
+
+        // Categorical where the thresholds above are numeric, and it holds even
+        // if the reported percentages are wrong. Shares its wording and its
+        // "silence is not consent" rule with the opener's copy of this gate:
+        // unknown is refused rather than assumed off, and because that would
+        // otherwise be an invisible dead end, Settings names the reason and
+        // offers the toggle as the way out.
+        if settings.skipWhenExtraUsageEnabled {
+            guard let extra = input.extraUsageEnabled else { return .skip(reason: .extraUsageUnknown) }
+            if extra { return .skip(reason: .extraUsageEnabled) }
         }
 
         guard let task = nextEligibleTask(input) else {

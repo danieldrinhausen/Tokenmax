@@ -50,6 +50,11 @@ final class QueueAutoRunCoordinator: ObservableObject {
     private var statePersistenceFailed = false
     private var cancellables: Set<AnyCancellable> = []
     private var runTask: Task<Void, Never>?
+    /// Why the in-flight run was stopped, when it was not the user. A cancelled
+    /// run otherwise reports as "you stopped it" and goes back to ready, which
+    /// for a quota kill is both the wrong explanation and the wrong next state
+    /// — ready is what the queue picks up again.
+    private var stoppedForQuotaExhaustion = false
     /// Set when a run finishes; cleared once a snapshot fetched after it lands.
     private var freshUsageNeededAfter: Date?
     private var hasStarted = false
@@ -179,6 +184,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             quietHours: settingsStore.settings.quietHours,
             sessionWindow: snapshot?.sessionWindow,
             weeklyWindow: snapshot?.weeklyWindow,
+            extraUsageEnabled: snapshot?.extraUsageEnabled,
             isStale: usage.isStale(for: provider),
             cliInstalled: cliInstalled(provider),
             tasks: taskStore.readyTasks.filter { $0.provider == provider },
@@ -204,7 +210,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     private func evaluate() {
         if activeRun != nil {
-            enforceResetBoundary()
+            enforceRunLimits()
             return
         }
 
@@ -270,6 +276,17 @@ final class QueueAutoRunCoordinator: ObservableObject {
         }
     }
 
+    /// The two reasons to end a run that is already under way. Everything else
+    /// is decided before a process exists.
+    private func enforceRunLimits() {
+        guard let snapshot = usage.snapshot(
+            for: activeRun.flatMap { TokenmaxProvider.from(identifier: $0.providerID) } ?? usage.selectedProvider
+        ) else { return }
+
+        enforceQuotaExhaustion(snapshot)
+        enforceResetBoundary(snapshot)
+    }
+
     /// Stops a running task at the safety deadline, but only if the user asked
     /// for that.
     ///
@@ -277,9 +294,9 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// progress: the quota it was going to spend has already been spent, and a
     /// task terminated halfway through an edit leaves the project worse than
     /// never having run it. Only a deliberate opt-in changes that.
-    private func enforceResetBoundary() {
+    private func enforceResetBoundary(_ snapshot: UsageSnapshot) {
         guard settingsStore.settings.queueAutoRun.resetBoundaryBehavior == .stopAtDeadline else { return }
-        guard let resetAt = usage.snapshot(for: activeRun.flatMap { TokenmaxProvider.from(identifier: $0.providerID) } ?? usage.selectedProvider)?.sessionWindow?.resetAt else { return }
+        guard let resetAt = snapshot.sessionWindow?.resetAt else { return }
 
         let deadline = QueueAutoRun.effectiveDeadline(
             resetAt: resetAt,
@@ -288,6 +305,42 @@ final class QueueAutoRunCoordinator: ObservableObject {
         guard Date() >= deadline else { return }
 
         Log.shared.write("autorun: stopping at the safety deadline (stopAtDeadline is on)")
+        stop()
+    }
+
+    /// Stops a running task once either window reads empty, because that is
+    /// where paid credits take over from the plan allowance.
+    ///
+    /// The start gates cannot catch this — a run waved through at 30% remaining
+    /// can still empty the window while it works — and the CLI does not stop of
+    /// its own accord at the boundary. Unlike the reset boundary this is not
+    /// about tidiness: past this point the run is spending money rather than
+    /// quota, which is why the per-task switch defaults on.
+    ///
+    /// Deliberately triggered at zero rather than at the configured start
+    /// floors: a task that legitimately started at 25% would otherwise be
+    /// killed almost immediately. It is also inherently late — readings are
+    /// 180s apart at best — so it is the net under the categorical gate in
+    /// `QueueAutoRun.decide`, never the primary defence.
+    private func enforceQuotaExhaustion(_ snapshot: UsageSnapshot) {
+        // Also the re-entrancy guard: this runs every second, and the process
+        // takes a termination grace period to actually go away.
+        guard !stoppedForQuotaExhaustion else { return }
+        guard let run = activeRun,
+              let task = taskStore.tasks.first(where: { $0.id == run.taskID }),
+              task.autoRun.stopWhenQuotaExhausted
+        else { return }
+
+        // Absence is not exhaustion. A window the provider stopped reporting is
+        // unknown, and killing work on unknown is the wrong way round here —
+        // what has been spent is spent either way.
+        let exhausted = [snapshot.sessionWindow, snapshot.weeklyWindow]
+            .compactMap { $0?.remainingPercent }
+            .contains { $0 <= 0 }
+        guard exhausted else { return }
+
+        stoppedForQuotaExhaustion = true
+        Log.shared.write("autorun: stopping — quota exhausted, further work would be billed as usage credits")
         stop()
     }
 
@@ -478,11 +531,21 @@ final class QueueAutoRunCoordinator: ObservableObject {
         lastRun = record
         progressText = nil
         runTask = nil
+        // Read once below, then cleared so it cannot colour the next run.
+        defer { stoppedForQuotaExhaustion = false }
 
         switch result.status {
         case .completed:
             taskStore.setStatus(.completed, for: task)
             notifications.completed(record: record)
+        case .cancelled where stoppedForQuotaExhaustion:
+            // Not back to ready: ready is what the queue picks up again, and
+            // the condition that stopped this run is still true.
+            taskStore.markNeedsAttention(
+                task,
+                message: "Stopped because the quota ran out mid-run. Carrying on would have been charged as usage credits."
+            )
+            notifications.failed(record: record)
         case .cancelled:
             // Back to ready rather than needing attention: the user stopped it
             // on purpose, and the obvious next thing is to run it again.

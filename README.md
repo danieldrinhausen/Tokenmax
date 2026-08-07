@@ -463,10 +463,19 @@ decision logic can be watched for days before it is trusted with real quota and 
 
 A task runs automatically only when *all* of this holds: the task is marked **Always allow automatic
 execution**, its working directory exists, it has a runtime estimate, the usage reading is fresh, the
-session and weekly quotas are both above their thresholds, the session is inside the lead window, no
-other run is in flight, the per-session task and runtime budgets have room, and the task's **runtime
-limit** — not its estimate — fits before the safety margin. Anything else, and the popover and
-Settings say which condition failed.
+session and weekly quotas are both above their thresholds, the account cannot be charged for usage
+credits, the session is inside the lead window, no other run is in flight, the per-session task and
+runtime budgets have room, and the task's **runtime limit** — not its estimate — fits before the
+safety margin. Anything else, and the popover and Settings say which condition failed.
+
+The credit guard deserves a note, because it is the one default that differs from the session
+opener's. Past the plan allowance Claude Code does not stop — it bills usage credits — and this
+feature exists to spend the tail of a window, which is exactly where that boundary sits. So it is
+**on** by default here and off for the opener, which only ever runs into a freshly reset window and
+cannot reach a charge. An unreported credit setting counts as unsafe and refuses. Backing it up,
+each task has a **Stop if the quota runs out** switch that ends a run already under way when either
+window empties; it reacts within a usage refresh rather than instantly, so it is the net rather than
+the guard.
 
 Each task carries its own limits: model, runtime ceiling, spend ceiling (enforced by the CLI itself
 via `--max-budget-usd`, a preset or any amount you type), and two capability toggles. File tools are confined to the working directory

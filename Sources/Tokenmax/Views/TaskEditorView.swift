@@ -511,6 +511,13 @@ struct TaskEditorView: View {
                     isOn: $draft.autoRun.allowShellCommands
                 )
 
+                permissionToggle(
+                    "Stop if the quota runs out",
+                    detail: "Past the plan allowance the run is billed as usage credits. Switch off to let long work finish instead.",
+                    systemImage: "gauge.with.dots.needle.0percent",
+                    isOn: $draft.autoRun.stopWhenQuotaExhausted
+                )
+
                 capabilityDisclosure
             }
         }

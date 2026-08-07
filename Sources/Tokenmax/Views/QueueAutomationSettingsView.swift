@@ -147,6 +147,12 @@ struct QueueAutomationSettingsView: View {
                 Toggle("Pause the queue after the first failure", isOn: auto.pauseAfterFailure)
                 Toggle("Require fresh quota data", isOn: auto.requireFreshUsageData)
                 Toggle("Respect quiet hours", isOn: auto.respectQuietHours)
+                Toggle("Never run when usage credits could be charged", isOn: auto.skipWhenExtraUsageEnabled)
+
+                Text(extraUsageDescription)
+                    .font(.caption)
+                    .foregroundStyle(extraUsageBlocks ? .orange : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("Always enforced: one task at a time, never with unrestricted permissions, and never under an API key — only a Claude subscription. Each task's own tool permissions and spending limit are set when you edit it.")
                     .font(.caption)
@@ -269,6 +275,30 @@ struct QueueAutomationSettingsView: View {
             lines.append("Weekly quota \(Int(weekly.rounded()))% remaining")
         }
         return lines
+    }
+
+    /// Says what the toggle currently means for this account rather than
+    /// restating it. "Not reported" is deliberately distinct from "disabled":
+    /// an unknown is refused, and someone whose queue never fires needs to see
+    /// that rather than guess at it.
+    private var extraUsageDescription: String {
+        let credits = usage.state.snapshot?.extraUsageEnabled
+        guard settingsStore.settings.queueAutoRun.skipWhenExtraUsageEnabled else {
+            return "Off, so tasks may run past the plan allowance and be charged as usage credits."
+        }
+        switch credits {
+        case true:
+            return "Usage credits are enabled on this account, so nothing will run. This is on by default because the queue exists to spend the tail of a window — exactly where the plan allowance ends and credits take over. Turn credits off at claude.ai, or switch this off to rely on the quota thresholds alone."
+        case false:
+            return "Usage credits are disabled on this account, so the plan allowance is a hard stop."
+        case nil:
+            return "Anthropic is not reporting whether usage credits are enabled, so nothing will run. An unreported setting is treated as unsafe."
+        }
+    }
+
+    private var extraUsageBlocks: Bool {
+        guard settingsStore.settings.queueAutoRun.skipWhenExtraUsageEnabled else { return false }
+        return usage.state.snapshot?.extraUsageEnabled != false
     }
 
     private var statusIsNoteworthy: Bool {

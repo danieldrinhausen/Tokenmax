@@ -72,7 +72,8 @@ struct QueueAutoRunTests {
         maximumRuntime: Int = 30,
         onlyApproved: Bool = true,
         requireFresh: Bool = true,
-        respectQuietHours: Bool = true
+        respectQuietHours: Bool = true,
+        skipWhenExtraUsage: Bool = true
     ) -> QueueAutoRunSettings {
         var settings = QueueAutoRunSettings()
         settings.enabled = enabled
@@ -86,6 +87,7 @@ struct QueueAutoRunTests {
         settings.onlyRunApprovedTasks = onlyApproved
         settings.requireFreshUsageData = requireFresh
         settings.respectQuietHours = respectQuietHours
+        settings.skipWhenExtraUsageEnabled = skipWhenExtraUsage
         return settings
     }
 
@@ -100,6 +102,7 @@ struct QueueAutoRunTests {
         /// quietly turn back into the default window.
         noSessionWindow: Bool = false,
         weeklyRemaining: Double? = 80,
+        extraUsageEnabled: Bool? = false,
         isStale: Bool = false,
         cliInstalled: Bool = true,
         tasks: [TokenmaxTask]? = nil,
@@ -114,6 +117,7 @@ struct QueueAutoRunTests {
             quietHours: quietHours,
             sessionWindow: noSessionWindow ? nil : (session ?? self.session()),
             weeklyWindow: weeklyRemaining.map { weekly(remaining: $0) },
+            extraUsageEnabled: extraUsageEnabled,
             isStale: isStale,
             cliInstalled: cliInstalled,
             tasks: tasks ?? [task()],
@@ -726,5 +730,65 @@ struct QueueAutoRunTests {
         run.isResumable = false
         #expect(run.sessionID != nil)
         #expect(!run.isResumable)
+    }
+
+    // MARK: - Usage credits
+
+    /// The percentage thresholds guard the plan allowance. This guards what
+    /// happens *past* it, where spending stops being quota and starts being a
+    /// charge — and it holds even if the reported percentages are wrong.
+    @Test("Nothing runs while the account can be charged for usage credits")
+    func extraUsageBlocksTheQueue() {
+        #expect(skipReason(input(extraUsageEnabled: true)) == .extraUsageEnabled)
+    }
+
+    /// Silence is not consent. An unreported setting is the case where Tokenmax
+    /// cannot tell whether a run would be billed, and "cannot tell" resolves to
+    /// "do not spend" everywhere else in this file.
+    @Test("An unreported credit setting refuses rather than assuming it is off")
+    func unknownExtraUsageBlocksTheQueue() {
+        #expect(skipReason(input(extraUsageEnabled: nil)) == .extraUsageUnknown)
+    }
+
+    @Test("Credits disabled on the account is not a reason to skip")
+    func extraUsageDisabledRuns() {
+        #expect(skipReason(input(extraUsageEnabled: false)) == nil)
+    }
+
+    /// The negative half: the guard must stay quiet when switched off, or the
+    /// toggle is not a toggle.
+    @Test("Switching the credit guard off lets both states through")
+    func extraUsageGuardIsOptional() {
+        let permissive = settings(skipWhenExtraUsage: false)
+        #expect(skipReason(input(settings: permissive, extraUsageEnabled: true)) == nil)
+        #expect(skipReason(input(settings: permissive, extraUsageEnabled: nil)) == nil)
+    }
+
+    /// Opposite default to `SessionOpenerSettings`, deliberately. The opener
+    /// only ever runs into a freshly reset window and cannot reach a charge;
+    /// the queue exists to spend the tail of one, which is exactly where the
+    /// allowance ends.
+    @Test("The queue's credit guard is on by default, unlike the opener's")
+    func extraUsageGuardDefaultsOn() {
+        #expect(QueueAutoRunSettings().skipWhenExtraUsageEnabled)
+        #expect(!SessionOpenerSettings().skipWhenExtraUsageEnabled)
+    }
+
+    /// Ordering matters: a user who is below their weekly threshold *and* has
+    /// credits on should be told about the threshold, which is the one they set
+    /// and the one they can act on.
+    @Test("A low weekly quota is reported before the credit guard")
+    func weeklyQuotaOutranksExtraUsage() {
+        #expect(
+            skipReason(input(weeklyRemaining: 2, extraUsageEnabled: true)) == .weeklyQuotaLow
+        )
+    }
+
+    /// The mid-run watchdog is the net under the gate above, and it is on by
+    /// default for the same reason: unbounded billing is worse than a task
+    /// stopped early.
+    @Test("A new task stops itself when the quota runs out")
+    func quotaWatchdogDefaultsOn() {
+        #expect(TaskExecutionPolicy().stopWhenQuotaExhausted)
     }
 }

@@ -110,6 +110,19 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
 
     var respectQuietHours: Bool = true
 
+    /// Refuse to start anything while the account can charge for extra usage.
+    ///
+    /// On by default, where `SessionOpenerSettings.skipWhenExtraUsageEnabled`
+    /// is off — the two features sit at opposite ends of a window. The opener
+    /// only ever runs into a window that has just reset, with the weekly
+    /// allowance above its threshold, so it cannot reach a charge and a blanket
+    /// refusal there only disabled the feature for anyone who has credits on.
+    /// The auto-runner is the inverse by design: it exists to spend the tail of
+    /// a window, which is exactly where the plan allowance runs out and paid
+    /// credits take over. Past that point the CLI does not stop — it keeps
+    /// going and bills.
+    var skipWhenExtraUsageEnabled: Bool = true
+
     var notifyOnStart: Bool = true
     var notifyOnCompletion: Bool = true
     /// Not offered as a toggle in the UI. A silently paused queue is the state
@@ -158,6 +171,8 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
             ResetBoundaryBehavior.self, forKey: .resetBoundaryBehavior
         )) ?? d.resetBoundaryBehavior
         respectQuietHours = try container.decodeIfPresent(Bool.self, forKey: .respectQuietHours) ?? d.respectQuietHours
+        skipWhenExtraUsageEnabled = try container.decodeIfPresent(Bool.self, forKey: .skipWhenExtraUsageEnabled)
+            ?? d.skipWhenExtraUsageEnabled
         notifyOnStart = try container.decodeIfPresent(Bool.self, forKey: .notifyOnStart) ?? d.notifyOnStart
         notifyOnCompletion = try container.decodeIfPresent(Bool.self, forKey: .notifyOnCompletion)
             ?? d.notifyOnCompletion
@@ -199,6 +214,19 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
     /// Claude to invoke arbitrary project commands — build scripts, test
     /// runners, anything on the PATH.
     var allowShellCommands: Bool = false
+
+    /// Terminate the run the moment either quota window reads empty.
+    ///
+    /// The start gates cannot cover this: a run approved at 30% remaining can
+    /// still exhaust the window while it works, and the CLI does not stop there
+    /// — it spends paid credits. This is the only guard that acts *during* a
+    /// run, and it is a blunt one. Usage readings are 180s apart at best
+    /// (`ClaudeOAuthUsageClient.minimumRequestInterval`), so it reacts late, and
+    /// a task killed halfway through an edit leaves the project worse than
+    /// never having run — the same reasoning that makes `letTaskFinish` the
+    /// default at a reset boundary. On by default because unbounded billing is
+    /// the worse of the two outcomes, off per task when the work matters more.
+    var stopWhenQuotaExhausted: Bool = true
 
     /// Aliases rather than pinned ids on purpose: `--model opus` resolves to the
     /// newest Opus at run time, so this list does not go stale when a model
@@ -259,6 +287,8 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
         allowFileChanges = try container.decodeIfPresent(Bool.self, forKey: .allowFileChanges) ?? d.allowFileChanges
         allowShellCommands = try container.decodeIfPresent(Bool.self, forKey: .allowShellCommands)
             ?? d.allowShellCommands
+        stopWhenQuotaExhausted = try container.decodeIfPresent(Bool.self, forKey: .stopWhenQuotaExhausted)
+            ?? d.stopWhenQuotaExhausted
     }
 
     /// The tools the runner will actually allow, in the order the CLI expects.
