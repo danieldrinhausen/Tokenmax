@@ -77,10 +77,11 @@ is split by what you came for.
 Five minutes, and everything here is read-only — Tokenmax spends nothing until you
 explicitly turn something on.
 
-**1. Install.** Download the `.dmg` from [Releases](../../releases), drag Tokenmax to
-Applications, launch it. The first launch is refused with *"Apple could not verify…"*
-because the app is signed but not notarized: **System Settings → Privacy & Security →
-Open Anyway**. Once per download, [details below](#install).
+**1. Install.** `brew install --cask danieldrinhausen/tap/tokenmax`, or download the
+`.dmg` from [Releases](../../releases) and drag Tokenmax to Applications. Either way the
+first launch is refused with *"Apple could not verify…"* because the app is signed but not
+notarized: **System Settings → Privacy & Security → Open Anyway**. Once per version,
+[details below](#install).
 
 **2. Allow the keychain prompt.** macOS asks for the `Claude Code-credentials` item. That
 prompt *is* Tokenmax reading your quota — choose **Always Allow**. Decline it and the
@@ -117,6 +118,23 @@ turning them on without regretting it.
 ## Install
 
 **Requires macOS 14 (Sonoma) or later**, on Apple silicon or Intel.
+
+**With Homebrew.**
+
+```
+brew install --cask danieldrinhausen/tap/tokenmax
+```
+
+That is a [tap of its own](https://github.com/danieldrinhausen/homebrew-tap), not
+`homebrew-cask` — the official cask repository requires an upstream with 75 stars, 30
+forks or 30 watchers, and this is not there. Homebrew 6 asks you to trust a third-party
+tap before it loads anything from it; naming the cask in full as above counts, and
+`brew trust danieldrinhausen/tap` settles it permanently if you are asked. Afterwards
+`brew upgrade --cask tokenmax` follows releases, and `brew uninstall --zap --cask tokenmax`
+removes the app together with the queue, settings and logs.
+
+Homebrew quarantines what it downloads exactly as a browser would, so the first-launch
+step below applies to this route too.
 
 **From a release.** Download the `.dmg` from
 [Releases](../../releases), drag Tokenmax to Applications, and launch it.

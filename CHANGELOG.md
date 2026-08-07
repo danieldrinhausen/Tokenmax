@@ -5,6 +5,16 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Installable with Homebrew.**
+  `brew install --cask danieldrinhausen/tap/tokenmax` installs and
+  `brew upgrade --cask tokenmax` follows releases, from a
+  [tap of its own](https://github.com/danieldrinhausen/homebrew-tap) that tracks
+  this repository's releases without anyone having to remember it. The download
+  is still the same signed, unnotarized image, so the one-time **Open Anyway**
+  remains — Homebrew quarantines what it fetches exactly as a browser does.
+
 ## [0.1.6] - 2026-08-07
 
 ### Added
