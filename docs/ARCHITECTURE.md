@@ -75,7 +75,14 @@ map](#the-drift-map) below has a small footprint.
 Two usage sources, merged by confidence and freshness in
 `ClaudeCodeProvider.merge`. The endpoint can be polled any time; the statusline
 only updates while a session runs. Codex is a parallel path through
-`CodexAppServerClient` and does not share these sources.
+`CodexAppServerClient` and does not share these sources: one short-lived
+read-only `codex app-server` per read, spoken to over JSON-RPC and allowed to
+exit, so no agent process lingers and Codex stays responsible for its own
+credentials. The same client answers `model/list`, which is how
+`CodexModelCatalogStore` populates the editor's model picker — the counterpart of
+`ModelCatalogStore` fetching Anthropic's `/v1/models`. Both cache to disk, both
+refresh at most daily, and both are a convenience rather than a gate: every
+failure path leaves the task editor usable.
 
 **One rule governs the whole right-hand side:** stale data postpones, it does not
 cancel. A failed refresh means "cannot currently confirm", not "the user does not
@@ -120,6 +127,39 @@ structural, not configurable:
   credits being enabled says nothing about proximity to the line.
 - The opener runs with every tool disabled, in a fresh temp directory, with an
   allowlisted environment, and refuses to run under an API key.
+
+**Codex reaches the same guarantees by different means**, and the difference is
+deliberate rather than an omission. Its documented boundary is a sandbox, not a
+per-tool allowlist, so `CodexSandbox` (`read-only` / `workspace-write`) carries
+what the file and shell toggles carry for Claude — and `-a never` means the run
+can never stop on an approval prompt nobody is there to answer. It reports no
+per-run cost, so there is no `--max-budget-usd` equivalent to enforce; the
+runtime ceiling and the sandbox are the whole budget. The API-key refusal is
+shared but arrives differently: Claude's is read from `~/.claude/settings.json`
+at gate time, while Codex's is a `ProviderError.apiKeyConfigured` the usage
+refresh already discovered, kept as a flag rather than re-derived from an error
+message that would break the first time its wording changed.
+
+**Which window is being spent** is `QueueAutoRun.burnWindow`. The session window
+whenever the provider reports one; failing that, and only for a provider the
+coordinator allows it, the weekly window. Codex on a Plus plan reports a single
+seven-day limit and no five-hour one, so without the fallback its queue would
+have nothing about to expire to spend against and could never run. Claude reports
+both and never takes it.
+
+The fallback changes exactly one gate. Applying `minimumSessionRemainingPercent`
+to a weekly burn window would judge one allowance against two thresholds and
+refuse at whichever is stricter — so the session floor is skipped there, and the
+weekly floor, which governs that same window, still holds. Everything that keys
+work to "the window" reads the same choice: the run's identity, the safety
+deadline, a failure pause, and the before/after figures on the run record. A
+pause cleared for a window nothing ran in is worse than no pause at all.
+
+Because a Codex window can be seven days long, `leadTimeMinutes`,
+`maximumTasksPerWindow` and `maximumRuntimeMinutes` are read from
+`CodexAutoRunOverrides` for Codex rather than from the shared settings — "one
+task per window" against a weekly window means one task a week. Nothing else in
+`QueueAutoRunSettings` is duplicated.
 
 An **appointment** — `TokenmaxTask.scheduledStart` — is the one thing that
 overrides any of the scheduler's decisions, and it overrides exactly one: which

@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-08-07
+
 ### Added
 
 - **A task can be run by Codex.** The queue could already execute a Codex task —
@@ -31,7 +33,6 @@ versions follow [semver](https://semver.org/).
   refreshes it at most daily, the same way it already handles Anthropic's model
   list. A model released after your copy of Tokenmax appears on its own, and
   **Other…** still accepts anything typed by hand.
-
 - **Installable with Homebrew.**
   `brew install --cask danieldrinhausen/tap/tokenmax` installs and
   `brew upgrade --cask tokenmax` follows releases, from a

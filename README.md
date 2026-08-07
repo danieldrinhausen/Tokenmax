@@ -463,6 +463,11 @@ on its own. Each list is cached to disk and refreshed at most daily, and either 
 accepts a hand-typed id under **Other…**. Leaving a Codex task on **Codex default** defers to the
 model in your own `~/.codex/config.toml`.
 
+Once the queue actually holds both, each card carries a small provider badge and the search row
+gains a **provider filter**. Neither appears on a queue that only ever uses one — a badge every card
+carries is decoration, not information — and the badge stands down while the filter is already
+saying which provider you are looking at.
+
 **View Result** opens what the run produced: the model's final answer first, then which tools it
 denied (the usual reason a run looks like it under-delivered), then a collapsed list of the steps it
 took. The answer can be copied, or the whole thing saved as Markdown. The raw newline-delimited JSON
