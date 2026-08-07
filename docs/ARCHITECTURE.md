@@ -121,6 +121,23 @@ structural, not configurable:
 - The opener runs with every tool disabled, in a fresh temp directory, with an
   allowlisted environment, and refuses to run under an API key.
 
+An **appointment** — `TokenmaxTask.scheduledStart` — is the one thing that
+overrides any of the scheduler's decisions, and it overrides exactly one: which
+moment is the right one. In `QueueAutoRunDecision.eligibility` it skips the three
+gates that exist to fit a task into the window paying for it, and nothing above
+them: approval, a working directory and a runtime estimate are still required,
+and every quota floor, quiet-hours rule and per-task limit still applies. It is
+checked ahead of ordinary queue order, so a higher-priority undated task cannot
+take the slot at the moment an appointment comes round.
+
+Two consequences worth knowing before touching it. Its runs are keyed by
+`scheduledWindowID` — derived from the appointment rather than from a reset
+timestamp, because a dated run may happen when no window is open at all — which
+is also why it does not consume the per-session task and runtime allowances.
+And because nothing evaluates while the Mac is asleep, a missed appointment
+expires (`scheduleExpired`) rather than running late; `notYetScheduled` is its
+waiting state and is a suppression the user need not act on.
+
 `ClaudeTaskRunner.environment` and `ClaudeOpenerRunner.environment` differ on
 purpose — a denylist for the runner (real projects need a working `PATH`), an
 allowlist for the opener (which needs nothing). The comment there says not to

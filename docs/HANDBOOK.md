@@ -345,6 +345,14 @@ budgets have room, and the task's **runtime limit** fits before the safety
 margin. When something blocks a run, the popover and Settings name which
 condition failed.
 
+A task given a **Schedule** answers the timing question by itself: it runs at
+that moment wherever the session is in its cycle, and opens one if none is
+running. Everything else in the list above still has to hold, which is why the
+first appointment most people set does not fire — the task was never marked
+**Always allow automatic execution**. It also runs once and expires if it is
+missed, since nothing evaluates while the Mac is asleep; **Settings → Queue
+Automation → Timing** decides how late is too late.
+
 ---
 
 ## The session opener
@@ -381,6 +389,13 @@ Enable the queue and automation. Mark two or three low-risk tasks as automatic,
 each with a runtime estimate, a runtime limit, and a spend limit you would be
 content to lose. Keep *pause after first failure* on. Leave shell access off
 unless a specific task genuinely needs it.
+
+**"This one job has to happen on Friday afternoon, not whenever a window closes."**
+Give the task a **Schedule**, and mark it **Always allow automatic execution**
+with a runtime estimate like any other unattended task — the date replaces the
+burn window, not the approval. Set it for a time the Mac will be awake and
+unlocked; an appointment that comes round during sleep is abandoned rather than
+run late.
 
 **"I want a window already warm when I start work at 9am."**
 Enable the session opener with a delay that lands it before you sit down. Accept

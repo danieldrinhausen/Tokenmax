@@ -312,6 +312,26 @@ That is the current behaviour, not a misconfiguration on your side.
 Run Codex tasks yourself with **Run with Provider**. Claude automation is
 unaffected.
 
+### An appointment came and went and nothing ran
+
+A task with a set time still has to satisfy every condition in the list above
+except the timing ones — the date answers "when", not "may this run at all". The
+two that catch people are the same two as ever: the task must be marked **Always
+allow automatic execution**, and it must have a runtime estimate. The editor
+warns about both while you are setting the time, and the card says which one is
+missing afterwards.
+
+If the card instead says the appointment **expired**, the Mac was almost
+certainly asleep at the time. Nothing evaluates while it sleeps, so an
+appointment that comes round unobserved is abandoned once it is older than **Run
+a missed appointment up to** minutes (Settings → Queue Automation → Timing)
+rather than starting hours late against a project that has moved on. Give it a
+new time, or raise that grace period if you routinely close the lid.
+
+An appointment that is simply still in the future reports itself as waiting, not
+as a problem, and it does not consume the per-session task or runtime budgets —
+so a full window is not the reason either.
+
 ### A Codex task ignored the cost cap
 
 There is no cost cap for Codex to ignore. Tokenmax enforces a per-run USD
