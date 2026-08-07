@@ -82,6 +82,13 @@ enum FileLocations {
 
     static var statuslineScript: URL { supportDirectory.appendingPathComponent("tokenmax-statusline.sh") }
 
+    /// The exact `statusLine` value displaced by the shim. Separate from the
+    /// settings-file backup because uninstall must restore this across launches,
+    /// after later Claude Code edits have legitimately changed other keys.
+    static var statuslineBackupFile: URL {
+        supportDirectory.appendingPathComponent("statusline-previous.json")
+    }
+
     static var logsDirectory: URL {
         let dir = supportDirectory.appendingPathComponent("logs", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

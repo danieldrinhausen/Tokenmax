@@ -24,9 +24,15 @@ struct StatuslineShimTests {
         )
         try? FileManager.default.removeItem(at: settingsFile)
         try? FileManager.default.removeItem(at: settingsFile.appendingPathExtension("tokenmax-backup"))
+        try? FileManager.default.removeItem(at: FileLocations.statuslineBackupFile)
+        try? FileManager.default.removeItem(at: FileLocations.statuslineScript)
         if let contents { try contents.write(to: settingsFile, atomically: true, encoding: .utf8) }
 
-        defer { try? FileManager.default.removeItem(at: settingsFile) }
+        defer {
+            try? FileManager.default.removeItem(at: settingsFile)
+            try? FileManager.default.removeItem(at: FileLocations.statuslineBackupFile)
+            try? FileManager.default.removeItem(at: FileLocations.statuslineScript)
+        }
         try body()
     }
 
@@ -82,6 +88,10 @@ struct StatuslineShimTests {
             #expect(after["model"] as? String == "opus")
             #expect(after["statusLine"] != nil)
             #expect(StatuslineShimInstaller.isInstalled)
+
+            let statusLine = try #require(after["statusLine"] as? [String: Any])
+            let command = try #require(statusLine["command"] as? String)
+            #expect(command == StatuslineShimInstaller.shellQuote(FileLocations.statuslineScript.path))
         }
     }
 
@@ -94,11 +104,11 @@ struct StatuslineShimTests {
     }
 
     /// An existing statusline is chained, not discarded — and uninstalling puts
-    /// the file back to something without a Tokenmax command in it.
-    @Test("Wraps an existing statusline, and removes only its own on uninstall")
+    /// its complete configuration back, including fields Tokenmax does not use.
+    @Test("Wraps an existing statusline, and restores it exactly on uninstall")
     func wrapsAndUnwraps() throws {
         let existing = #"""
-        {"statusLine": {"type": "command", "command": "/usr/local/bin/mystatus"}}
+        {"statusLine": {"type": "command", "command": "/usr/local/bin/mystatus", "padding": 2}}
         """#
         try withScratchSettings(existing) {
             try StatuslineShimInstaller.install()
@@ -107,9 +117,42 @@ struct StatuslineShimTests {
             let script = try String(contentsOf: FileLocations.statuslineScript, encoding: .utf8)
             #expect(script.contains("/usr/local/bin/mystatus"))
 
+            // A second install models opening Settings after an app relaunch.
+            // It must not replace the original undo record with its own shim.
+            try StatuslineShimInstaller.install()
+            try StatuslineShimInstaller.uninstall()
+            let restored = try #require(try readBack()["statusLine"] as? [String: Any])
+            #expect(restored["type"] as? String == "command")
+            #expect(restored["command"] as? String == "/usr/local/bin/mystatus")
+            #expect(restored["padding"] as? Int == 2)
+            #expect(!StatuslineShimInstaller.isInstalled)
+        }
+    }
+
+    @Test("A lookalike command is neither claimed nor removed")
+    func ignoresLookalikeCommand() throws {
+        let existing = #"""
+        {"statusLine": {"type": "command", "command": "echo tokenmax-statusline"}}
+        """#
+        try withScratchSettings(existing) {
+            #expect(!StatuslineShimInstaller.isInstalled)
+            try StatuslineShimInstaller.uninstall()
+            let statusLine = try #require(try readBack()["statusLine"] as? [String: Any])
+            #expect(statusLine["command"] as? String == "echo tokenmax-statusline")
+        }
+    }
+
+    @Test("Shell quoting handles spaces and apostrophes in the script path")
+    func quotesScriptPath() {
+        #expect(StatuslineShimInstaller.shellQuote("/tmp/it's here") == "'/tmp/it'\"'\"'s here'")
+    }
+
+    @Test("Uninstall removes the shim when no statusline existed before it")
+    func removesNewStatusline() throws {
+        try withScratchSettings(#"{"model": "opus"}"#) {
+            try StatuslineShimInstaller.install()
             try StatuslineShimInstaller.uninstall()
             #expect(try readBack()["statusLine"] == nil)
-            #expect(!StatuslineShimInstaller.isInstalled)
         }
     }
 

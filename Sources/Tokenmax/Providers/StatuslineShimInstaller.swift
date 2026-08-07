@@ -10,6 +10,7 @@ enum StatuslineShimInstaller {
     enum InstallError: LocalizedError {
         case cannotReadSettings
         case cannotWriteSettings(String)
+        case cannotRestorePreviousStatusline
 
         var errorDescription: String? {
             switch self {
@@ -19,6 +20,8 @@ enum StatuslineShimInstaller {
                     + "and try again."
             case let .cannotWriteSettings(message):
                 "Could not update ~/.claude/settings.json: \(message)"
+            case .cannotRestorePreviousStatusline:
+                "Tokenmax's saved status line could not be read, so the current configuration was left untouched. Reinstall the shim, then try again."
             }
         }
     }
@@ -52,8 +55,8 @@ enum StatuslineShimInstaller {
         # Tokenmax can read quota while a session is running, then delegates to
         # whatever status line was configured before.
         #
-        # Safe to delete: removing the "statusLine" key from ~/.claude/settings.json
-        # fully uninstalls it.
+        # Uninstall from Tokenmax Settings so the status line this replaced can
+        # be restored.
 
         set -uo pipefail
 
@@ -74,7 +77,7 @@ enum StatuslineShimInstaller {
               let statusLine = settings["statusLine"] as? [String: Any],
               let command = statusLine["command"] as? String
         else { return false }
-        return command.contains("tokenmax-statusline")
+        return owns(command: command)
     }
 
     static func install() throws {
@@ -85,18 +88,27 @@ enum StatuslineShimInstaller {
         // with a file containing nothing but `statusLine`. An unparseable file
         // is a reason to stop, not to start from scratch.
         guard var settings = readClaudeSettings() else { throw InstallError.cannotReadSettings }
-
-        // Preserve any existing statusline so we can chain to it.
-        var previousCommand: String?
         if let statusLine = settings["statusLine"] as? [String: Any],
            let command = statusLine["command"] as? String,
-           !command.contains("tokenmax-statusline")
+           owns(command: command)
+        {
+            return
+        }
+
+        // Preserve the whole value, not just its command. Claude Code may add
+        // fields Tokenmax does not know, and uninstall should be an exact undo.
+        let previousStatusLine = settings["statusLine"]
+        var previousCommand: String?
+        if let statusLine = previousStatusLine as? [String: Any],
+           let command = statusLine["command"] as? String,
+           !owns(command: command)
         {
             previousCommand = command
         }
 
         let scriptURL = FileLocations.statuslineScript
         do {
+            try savePreviousStatusLine(previousStatusLine)
             try script(wrapping: previousCommand).write(to: scriptURL, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes(
                 [.posixPermissions: 0o755],
@@ -108,11 +120,11 @@ enum StatuslineShimInstaller {
 
         settings["statusLine"] = [
             "type": "command",
-            "command": scriptURL.path,
+            "command": shellQuote(scriptURL.path),
         ]
 
         try writeClaudeSettings(settings)
-        Log.shared.write("statusline shim installed (wrapping: \(previousCommand ?? "none"))")
+        Log.shared.write("statusline shim installed (wrapping previous: \(previousCommand == nil ? "no" : "yes"))")
     }
 
     static func uninstall() throws {
@@ -121,13 +133,60 @@ enum StatuslineShimInstaller {
         guard var settings = readClaudeSettings() else { throw InstallError.cannotReadSettings }
         guard let statusLine = settings["statusLine"] as? [String: Any],
               let command = statusLine["command"] as? String,
-              command.contains("tokenmax-statusline")
+              owns(command: command)
         else { return }
 
-        settings.removeValue(forKey: "statusLine")
+        try restorePreviousStatusLine(into: &settings)
         try writeClaudeSettings(settings)
         try? FileManager.default.removeItem(at: FileLocations.statuslineScript)
+        try? FileManager.default.removeItem(at: FileLocations.statuslineBackupFile)
         Log.shared.write("statusline shim uninstalled")
+    }
+
+    /// POSIX-shell single quoting. The installed script lives under
+    /// `Application Support`, so leaving this as a bare path makes the shell try
+    /// to execute `~/Library/Application` instead.
+    static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\"'\"'") + "'"
+    }
+
+    private static func owns(command: String) -> Bool {
+        let path = FileLocations.statuslineScript.path
+        // The bare form recognises installs made by older Tokenmax versions so
+        // they remain removable; new installs always use the quoted form.
+        return command == shellQuote(path) || command == path
+    }
+
+    // MARK: - displaced status line
+
+    private static func savePreviousStatusLine(_ value: Any?) throws {
+        var backup: [String: Any] = ["hadStatusLine": value != nil]
+        if let value { backup["statusLine"] = value }
+        let data = try JSONSerialization.data(withJSONObject: backup, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: FileLocations.statuslineBackupFile, options: .atomic)
+    }
+
+    private static func restorePreviousStatusLine(into settings: inout [String: Any]) throws {
+        let url = FileLocations.statuslineBackupFile
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            // Legacy Tokenmax installs did not keep an exact undo record.
+            settings.removeValue(forKey: "statusLine")
+            return
+        }
+        guard let data = try? Data(contentsOf: url),
+              let backup = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hadStatusLine = backup["hadStatusLine"] as? Bool
+        else {
+            throw InstallError.cannotRestorePreviousStatusline
+        }
+        if hadStatusLine {
+            guard let previous = backup["statusLine"] else {
+                throw InstallError.cannotRestorePreviousStatusline
+            }
+            settings["statusLine"] = previous
+        } else {
+            settings.removeValue(forKey: "statusLine")
+        }
     }
 
     // MARK: - settings.json IO
