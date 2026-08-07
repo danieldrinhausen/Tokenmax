@@ -26,13 +26,16 @@ struct QueueAutoRunTests {
         )
     }
 
-    private func weekly(remaining: Double = 80) -> UsageWindow {
+    /// The default reset is a day out, which is far outside any lead time — so
+    /// a test that does not care about the weekly window cannot accidentally
+    /// have it picked as the window to burn.
+    private func weekly(remaining: Double = 80, resetInMinutes: Double = 1440) -> UsageWindow {
         UsageWindow(
             id: "claude.weekly",
             kind: .weekly,
             label: "Weekly",
             usedPercent: 100 - remaining,
-            resetAt: now.addingTimeInterval(86400),
+            resetAt: now.addingTimeInterval(resetInMinutes * 60),
             observedAt: now,
             source: .claudeOAuth,
             confidence: .authoritative
@@ -109,6 +112,9 @@ struct QueueAutoRunTests {
         /// quietly turn back into the default window.
         noSessionWindow: Bool = false,
         weeklyRemaining: Double? = 80,
+        weeklyResetInMinutes: Double = 1440,
+        burnFallsBackToWeekly: Bool = false,
+        providerID: String = TokenmaxProvider.claudeCode.rawValue,
         extraUsageEnabled: Bool? = false,
         isStale: Bool = false,
         cliInstalled: Bool = true,
@@ -119,11 +125,15 @@ struct QueueAutoRunTests {
         now: Date? = nil
     ) -> QueueAutoRun.Input {
         QueueAutoRun.Input(
+            providerID: providerID,
             settings: settings ?? self.settings(),
             queueEnabled: queueEnabled,
             quietHours: quietHours,
             sessionWindow: noSessionWindow ? nil : (session ?? self.session()),
-            weeklyWindow: weeklyRemaining.map { weekly(remaining: $0) },
+            weeklyWindow: weeklyRemaining.map {
+                weekly(remaining: $0, resetInMinutes: weeklyResetInMinutes)
+            },
+            burnFallsBackToWeekly: burnFallsBackToWeekly,
             extraUsageEnabled: extraUsageEnabled,
             isStale: isStale,
             cliInstalled: cliInstalled,
@@ -1029,5 +1039,120 @@ struct QueueAutoRunTests {
         let plain = task(title: "Plain", sortIndex: 10)
         let decision = QueueAutoRun.decide(input(tasks: [later, plain]))
         #expect(decision.taskID == plain.id)
+    }
+
+    // MARK: - The weekly window as the window to burn
+
+    /// Codex on a Plus plan reports a single 7-day limit and no 5-hour one. Its
+    /// queue would otherwise never run: there is no session window about to
+    /// expire, and the burn schedule has nothing else to spend against.
+    @Test("A provider with only a weekly window burns that window")
+    func weeklyWindowStandsInForAMissingSessionWindow() {
+        let decision = QueueAutoRun.decide(input(
+            noSessionWindow: true,
+            weeklyResetInMinutes: 30,
+            burnFallsBackToWeekly: true,
+            providerID: TokenmaxProvider.codex.rawValue
+        ))
+        #expect(decision.taskID != nil, "expected a run, got \(decision)")
+        #expect(decision.windowID?.hasPrefix("autorun-codex-") == true)
+    }
+
+    /// The other half of the case above, and the one that matters more: Claude
+    /// reports both windows, so it must never start spending a seven-day
+    /// allowance because the five-hour one happens to be absent.
+    @Test("Without the fallback a missing session window still refuses")
+    func weeklyWindowIsNotBurntWithoutTheFallback() {
+        let decision = QueueAutoRun.decide(input(
+            noSessionWindow: true,
+            weeklyResetInMinutes: 30,
+            burnFallsBackToWeekly: false
+        ))
+        #expect(decision.skipReason == .noSessionWindow)
+    }
+
+    /// The session window expires soonest, so it is the one worth spending. The
+    /// fallback is a stand-in, never a second schedule.
+    @Test("The session window wins when the provider reports both")
+    func sessionWindowIsPreferredOverWeekly() {
+        let sessionReset = now.addingTimeInterval(30 * 60)
+        let decision = QueueAutoRun.decide(input(
+            session: session(resetInMinutes: 30),
+            weeklyResetInMinutes: 20,
+            burnFallsBackToWeekly: true,
+            providerID: TokenmaxProvider.codex.rawValue
+        ))
+        #expect(decision.windowID == QueueAutoRun.windowID(
+            resetAt: sessionReset,
+            providerID: TokenmaxProvider.codex.rawValue
+        ))
+    }
+
+    /// One allowance must not be judged against two thresholds. The session
+    /// floor is written for a five-hour window; applied to the weekly window it
+    /// would refuse at 25% where the user asked to be stopped at 10%.
+    @Test("The session floor is not applied to a weekly burn window")
+    func sessionFloorDoesNotGovernAWeeklyBurnWindow() {
+        // Below the 25% session floor, comfortably above the 10% weekly one.
+        let decision = QueueAutoRun.decide(input(
+            noSessionWindow: true,
+            weeklyRemaining: 20,
+            weeklyResetInMinutes: 30,
+            burnFallsBackToWeekly: true,
+            providerID: TokenmaxProvider.codex.rawValue
+        ))
+        #expect(decision.taskID != nil, "expected a run, got \(decision)")
+    }
+
+    /// The weekly floor is the one that governs it, and it still refuses.
+    @Test("The weekly floor still holds for a weekly burn window")
+    func weeklyFloorStillGovernsAWeeklyBurnWindow() {
+        let decision = QueueAutoRun.decide(input(
+            noSessionWindow: true,
+            weeklyRemaining: 5,
+            weeklyResetInMinutes: 30,
+            burnFallsBackToWeekly: true,
+            providerID: TokenmaxProvider.codex.rawValue
+        ))
+        #expect(decision.skipReason == .weeklyQuotaLow)
+    }
+
+    /// The lead window is not skipped for the stand-in. A seven-day window that
+    /// resets on Friday must not run a task on Monday.
+    @Test("A weekly burn window outside the lead time refuses")
+    func weeklyBurnWindowRespectsTheLeadTime() {
+        let decision = QueueAutoRun.decide(input(
+            noSessionWindow: true,
+            weeklyResetInMinutes: 600,
+            burnFallsBackToWeekly: true,
+            providerID: TokenmaxProvider.codex.rawValue
+        ))
+        #expect(decision.skipReason == .outsideLeadWindow)
+    }
+
+    /// A window that has not started yet is not a window to burn, whichever
+    /// window it is.
+    @Test("A weekly window that has not started is not burnt")
+    func unstartedWeeklyWindowIsNotBurnt() {
+        let unstarted = UsageWindow(
+            id: "codex.weekly",
+            kind: .weekly,
+            label: "Weekly",
+            usedPercent: 0,
+            resetAt: nil,
+            observedAt: now,
+            source: .codexAppServer,
+            confidence: .authoritative
+        )
+        let decision = QueueAutoRun.decide(QueueAutoRun.Input(
+            providerID: TokenmaxProvider.codex.rawValue,
+            settings: settings(),
+            sessionWindow: nil,
+            weeklyWindow: unstarted,
+            burnFallsBackToWeekly: true,
+            tasks: [task()],
+            now: now
+        ))
+        #expect(decision.skipReason == .noSessionWindow)
     }
 }

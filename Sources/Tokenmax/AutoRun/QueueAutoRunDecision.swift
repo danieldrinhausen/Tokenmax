@@ -98,9 +98,9 @@ enum QueueAutoRunDecision: Equatable, Sendable {
             case .dataStale:
                 "Waiting for a fresh usage reading before running anything."
             case .noSessionWindow:
-                "No session window is running."
+                "No quota window is open, so nothing is about to expire."
             case .outsideLeadWindow:
-                "The session is not close enough to resetting yet."
+                "The window is not close enough to resetting yet."
             case .quietHours:
                 "Inside quiet hours."
             case .sessionQuotaLow:
@@ -121,13 +121,13 @@ enum QueueAutoRunDecision: Equatable, Sendable {
             case .runInFlight:
                 "A task is already running."
             case .maximumTasksReached:
-                "Already ran the maximum number of tasks for this session."
+                "Already ran the maximum number of tasks for this window."
             case .maximumRuntimeReached:
-                "Already used the maximum automatic runtime for this session."
+                "Already used the maximum automatic runtime for this window."
             case .awaitingFreshUsage:
                 "Waiting for a fresh quota reading after the last task."
             case .pausedAfterFailure:
-                "Paused for this session because a task failed."
+                "Paused for this window because a task failed."
             case .statePersistenceFailed:
                 "The run record could not be saved, so nothing was started. Restart Tokenmax after checking free disk space and folder permissions."
             case .noApprovedTask:
@@ -145,7 +145,7 @@ enum QueueAutoRunDecision: Equatable, Sendable {
             case .noRuntimeEstimate:
                 "No estimated runtime has been set."
             case .runtimeExceedsWindowBudget:
-                "Its runtime limit is longer than the remaining automatic runtime for this session."
+                "Its runtime limit is longer than the remaining automatic runtime for this window."
             case .notYetScheduled:
                 "Waiting for the time it is scheduled to run."
             case .scheduleExpired:
@@ -196,6 +196,16 @@ enum QueueAutoRun {
         var quietHours: QuietHours
         var sessionWindow: UsageWindow?
         var weeklyWindow: UsageWindow?
+        /// Whether the weekly window may stand in as the window to burn when the
+        /// provider reports no session window at all.
+        ///
+        /// A named input rather than a `providerID == "codex"` test in here,
+        /// because which providers get the fallback is the coordinator's to
+        /// decide. Codex on a Plus plan reports a single 7-day limit and no
+        /// 5-hour one, so without this its queue could never run: there would
+        /// never be a window about to expire to spend against. Claude always
+        /// reports both, and leaves this off.
+        var burnFallsBackToWeekly: Bool
         /// Whether the account bills for usage past the plan allowance. nil is
         /// "unknown", not "no" — the provider may not report it at all.
         var extraUsageEnabled: Bool?
@@ -219,6 +229,7 @@ enum QueueAutoRun {
             quietHours: QuietHours = .init(),
             sessionWindow: UsageWindow?,
             weeklyWindow: UsageWindow?,
+            burnFallsBackToWeekly: Bool = false,
             extraUsageEnabled: Bool? = false,
             isStale: Bool = false,
             cliInstalled: Bool = true,
@@ -234,6 +245,7 @@ enum QueueAutoRun {
             self.quietHours = quietHours
             self.sessionWindow = sessionWindow
             self.weeklyWindow = weeklyWindow
+            self.burnFallsBackToWeekly = burnFallsBackToWeekly
             self.extraUsageEnabled = extraUsageEnabled
             self.isStale = isStale
             self.cliInstalled = cliInstalled
@@ -266,6 +278,55 @@ enum QueueAutoRun {
         // independent when the two providers happen to reset together.
         let prefix = providerID == TokenmaxProvider.claudeCode.rawValue ? "autorun-" : "autorun-\(providerID)-"
         return prefix + formatter.string(from: bucketed)
+    }
+
+    // MARK: - The window being burnt
+
+    /// The window whose expiry the burn schedule is spending against.
+    struct BurnWindow: Equatable, Sendable {
+        var window: UsageWindow
+        var resetAt: Date
+        /// True when this is the weekly window standing in for a session window
+        /// the provider does not report. It changes one thing: the session
+        /// quota floor has nothing of its own left to check, because the weekly
+        /// floor already governs this very allowance.
+        var isWeekly: Bool
+    }
+
+    /// A window that has not started is not a window: there is no reset to
+    /// count down to, and its whole allowance is still intact.
+    private static func started(_ window: UsageWindow?) -> (UsageWindow, Date)? {
+        guard let window, let resetAt = window.resetAt, !window.hasNotStarted else { return nil }
+        return (window, resetAt)
+    }
+
+    /// Which window, if any, the burn schedule should be reasoning about.
+    ///
+    /// The session window whenever the provider reports one — that is the
+    /// allowance that expires soonest and so the one worth spending. Only when
+    /// there is none, and only for a provider allowed the fallback, does the
+    /// weekly window take its place.
+    static func burnWindow(
+        session: UsageWindow?,
+        weekly: UsageWindow?,
+        fallsBackToWeekly: Bool
+    ) -> BurnWindow? {
+        if let (window, resetAt) = started(session) {
+            return BurnWindow(window: window, resetAt: resetAt, isWeekly: false)
+        }
+        guard fallsBackToWeekly, let (window, resetAt) = started(weekly) else { return nil }
+        return BurnWindow(window: window, resetAt: resetAt, isWeekly: true)
+    }
+
+    /// The `Input` form. Split from the one above so the coordinator can ask the
+    /// same question of a bare snapshot — mid-run, once a second — without
+    /// rebuilding `Input`, and without a second copy of the rule to keep in step.
+    static func burnWindow(_ input: Input) -> BurnWindow? {
+        burnWindow(
+            session: input.sessionWindow,
+            weekly: input.weeklyWindow,
+            fallsBackToWeekly: input.burnFallsBackToWeekly
+        )
     }
 
     // MARK: - Time budget
@@ -383,10 +444,11 @@ enum QueueAutoRun {
     /// The first task that could be run, in queue order.
     static func nextEligibleTask(_ input: Input) -> TokenmaxTask? {
         let remaining = remainingWindowRuntime(input)
+        let resetAt = burnWindow(input)?.resetAt
         return input.tasks.first { task in
             eligibility(
                 for: task,
-                resetAt: input.sessionWindow?.resetAt,
+                resetAt: resetAt,
                 settings: input.settings,
                 remainingWindowRuntime: remaining,
                 now: input.now
@@ -404,7 +466,7 @@ enum QueueAutoRun {
     }
 
     static func remainingWindowRuntime(_ input: Input) -> TimeInterval? {
-        guard let resetAt = input.sessionWindow?.resetAt else { return nil }
+        guard let resetAt = burnWindow(input)?.resetAt else { return nil }
         let used = input.state.totalRuntime(
             inWindow: windowID(resetAt: resetAt, providerID: input.providerID), now: input.now
         )
@@ -440,22 +502,17 @@ enum QueueAutoRun {
         // kept in step.
         let due = dueScheduledTask(input)
 
-        // A window that has not started is not a window. The burn schedule has
-        // nothing to reason about without one; an appointment does not need one
-        // and may itself be what opens it.
-        let session = input.sessionWindow.flatMap {
-            $0.resetAt != nil && !$0.hasNotStarted ? $0 : nil
-        }
+        // The burn schedule has nothing to reason about without an open window;
+        // an appointment does not need one and may itself be what opens it.
+        let burn = burnWindow(input)
         guard let dueTask = due else {
-            guard let session, let resetAt = session.resetAt else {
-                return .skip(reason: .noSessionWindow)
-            }
-            return decideForBurnWindow(input, session: session, resetAt: resetAt)
+            guard let burn else { return .skip(reason: .noSessionWindow) }
+            return decideForBurnWindow(input, burn: burn)
         }
 
         // Keyed to the live window when there is one, so a failure pause and
         // the run history still line up; otherwise to the appointment itself.
-        let window = session?.resetAt.map { windowID(resetAt: $0, providerID: input.providerID) }
+        let window = burn.map { windowID(resetAt: $0.resetAt, providerID: input.providerID) }
             ?? scheduledWindowID(for: dueTask)
 
         if input.state.isPaused(window) { return .skip(reason: .pausedAfterFailure) }
@@ -470,7 +527,7 @@ enum QueueAutoRun {
         // that ration — `RunTrigger.scheduled` keeps it out of the arithmetic
         // too. Every quota, account and safety gate below still applies, so an
         // appointment can spend no more than the same task would have.
-        if let reason = quotaGates(input, session: session) { return .skip(reason: reason) }
+        if let reason = quotaGates(input, burn: burn) { return .skip(reason: reason) }
 
         switch settings.mode {
         case .previewOnly: return .preview(taskID: dueTask.id, windowID: window)
@@ -482,10 +539,10 @@ enum QueueAutoRun {
     /// The ordinary path: spend what is about to expire.
     private static func decideForBurnWindow(
         _ input: Input,
-        session: UsageWindow,
-        resetAt: Date
+        burn: BurnWindow
     ) -> QueueAutoRunDecision {
         let settings = input.settings
+        let resetAt = burn.resetAt
         let window = windowID(resetAt: resetAt, providerID: input.providerID)
 
         if input.state.isPaused(window) { return .skip(reason: .pausedAfterFailure) }
@@ -514,7 +571,7 @@ enum QueueAutoRun {
         )
         guard remainingRuntime > 0 else { return .skip(reason: .maximumRuntimeReached) }
 
-        if let reason = quotaGates(input, session: session) { return .skip(reason: reason) }
+        if let reason = quotaGates(input, burn: burn) { return .skip(reason: reason) }
 
         guard let task = nextEligibleTask(input) else {
             return .skip(reason: noEligibleTaskReason(input))
@@ -534,17 +591,22 @@ enum QueueAutoRun {
     /// so a dated run can reach no further into the allowance than the same
     /// task would have reached on its own.
     ///
-    /// `session` is nil when no window is open, which only an appointment can
+    /// `burn` is nil when no window is open, which only an appointment can
     /// reach. There is nothing to check in that case: a window that has not
     /// started has its whole allowance intact.
     private static func quotaGates(
         _ input: Input,
-        session: UsageWindow?
+        burn: BurnWindow?
     ) -> QueueAutoRunDecision.SkipReason? {
         let settings = input.settings
 
-        if let session {
-            guard let sessionRemaining = session.remainingPercent,
+        // Skipped when the weekly window is itself the one being burnt: the
+        // weekly floor below governs that same allowance, and measuring one
+        // number against two thresholds would silently refuse at whichever
+        // happens to be stricter — usually the session floor, which was never
+        // written with a seven-day allowance in mind.
+        if let burn, !burn.isWeekly {
+            guard let sessionRemaining = burn.window.remainingPercent,
                   sessionRemaining >= settings.minimumSessionRemainingPercent
             else {
                 return .sessionQuotaLow
@@ -586,12 +648,14 @@ enum QueueAutoRun {
         // A scheduling reason is reported only when it explains *every*
         // approved task: one dated for tomorrow must not mask a second that
         // will genuinely not fit before the reset, which is the actionable half.
+        let resetAt = burnWindow(input)?.resetAt
+        let remaining = remainingWindowRuntime(input)
         let reasons = approved.map { task in
             eligibility(
                 for: task,
-                resetAt: input.sessionWindow?.resetAt,
+                resetAt: resetAt,
                 settings: input.settings,
-                remainingWindowRuntime: remainingWindowRuntime(input),
+                remainingWindowRuntime: remaining,
                 now: input.now
             )
         }

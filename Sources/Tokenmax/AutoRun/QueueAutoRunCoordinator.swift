@@ -184,6 +184,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             quietHours: settingsStore.settings.quietHours,
             sessionWindow: snapshot?.sessionWindow,
             weeklyWindow: snapshot?.weeklyWindow,
+            burnFallsBackToWeekly: burnFallsBackToWeekly(provider),
             extraUsageEnabled: snapshot?.extraUsageEnabled,
             isStale: usage.isStale(for: provider),
             cliInstalled: cliInstalled(provider),
@@ -197,6 +198,30 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     /// The providers the user is still monitoring. Never empty.
     private var enabledProviders: [TokenmaxProvider] { settingsStore.settings.enabledProviders }
+
+    /// Whether this provider's queue may spend the weekly window when no
+    /// session window is reported.
+    ///
+    /// Codex on a Plus plan reports a single 7-day limit and no 5-hour one, so
+    /// without this its queue has no window about to expire and can never run.
+    /// Claude always reports both. The one place this fact lives.
+    private func burnFallsBackToWeekly(_ provider: TokenmaxProvider) -> Bool {
+        provider == .codex
+    }
+
+    /// The window a run for `provider` is paid out of, picked by the same rule
+    /// `QueueAutoRun.decide` used. Everything that keys work to "the window" —
+    /// the run's identity, the safety deadline, a failure pause — must agree
+    /// with the decision that started it, or a pause is cleared for a window
+    /// nothing ran in.
+    private func burnWindow(for provider: TokenmaxProvider) -> QueueAutoRun.BurnWindow? {
+        guard let snapshot = usage.snapshot(for: provider) else { return nil }
+        return QueueAutoRun.burnWindow(
+            session: snapshot.sessionWindow,
+            weekly: snapshot.weeklyWindow,
+            fallsBackToWeekly: burnFallsBackToWeekly(provider)
+        )
+    }
 
     private func cliInstalled(_ provider: TokenmaxProvider = .claudeCode) -> Bool {
         if provider == .codex { return CodexCLIClient.isInstalled }
@@ -306,12 +331,12 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// The two reasons to end a run that is already under way. Everything else
     /// is decided before a process exists.
     private func enforceRunLimits() {
-        guard let snapshot = usage.snapshot(
-            for: activeRun.flatMap { TokenmaxProvider.from(identifier: $0.providerID) } ?? usage.selectedProvider
-        ) else { return }
+        let provider = activeRun.flatMap { TokenmaxProvider.from(identifier: $0.providerID) }
+            ?? usage.selectedProvider
+        guard let snapshot = usage.snapshot(for: provider) else { return }
 
         enforceQuotaExhaustion(snapshot)
-        enforceResetBoundary(snapshot)
+        enforceResetBoundary(for: provider)
     }
 
     /// Stops a running task at the safety deadline, but only if the user asked
@@ -321,9 +346,11 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// progress: the quota it was going to spend has already been spent, and a
     /// task terminated halfway through an edit leaves the project worse than
     /// never having run it. Only a deliberate opt-in changes that.
-    private func enforceResetBoundary(_ snapshot: UsageSnapshot) {
+    private func enforceResetBoundary(for provider: TokenmaxProvider) {
         guard settingsStore.settings.queueAutoRun.resetBoundaryBehavior == .stopAtDeadline else { return }
-        guard let resetAt = snapshot.sessionWindow?.resetAt else { return }
+        // The window the run was budgeted against, which for a provider that
+        // reports no session window is the weekly one.
+        guard let resetAt = burnWindow(for: provider)?.resetAt else { return }
 
         let deadline = QueueAutoRun.effectiveDeadline(
             resetAt: resetAt,
@@ -484,7 +511,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
             effort: task.selectedEffort,
             workingDirectory: task.workingDirectory ?? "",
             status: .starting,
-            sessionRemainingBefore: usage.snapshot(for: task.provider)?.sessionWindow?.remainingPercent
+            // The window the run is actually being paid out of, so the before
+            // and after figures on the record describe the same allowance the
+            // run was budgeted against.
+            sessionRemainingBefore: burnWindow(for: task.provider)?.window.remainingPercent
         )
         record.outputFile = FileLocations.runLogFile(runID: runID).lastPathComponent
         record.replyText = reply
@@ -637,7 +667,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             freshUsageNeededAfter = nil
             awaitingFreshUsage = false
             if var run = lastRun, run.sessionRemainingAfter == nil, run.status.isFinished {
-                run.sessionRemainingAfter = snapshot.sessionWindow?.remainingPercent
+                run.sessionRemainingAfter = burnWindow(for: provider)?.window.remainingPercent
                 state.record(run)
                 persist()
                 lastRun = run
@@ -728,7 +758,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return gate
         }
 
-        let windowID = usage.snapshot(for: task.provider)?.sessionWindow?.resetAt
+        let resetAt = burnWindow(for: task.provider)?.resetAt
+        let windowID = resetAt
             .map { QueueAutoRun.windowID(resetAt: $0, providerID: task.provider.rawValue) } ?? "autorun-manual"
         return run(task, windowID: windowID, trigger: .manual)
     }
@@ -772,7 +803,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return gate
         }
 
-        let windowID = usage.snapshot(for: task.provider)?.sessionWindow?.resetAt
+        let resetAt = burnWindow(for: task.provider)?.resetAt
+        let windowID = resetAt
             .map { QueueAutoRun.windowID(resetAt: $0, providerID: task.provider.rawValue) } ?? "autorun-manual"
         return run(task, windowID: windowID, trigger: .manual, reply: message, resuming: sessionID)
     }
@@ -806,7 +838,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     /// Clears a failure pause so the queue can act again in this window.
     func resumeAfterFailure() {
-        guard let resetAt = usage.snapshot(for: usage.selectedProvider)?.sessionWindow?.resetAt else { return }
+        guard let resetAt = burnWindow(for: usage.selectedProvider)?.resetAt else { return }
         state.resume(QueueAutoRun.windowID(resetAt: resetAt, providerID: usage.selectedProvider.rawValue))
         persist()
         evaluate()
@@ -819,7 +851,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         let input = makeInput(provider: task.provider)
         return QueueAutoRun.eligibility(
             for: task,
-            resetAt: input.sessionWindow?.resetAt,
+            resetAt: QueueAutoRun.burnWindow(input)?.resetAt,
             settings: input.settings,
             remainingWindowRuntime: QueueAutoRun.remainingWindowRuntime(input),
             now: input.now
@@ -843,7 +875,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             let input = makeInput(provider: task.provider)
             result[task.id] = QueueAutoRun.eligibility(
                 for: task,
-                resetAt: input.sessionWindow?.resetAt,
+                resetAt: QueueAutoRun.burnWindow(input)?.resetAt,
                 settings: input.settings,
                 remainingWindowRuntime: QueueAutoRun.remainingWindowRuntime(input),
                 now: input.now
