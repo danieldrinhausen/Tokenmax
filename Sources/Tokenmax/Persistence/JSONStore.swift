@@ -27,20 +27,26 @@ enum JSONStore {
         }
     }
 
-    static func save(_ value: some Encodable, to url: URL) {
+    @discardableResult
+    static func save(_ value: some Encodable, to url: URL) -> Bool {
+        var temp: URL?
         do {
             let data = try makeEncoder().encode(value)
-            let temp = url.deletingLastPathComponent()
+            let destination = url.deletingLastPathComponent()
                 .appendingPathComponent(".\(url.lastPathComponent).tmp-\(UUID().uuidString)")
-            try data.write(to: temp, options: .atomic)
+            temp = destination
+            try data.write(to: destination, options: .atomic)
 
             if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: destination)
             } else {
-                try FileManager.default.moveItem(at: temp, to: url)
+                try FileManager.default.moveItem(at: destination, to: url)
             }
+            return true
         } catch {
+            if let temp { try? FileManager.default.removeItem(at: temp) }
             Log.shared.write("JSONStore save failed for \(url.lastPathComponent): \(error)")
+            return false
         }
     }
 }

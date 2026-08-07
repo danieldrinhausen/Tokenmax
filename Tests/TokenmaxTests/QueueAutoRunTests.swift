@@ -130,6 +130,32 @@ struct QueueAutoRunTests {
 
     // MARK: - The happy path
 
+    @Test("A task never launches when its starting record cannot be saved")
+    @MainActor
+    func persistenceFailureFailsClosed() {
+        let record = TaskRunRecord(
+            taskID: UUID(),
+            taskTitle: "Never launch",
+            windowID: "window",
+            trigger: .automatic,
+            providerID: ClaudeCodeProvider.providerID,
+            model: "sonnet",
+            workingDirectory: realDirectory
+        )
+        var didLaunch = false
+
+        let launched = QueueAutoRunCoordinator.recordAndLaunchIfPersisted(
+            state: QueueAutoRunState(),
+            record: record,
+            persist: { _ in false }
+        ) { _ in
+            didLaunch = true
+        }
+
+        #expect(!launched)
+        #expect(!didLaunch)
+    }
+
     @Test("Runs an approved task inside the lead window")
     func runsApprovedTask() throws {
         let queued = task()

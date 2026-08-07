@@ -529,6 +529,17 @@ struct PersistenceCompatibilityTests {
 
     // MARK: - Round trip
 
+    @Test("A failed save is reported to safety-critical callers")
+    func reportsSaveFailure() throws {
+        let parentFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenmax-not-a-directory-\(UUID().uuidString)")
+        try Data().write(to: parentFile)
+        defer { try? FileManager.default.removeItem(at: parentFile) }
+
+        let impossible = parentFile.appendingPathComponent("state.json")
+        #expect(!JSONStore.save(AppSettings(), to: impossible))
+    }
+
     @Test("Everything survives a full encode/decode round trip")
     func roundTrips() throws {
         var settings = AppSettings()

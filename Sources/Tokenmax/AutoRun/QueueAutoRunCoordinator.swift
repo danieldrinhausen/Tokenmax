@@ -41,8 +41,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
     private let taskStore: TaskStore
     private let settingsStore: SettingsStore
     private let notifications: AutoRunNotifier
+    private let persistState: (QueueAutoRunState) -> Bool
 
     private var state: QueueAutoRunState
+    /// Once persistence has failed, no further paid process may start in this
+    /// app lifetime. A restart is the explicit retry after the disk problem is
+    /// fixed; a timer silently gambling on it is not.
+    private var statePersistenceFailed = false
     private var cancellables: Set<AnyCancellable> = []
     private var runTask: Task<Void, Never>?
     /// Set when a run finishes; cleared once a snapshot fetched after it lands.
@@ -66,12 +71,16 @@ final class QueueAutoRunCoordinator: ObservableObject {
         usage: ProviderUsageCoordinator,
         taskStore: TaskStore,
         settingsStore: SettingsStore,
-        notifications: AutoRunNotifier = AutoRunNotifier()
+        notifications: AutoRunNotifier = AutoRunNotifier(),
+        persistState: @escaping (QueueAutoRunState) -> Bool = {
+            JSONStore.save($0, to: FileLocations.queueAutoRunStateFile)
+        }
     ) {
         self.usage = usage
         self.taskStore = taskStore
         self.settingsStore = settingsStore
         self.notifications = notifications
+        self.persistState = persistState
         state = JSONStore.load(QueueAutoRunState.self, from: FileLocations.queueAutoRunStateFile)
             ?? QueueAutoRunState()
         lastRun = state.mostRecentRun
@@ -203,6 +212,11 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // touching anything that costs more than a bool.
         guard settingsStore.settings.queueAutoRun.enabled else {
             publish(.skip(reason: .disabled))
+            pendingRun = nil
+            return
+        }
+        guard !statePersistenceFailed else {
+            publish(.skip(reason: .statePersistenceFailed))
             pendingRun = nil
             return
         }
@@ -364,13 +378,16 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// `reply` continues `resuming`'s conversation instead of starting the task
     /// from its own prompt. Everything else about the run is identical, which is
     /// the point: a follow-up gets the same caps, gates, and recording.
+    @discardableResult
     private func run(
         _ task: TokenmaxTask,
         windowID: String,
         trigger: RunTrigger,
         reply: String? = nil,
         resuming sessionID: String? = nil
-    ) {
+    ) -> QueueAutoRunDecision.SkipReason? {
+        guard !statePersistenceFailed else { return .statePersistenceFailed }
+
         let runID = UUID()
         var record = TaskRunRecord(
             id: runID,
@@ -394,33 +411,44 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // Written *before* the process starts, for the same reason the opener
         // does it: a crash between spawning and recording would leave no trace
         // of quota that was really spent, and the next launch would run again.
-        state.record(record)
-        persist()
+        let launched = Self.recordAndLaunchIfPersisted(
+            state: state,
+            record: record,
+            persist: persistState
+        ) { [self] persistedState in
+            state = persistedState
+            pruneRunLogs()
+            activeRun = record
+            lastRun = record
+            progressText = "Starting…"
+            taskStore.setStatus(.running, for: task)
+            notifications.started(task: task)
 
-        activeRun = record
-        lastRun = record
-        progressText = "Starting…"
-        taskStore.setStatus(.running, for: task)
-        notifications.started(task: task)
+            Log.shared.write("autorun: run \(runID) started (\(trigger.rawValue)) — \(task.title)")
 
-        Log.shared.write("autorun: run \(runID) started (\(trigger.rawValue)) — \(task.title)")
-
-        runTask = Task { [weak self] in
-            let progress: @Sendable (String) -> Void = { text in
-                Task { @MainActor in self?.progressText = text }
+            runTask = Task { [weak self] in
+                let progress: @Sendable (String) -> Void = { text in
+                    Task { @MainActor in self?.progressText = text }
+                }
+                let result: ClaudeTaskRunner.Result
+                if task.provider == .codex {
+                    result = await CodexTaskRunner.run(
+                        task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
+                    )
+                } else {
+                    result = await ClaudeTaskRunner.run(
+                        task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
+                    )
+                }
+                await self?.finish(record: record, task: task, result: result)
             }
-            let result: ClaudeTaskRunner.Result
-            if task.provider == .codex {
-                result = await CodexTaskRunner.run(
-                    task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
-                )
-            } else {
-                result = await ClaudeTaskRunner.run(
-                    task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
-                )
-            }
-            await self?.finish(record: record, task: task, result: result)
         }
+
+        guard launched else {
+            notePersistenceFailure()
+            return .statePersistenceFailed
+        }
+        return nil
     }
 
     private func finish(record: TaskRunRecord, task: TokenmaxTask, result: ClaudeTaskRunner.Result) async {
@@ -599,8 +627,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
         let windowID = usage.snapshot(for: task.provider)?.sessionWindow?.resetAt
             .map { QueueAutoRun.windowID(resetAt: $0, providerID: task.provider.rawValue) } ?? "autorun-manual"
-        run(task, windowID: windowID, trigger: .manual)
-        return nil
+        return run(task, windowID: windowID, trigger: .manual)
     }
 
     /// Continues an earlier run's conversation with a follow-up message.
@@ -644,8 +671,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
         let windowID = usage.snapshot(for: task.provider)?.sessionWindow?.resetAt
             .map { QueueAutoRun.windowID(resetAt: $0, providerID: task.provider.rawValue) } ?? "autorun-manual"
-        run(task, windowID: windowID, trigger: .manual, reply: message, resuming: sessionID)
-        return nil
+        return run(task, windowID: windowID, trigger: .manual, reply: message, resuming: sessionID)
     }
 
     /// Whether a reply could be sent for this run right now, and if not, why.
@@ -762,9 +788,39 @@ final class QueueAutoRunCoordinator: ObservableObject {
         }
     }
 
-    private func persist() {
-        JSONStore.save(state, to: FileLocations.queueAutoRunStateFile)
+    /// The launch barrier is kept here, at the side-effect boundary, so tests
+    /// can prove a failed write never reaches the process-starting closure.
+    static func recordAndLaunchIfPersisted(
+        state: QueueAutoRunState,
+        record: TaskRunRecord,
+        persist: (QueueAutoRunState) -> Bool,
+        launch: (QueueAutoRunState) -> Void
+    ) -> Bool {
+        var candidate = state
+        candidate.record(record)
+        guard persist(candidate) else { return false }
+        launch(candidate)
+        return true
+    }
 
+    @discardableResult
+    private func persist() -> Bool {
+        guard persistState(state) else {
+            notePersistenceFailure()
+            return false
+        }
+        pruneRunLogs()
+        return true
+    }
+
+    private func notePersistenceFailure() {
+        guard !statePersistenceFailed else { return }
+        statePersistenceFailed = true
+        publish(.skip(reason: .statePersistenceFailed))
+        Log.shared.write("autorun: state persistence failed — refusing further runs")
+    }
+
+    private func pruneRunLogs() {
         // Tied to the save rather than to trimming `runs`, so the state stays a
         // pure value type and the sweep also catches transcripts orphaned before
         // this existed. Only a run the state still lists is reachable from the

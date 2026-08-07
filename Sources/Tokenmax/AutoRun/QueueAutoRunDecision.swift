@@ -38,6 +38,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         case awaitingFreshUsage
         /// The queue was paused by a failure in this window.
         case pausedAfterFailure
+        /// The pre-launch run record could not be committed to disk.
+        case statePersistenceFailed
         /// Nothing in the queue is marked for automatic execution.
         case noApprovedTask
         /// There are approved tasks, but none can finish before the deadline.
@@ -107,6 +109,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "Waiting for a fresh quota reading after the last task."
             case .pausedAfterFailure:
                 "Paused for this session because a task failed."
+            case .statePersistenceFailed:
+                "The run record could not be saved, so nothing was started. Restart Tokenmax after checking free disk space and folder permissions."
             case .noApprovedTask:
                 "No queued task is marked for automatic execution."
             case .insufficientTime:
