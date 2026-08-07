@@ -22,6 +22,9 @@ versions follow [semver](https://semver.org/).
   per-window allowances for that reason — against a seven-day window, "one task
   per window" means one a week. Everything else is shared with Claude, including
   appointments at a specific date and time.
+- **A mixed queue says which agent runs what.** Cards carry a provider badge
+  once the queue actually holds both, and the search row gains a provider
+  filter. Neither appears on a queue that only ever uses one.
 - **The Codex model is a list rather than a typed-in id.** Codex reports its own
   models over the App Server, including which reasoning levels each one accepts —
   they genuinely differ per model. Tokenmax now asks, caches the answer, and

@@ -24,6 +24,12 @@ struct AutoRunStatusBannerView: View {
             .animation(.easeInOut(duration: 0.2), value: activeRun?.id)
     }
 
+    /// Falls back to the stored id rather than to "Claude Code": a record whose
+    /// provider is no longer recognised should say so, not name the wrong agent.
+    private func providerName(_ providerID: String) -> String {
+        TokenmaxProvider.from(identifier: providerID)?.displayName ?? providerID
+    }
+
     @ViewBuilder
     private var content: some View {
         if let pending = pendingRun {
@@ -32,7 +38,7 @@ struct AutoRunStatusBannerView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Auto-run starts “\(pending.taskTitle)” in \(QueueListModel.pluralized(seconds, "second"))")
                         .font(.system(size: 11, weight: .semibold))
-                    Text("Tokenmax will run this task with Claude Code.")
+                    Text("Tokenmax will run this task with \(providerName(pending.providerID)).")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }

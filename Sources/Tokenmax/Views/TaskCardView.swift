@@ -14,6 +14,9 @@ struct TaskCardView: View {
     var autoRunBlock: QueueAutoRunDecision.SkipReason?
     /// Cached rather than read per redraw — see `DirectoryExistenceCache`.
     var directoryExists: Bool
+    /// Whether to name the provider on the card. False on a single-provider
+    /// queue, where every card would carry the same badge.
+    var showsProvider: Bool = false
     /// True only when *Tokenmax* is running it. A task can be `.running`
     /// because the user opened a terminal for it, and there is no process to
     /// stop in that case.
@@ -26,7 +29,7 @@ struct TaskCardView: View {
     var onEdit: () -> Void
     var onCopy: () -> Void
     var onOpenInTerminal: () -> Void
-    var onRunWithClaude: () -> Void
+    var onRunWithProvider: () -> Void
     var onStop: () -> Void
     var onViewOutput: () -> Void
     var onComplete: () -> Void
@@ -58,6 +61,7 @@ struct TaskCardView: View {
                 task: task,
                 autoRunBlock: autoRunBlock,
                 directoryExists: directoryExists,
+                showsProvider: showsProvider,
                 actions: actionSet,
                 handlers: handlers,
                 copied: $copied
@@ -66,6 +70,7 @@ struct TaskCardView: View {
             RunningTaskCardView(
                 task: task,
                 directoryExists: directoryExists,
+                showsProvider: showsProvider,
                 isRunningHere: isRunningHere,
                 progress: runProgress,
                 lastRun: lastRun,
@@ -134,7 +139,7 @@ struct TaskCardView: View {
                 }
             },
             openInTerminal: onOpenInTerminal,
-            runWithClaude: onRunWithClaude,
+            runWithProvider: onRunWithProvider,
             stop: onStop,
             viewOutput: onViewOutput,
             markComplete: onComplete,
@@ -159,6 +164,7 @@ struct ReadyTaskCardView: View {
     let task: TokenmaxTask
     let autoRunBlock: QueueAutoRunDecision.SkipReason?
     let directoryExists: Bool
+    let showsProvider: Bool
     let actions: TaskActionSet
     let handlers: TaskCardActions
     @Binding var copied: Bool
@@ -169,6 +175,7 @@ struct ReadyTaskCardView: View {
                 TaskStatusIndicator(status: .ready)
                 TaskTitleText(task: task)
                 Spacer(minLength: 8)
+                TaskProviderBadge(provider: task.provider, isVisible: showsProvider)
                 TaskPriorityBadge(priority: task.priority)
             }
 
@@ -282,6 +289,7 @@ struct ReadyTaskCardView: View {
 struct RunningTaskCardView: View {
     let task: TokenmaxTask
     let directoryExists: Bool
+    let showsProvider: Bool
     let isRunningHere: Bool
     let progress: String?
     let lastRun: TaskRunRecord?
@@ -296,6 +304,7 @@ struct RunningTaskCardView: View {
                 TaskStatusIndicator(status: .running, isRunningHere: isRunningHere)
                 TaskTitleText(task: task)
                 Spacer(minLength: 8)
+                TaskProviderBadge(provider: task.provider, isVisible: showsProvider)
                 Text(isRunningHere ? "Running" : "In a terminal")
                     .font(.system(size: 9, weight: .medium))
                     .padding(.horizontal, 5)
@@ -305,7 +314,7 @@ struct RunningTaskCardView: View {
             }
 
             if isRunningHere {
-                Text(progress ?? "Claude is working…")
+                Text(progress ?? "\(task.provider.displayName) is working…")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

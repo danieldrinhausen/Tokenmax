@@ -9,7 +9,7 @@ struct TaskCardActions {
     var edit: () -> Void = {}
     var copyPrompt: () -> Void = {}
     var openInTerminal: () -> Void = {}
-    var runWithClaude: () -> Void = {}
+    var runWithProvider: () -> Void = {}
     var stop: () -> Void = {}
     var viewOutput: () -> Void = {}
     var markComplete: () -> Void = {}
@@ -25,7 +25,7 @@ struct TaskCardActions {
         case .edit: edit
         case .copyPrompt: copyPrompt
         case .openInTerminal: openInTerminal
-        case .runWithClaude: runWithClaude
+        case .runWithProvider: runWithProvider
         case .stop: stop
         // All three read the same run record; they differ only in what the
         // button promises, which is what the user is looking for at the time.

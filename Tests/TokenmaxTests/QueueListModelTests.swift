@@ -328,11 +328,35 @@ struct QueueListModelTests {
         }
     }
 
-    @Test("A ready task leads with Run with Claude")
+    @Test("A ready task leads with Run with Provider")
     func readyActions() {
         let actions = QueueListModel.actions(for: task("t"), hasOutput: false, isRunningHere: false)
-        #expect(actions.primary == .runWithClaude)
+        #expect(actions.primary == .runWithProvider)
         #expect(actions.secondary == [.edit, .copyPrompt])
+    }
+
+    /// A mixed queue is the whole point of the filter, so it must narrow to one
+    /// provider without touching the status filter it sits beside.
+    @Test("The provider filter is orthogonal to the status filter")
+    func providerFilterNarrowsWithoutChangingStatus() {
+        var claudeTask = TokenmaxTask(title: "Claude work", prompt: "Do it", status: .ready)
+        var codexTask = TokenmaxTask(title: "Codex work", prompt: "Do it", status: .ready)
+        codexTask.providerID = TokenmaxProvider.codex.rawValue
+        var doneTask = TokenmaxTask(title: "Finished", prompt: "Done", status: .completed)
+        doneTask.providerID = TokenmaxProvider.codex.rawValue
+        claudeTask.sortIndex = 0
+        codexTask.sortIndex = 1
+        let tasks = [claudeTask, codexTask, doneTask]
+
+        func titles(_ provider: TokenmaxProvider?) -> [String] {
+            QueueListModel.visible(tasks: tasks, filter: .ready, provider: provider).map(\.title)
+        }
+
+        // nil is every provider, which is what an unfiltered queue shows.
+        #expect(titles(nil) == ["Claude work", "Codex work"])
+        #expect(titles(.claudeCode) == ["Claude work"])
+        // The completed Codex task stays out: the status filter still applies.
+        #expect(titles(.codex) == ["Codex work"])
     }
 
     @Test("A task Tokenmax is running leads with Stop")

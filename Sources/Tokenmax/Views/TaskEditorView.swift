@@ -175,7 +175,7 @@ struct TaskEditorView: View {
                             .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
                     }
                 HStack {
-                    Text("Describe the work Claude should perform.")
+                    Text("Describe the work \(draft.provider.displayName) should perform.")
                         .foregroundStyle(.secondary)
                     Spacer()
                     Text("\(draft.prompt.count) characters")

@@ -91,6 +91,28 @@ struct TaskPriorityBadge: View {
     private var tint: Color { priority == .urgent ? .red : .orange }
 }
 
+/// Which agent will run this task, on the card rather than only in the editor.
+///
+/// Shown only in a mixed queue: on a single-provider queue every card would
+/// carry the same badge, which is decoration rather than information. Quiet
+/// styling on purpose — it answers a question, it does not raise one.
+struct TaskProviderBadge: View {
+    let provider: TokenmaxProvider
+    let isVisible: Bool
+
+    var body: some View {
+        if isVisible {
+            Text(provider.displayName)
+                .font(.system(size: 9, weight: .medium))
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Color.secondary.opacity(0.14), in: Capsule())
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Runs with \(provider.displayName)")
+        }
+    }
+}
+
 // MARK: - Prompt
 
 struct TaskPromptPreview: View {

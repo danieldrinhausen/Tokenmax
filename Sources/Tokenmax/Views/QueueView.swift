@@ -15,6 +15,9 @@ struct QueueView: View {
     /// rewrote the queue.
     @AppStorage("queue.filter") private var filter: QueueFilter = .ready
     @AppStorage("queue.sort") private var sort: QueueSort = .queueOrder
+    /// Which provider's tasks to show, as a raw value because AppStorage cannot
+    /// hold an optional enum. Empty is "all providers".
+    @AppStorage("queue.provider") private var providerFilterID = ""
 
     /// Deliberately not persisted: reopening the window to a filtered list with
     /// no obvious cause is worse than retyping four characters.
@@ -173,12 +176,41 @@ struct QueueView: View {
         .padding(.vertical, 10)
     }
 
+    /// Whether the cards should name their provider.
+    ///
+    /// Only when the queue is actually mixed — reading the tasks rather than the
+    /// enabled providers, because someone who runs both providers but queues
+    /// only Claude work has a uniform queue and gains nothing from a badge on
+    /// every card. Suppressed while the list is filtered to one provider, where
+    /// the filter above already says which.
+    private var showsProviderOnCards: Bool {
+        guard providerFilter.wrappedValue == nil else { return false }
+        return Set(taskStore.tasks.map(\.providerID)).count > 1
+    }
+
+    /// Bridges the stored raw value to the picker's optional.
+    ///
+    /// Reads as "all providers" for anything unrecognised, so a provider removed
+    /// from a future build cannot leave the queue looking permanently empty.
+    private var providerFilter: Binding<TokenmaxProvider?> {
+        Binding(
+            get: { TokenmaxProvider.from(identifier: providerFilterID) },
+            set: { providerFilterID = $0?.rawValue ?? "" }
+        )
+    }
+
     private var navigation: some View {
         QueueNavigationView(filter: $filter, tasks: taskStore.tasks)
     }
 
     private var searchAndSort: some View {
-        QueueSearchAndSortView(query: $query, sort: $sort, canReorder: canReorder)
+        QueueSearchAndSortView(
+            query: $query,
+            sort: $sort,
+            provider: providerFilter,
+            providerOptions: settingsStore.settings.enabledProviders,
+            canReorder: canReorder
+        )
     }
 
     // MARK: - Content
@@ -239,6 +271,7 @@ struct QueueView: View {
             task: task,
             autoRunBlock: eligibility[task.id],
             directoryExists: directories.exists(task, now: usage.tick),
+            showsProvider: showsProviderOnCards,
             isRunningHere: isRunningHere,
             runProgress: progress,
             lastRun: autoRun.lastRun(forTask: task.id),
@@ -247,7 +280,7 @@ struct QueueView: View {
             onEdit: { editingTask = task },
             onCopy: { ManualRunService.copyPrompt(task) },
             onOpenInTerminal: { openInTerminal(task) },
-            onRunWithClaude: { runWithProvider(task) },
+            onRunWithProvider: { runWithProvider(task) },
             onStop: { autoRun.stop() },
             onViewOutput: { viewOutput(task) },
             onComplete: { taskStore.setStatus(.completed, for: task) },
@@ -263,7 +296,13 @@ struct QueueView: View {
     // MARK: - Derived
 
     private var visibleTasks: [TokenmaxTask] {
-        QueueListModel.visible(tasks: taskStore.tasks, filter: filter, query: query, sort: sort)
+        QueueListModel.visible(
+            tasks: taskStore.tasks,
+            filter: filter,
+            query: query,
+            sort: sort,
+            provider: providerFilter.wrappedValue
+        )
     }
 
     /// One eligibility snapshot for the whole list rather than one per card —

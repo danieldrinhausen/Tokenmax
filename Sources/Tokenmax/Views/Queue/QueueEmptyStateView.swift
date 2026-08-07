@@ -127,18 +127,18 @@ private struct FirstRunGuidanceView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Welcome to Tokenmax")
                     .font(.system(size: 14, weight: .semibold))
-                Text("Tokenmax watches how much Claude Code quota you have left, and gives leftover quota somewhere to go.")
+                Text("Tokenmax watches how much Claude Code and Codex quota you have left, and gives leftover quota somewhere to go.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                point("chart.bar", "Tokenmax reads your Claude Code usage.", detail: nil)
+                point("chart.bar", "Tokenmax reads your Claude Code and Codex usage.", detail: nil)
                 point(
                     "terminal",
-                    "Claude Code must be installed and signed in.",
-                    detail: "Run claude once in a terminal if you have not already."
+                    "The agent must be installed and signed in.",
+                    detail: "Run claude, or codex, once in a terminal if you have not already."
                 )
                 point("tray", "The queue is optional.", detail: "Tokenmax works as a usage meter on its own.")
                 point(

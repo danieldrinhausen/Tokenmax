@@ -99,7 +99,7 @@ enum QueueSort: String, CaseIterable, Identifiable, Sendable {
 /// state has exactly one primary action" is a fact that can be asserted in a
 /// test rather than a convention that drifts.
 enum TaskAction: String, Identifiable, Sendable, CaseIterable {
-    case runWithClaude
+    case runWithProvider
     case stop
     case viewResult
     case viewOutput
@@ -119,7 +119,7 @@ enum TaskAction: String, Identifiable, Sendable, CaseIterable {
 
     var title: String {
         switch self {
-        case .runWithClaude: "Run with Provider"
+        case .runWithProvider: "Run with Provider"
         case .stop: "Stop"
         case .viewResult: "View Result"
         case .viewOutput: "View Output"
@@ -206,10 +206,12 @@ enum QueueListModel {
         tasks: [TokenmaxTask],
         filter: QueueFilter,
         query: String = "",
-        sort: QueueSort = .queueOrder
+        sort: QueueSort = .queueOrder,
+        provider: TokenmaxProvider? = nil
     ) -> [TokenmaxTask] {
         let matching = tasks
             .filter { $0.status == filter.status }
+            .filter { provider == nil || $0.provider == provider }
             .filter { matches($0, query: query) }
 
         return sorted(matching, by: sort)
@@ -269,7 +271,7 @@ enum QueueListModel {
         switch task.status {
         case .ready:
             TaskActionSet(
-                primary: .runWithClaude,
+                primary: .runWithProvider,
                 secondary: [.edit, .copyPrompt],
                 overflow: [.openInTerminal, .moveToTop, .duplicate, .archive, .delete]
             )

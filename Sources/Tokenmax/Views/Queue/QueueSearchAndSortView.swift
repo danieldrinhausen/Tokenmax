@@ -8,6 +8,10 @@ import SwiftUI
 struct QueueSearchAndSortView: View {
     @Binding var query: String
     @Binding var sort: QueueSort
+    /// nil is "every provider". Shown only when there is more than one to
+    /// choose between — a filter with a single option is furniture.
+    @Binding var provider: TokenmaxProvider?
+    let providerOptions: [TokenmaxProvider]
     /// Off while a sort other than queue order is active, so the menu can say
     /// why the drag handles have gone.
     let canReorder: Bool
@@ -17,6 +21,10 @@ struct QueueSearchAndSortView: View {
     var body: some View {
         HStack(spacing: 8) {
             searchField
+
+            if providerOptions.count > 1 {
+                providerMenu
+            }
 
             Menu {
                 Picker("Sort by", selection: $sort) {
@@ -39,6 +47,25 @@ struct QueueSearchAndSortView: View {
             .help("Change how the list is ordered. This does not change the queue itself.")
             .accessibilityLabel("Sort order, currently \(sort.displayName)")
         }
+    }
+
+    private var providerMenu: some View {
+        Menu {
+            Picker("Provider", selection: $provider) {
+                Text("All providers").tag(TokenmaxProvider?.none)
+                ForEach(providerOptions) { option in
+                    Text(option.displayName).tag(TokenmaxProvider?.some(option))
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Label(provider?.displayName ?? "All providers", systemImage: "line.3.horizontal.decrease")
+                .font(.system(size: 11))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Show only tasks for one provider. This does not change the queue itself.")
+        .accessibilityLabel("Provider filter, currently \(provider?.displayName ?? "all providers")")
     }
 
     private var searchField: some View {
