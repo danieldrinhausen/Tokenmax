@@ -331,7 +331,27 @@ not by habit.
 
 `--dangerously-skip-permissions` is never used, by anything, ever.
 
-### Step 4 — go live conservatively
+### Step 4 — decide about Codex separately
+
+Everything above was about Claude. Codex has its own switch under **Settings →
+Queue automation → Codex**, and it stays off until you set it, including through
+an upgrade — trusting one agent to run unattended is not the same decision as
+trusting two, and inheriting the second one silently would be exactly the wrong
+default.
+
+Two things differ once it is on. Codex's execution boundary is a **sandbox**
+rather than a tool allowlist, so *read-only* and *workspace-write* are the whole
+decision — there is no separate shell toggle to forget. And Codex reports no
+per-run cost, so there is no spending limit to set; the runtime limit and the
+sandbox are what bound a run.
+
+The setting most worth a second look is **maximum tasks per window**. If your
+plan reports only a weekly Codex window — the Codex section says which one yours
+reports — then Tokenmax spends that window, and the default of one task per
+window means one task a *week*. That is a reasonable place to start and a poor
+place to stay.
+
+### Step 5 — go live conservatively
 
 Defaults worth keeping at first: **one task per session window**, **stop on the
 first failure**, and never starting a second task until a usage reading newer
@@ -340,7 +360,7 @@ than the first one lands.
 A task runs automatically only when *all* of this holds — the task is marked
 **Always allow automatic execution**, its working directory exists, it has a
 runtime estimate, the reading is fresh, both quotas are above threshold, the
-session is inside the lead window, no other run is in flight, the per-session
+window is inside the lead time, no other run is in flight, the per-window
 budgets have room, and the task's **runtime limit** fits before the safety
 margin. When something blocks a run, the popover and Settings name which
 condition failed.
