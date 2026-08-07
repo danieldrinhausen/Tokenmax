@@ -503,11 +503,31 @@ decision logic can be watched for days before it is trusted with real quota and 
 
 A task runs automatically only when *all* of this holds: the task is marked **Always allow automatic
 execution**, its working directory exists, it has a runtime estimate, the usage reading is fresh, the
-session and weekly quotas are both above their thresholds, the session is inside the lead window, no
-other run is in flight, the per-session task and runtime budgets have room, and the task's **runtime
+session and weekly quotas are both above their thresholds, the window is inside the lead time, no
+other run is in flight, the per-window task and runtime budgets have room, and the task's **runtime
 limit** — not its estimate — fits before the safety margin. Anything else, and the popover and
 Settings say which condition failed. Switching on **Never run when usage credits could be charged**
 adds one more condition; it is off by default, [for reasons below](#running-a-task-at-a-set-time).
+
+### Codex tasks
+
+Codex automation has its own switch — **Settings → Queue automation → Codex** — because trusting one
+agent to run unattended is not the same decision as trusting two. It stays off through an upgrade.
+
+Which window Tokenmax spends depends on your plan. Codex reports a session window on some plans and
+only a weekly one on others; Tokenmax burns whichever is about to expire, so a weekly-only plan gets
+its run in the lead time before the *week* resets. That is why Codex carries its own **lead time**,
+**maximum tasks per window** and **maximum total runtime**: against a seven-day window, "one task per
+window" means one task a week, which is usually a number to raise. The section says which window your
+own plan reports.
+
+Everything else is shared with Claude — the mode, quiet hours, the safety margin, the start delay,
+the quota floors, and every switch under Safety. Appointments work identically, including starting a
+run when no window is open at all.
+
+Two differences follow from Codex itself. It reports no per-run cost, so there is no spending limit
+to enforce; the **sandbox** is what bounds a run instead. And a Codex signed in with an API key has
+no ChatGPT quota to read, so automation refuses rather than billing you.
 
 ### Running a task at a set time
 

@@ -176,7 +176,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // snapshot is frozen — and every quota gate below reads that snapshot.
         // Nothing may run against it.
         if !settingsStore.settings.isEnabled(provider) { settings.enabled = false }
-        if provider == .codex && !settingsStore.settings.codexAutoRunEnabled { settings.enabled = false }
+        if provider == .codex {
+            if !settingsStore.settings.codexAutoRunEnabled { settings.enabled = false }
+            // The lead time and the per-window allowances are read against a
+            // window that may be seven days long rather than five hours, so
+            // Codex carries its own three figures. See `CodexAutoRunOverrides`.
+            settings = settingsStore.settings.codexAutoRun.applied(to: settings)
+        }
         return QueueAutoRun.Input(
             providerID: provider.rawValue,
             settings: settings,

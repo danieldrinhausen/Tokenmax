@@ -199,6 +199,50 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
     }
 }
 
+/// The few auto-run settings whose *meaning* changes for Codex.
+///
+/// Everything else in `QueueAutoRunSettings` is shared, deliberately: mode,
+/// quiet hours, safety margin, start delay, schedule grace, reset-boundary
+/// behaviour and the whole Safety block say the same thing whichever agent is
+/// running, and two copies of them would only drift.
+///
+/// These three do not. Claude always reports a five-hour session window, so
+/// "45 minutes before the reset" and "one task per window" are read against a
+/// window that comes round five times a day. Codex on a Plus plan reports only a
+/// seven-day window, and the same numbers then mean one task a *week*. Rather
+/// than silently reinterpret the user's figures, Codex gets its own three.
+///
+/// They start at Claude's defaults rather than at something scaled up for a
+/// weekly window: the first run of a second unattended agent should be the
+/// conservative one, and the section explains what to raise and why.
+struct CodexAutoRunOverrides: Codable, Sendable, Equatable {
+    var leadTimeMinutes: Int = 45
+    var maximumTasksPerWindow: Int = 1
+    var maximumRuntimeMinutes: Int = 30
+
+    init() {}
+
+    /// Lenient for the same reason as `QueueAutoRunSettings.init(from:)`.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let d = CodexAutoRunOverrides()
+        leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? d.leadTimeMinutes
+        maximumTasksPerWindow = try container.decodeIfPresent(Int.self, forKey: .maximumTasksPerWindow)
+            ?? d.maximumTasksPerWindow
+        maximumRuntimeMinutes = try container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes)
+            ?? d.maximumRuntimeMinutes
+    }
+
+    /// The shared settings with this provider's three figures applied.
+    func applied(to settings: QueueAutoRunSettings) -> QueueAutoRunSettings {
+        var settings = settings
+        settings.leadTimeMinutes = leadTimeMinutes
+        settings.maximumTasksPerWindow = maximumTasksPerWindow
+        settings.maximumRuntimeMinutes = maximumRuntimeMinutes
+        return settings
+    }
+}
+
 /// What one task is allowed to do when Tokenmax runs it.
 ///
 /// There is deliberately no `allowed` flag here: `TokenmaxTask.executionMode` is

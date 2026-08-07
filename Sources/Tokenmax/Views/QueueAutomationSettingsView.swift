@@ -3,6 +3,7 @@ import SwiftUI
 struct QueueAutomationSettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var modelCatalog: ModelCatalogStore
+    @EnvironmentObject private var codexModelCatalog: CodexModelCatalogStore
     @EnvironmentObject private var usage: ProviderUsageCoordinator
     @EnvironmentObject private var taskStore: TaskStore
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
@@ -20,7 +21,7 @@ struct QueueAutomationSettingsView: View {
         Form {
             Section {
                 Toggle("Automatically run eligible tasks", isOn: auto.enabled)
-                Text("When your session is close to resetting, Tokenmax can spend the quota that would otherwise expire by running a queued task you have approved. This runs Claude Code against a real project and can change files, which is why it is off by default and starts in preview mode.")
+                Text("When a quota window is close to resetting, Tokenmax can spend what would otherwise expire by running a queued task you have approved. This runs a real agent against a real project and can change files, which is why it is off by default and starts in preview mode.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -115,38 +116,23 @@ struct QueueAutomationSettingsView: View {
             }
             .disabled(!isEnabled)
 
+            codexSection
+
             // Not gated on `isEnabled`: these seed the task editor, which is
             // useful whether or not automatic execution is switched on.
             Section("New task defaults") {
-                Picker("Model", selection: $settingsStore.settings.defaultTaskModel) {
-                    ForEach(modelCatalog.aliases, id: \.self) { alias in
-                        Text(TaskExecutionPolicy.modelDisplayName(alias)).tag(alias)
-                    }
-                    if !modelCatalog.models.isEmpty {
-                        Divider()
-                        ForEach(modelCatalog.models) { model in
-                            Text(model.displayName).tag(model.id)
+                if settingsStore.settings.enabledProviders.count > 1 {
+                    Picker("Provider", selection: $settingsStore.settings.defaultTaskProvider) {
+                        ForEach(TokenmaxProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
                         }
                     }
                 }
-                Picker("Thinking", selection: Binding(
-                    get: { settingsStore.settings.defaultTaskEffort ?? "" },
-                    set: { settingsStore.settings.defaultTaskEffort = $0.isEmpty ? nil : $0 }
-                )) {
-                    Text("Default").tag("")
-                    ForEach(modelCatalog.effortLevels(for: settingsStore.settings.defaultTaskModel), id: \.self) {
-                        Text(TaskExecutionPolicy.effortDisplayName($0)).tag($0)
-                    }
-                }
-                Picker("Spend limit", selection: $settingsStore.settings.defaultTaskBudgetUSD) {
-                    ForEach(TaskExecutionPolicy.budgetOptions, id: \.self) { value in
-                        Text(value == value.rounded()
-                            ? String(format: "$%.0f", value)
-                            : String(format: "$%.2f", value)
-                        ).tag(value)
-                    }
-                }
-                Text("What a new task starts with. All three are overridable per task, and changing them here leaves existing tasks alone. An alias like Opus always resolves to the newest model of that family; the list itself is fetched from Anthropic, so a new model appears without updating Tokenmax.")
+
+                claudeTaskDefaults
+                codexTaskDefaults
+
+                Text("What a new task starts with. Every one is overridable per task, and changing them here leaves existing tasks alone. A new task is set up for both providers at once, so switching its provider in the editor lands on the settings you chose here rather than on bare defaults.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -164,7 +150,7 @@ struct QueueAutomationSettingsView: View {
                     .foregroundStyle(extraUsageBlocks ? .orange : .secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Always enforced: one task at a time, never with unrestricted permissions, and never under an API key — only a Claude subscription. Each task's own tool permissions and spending limit are set when you edit it.")
+                Text("Always enforced: one task at a time, never with unrestricted permissions, and never under an API key — only a Claude or ChatGPT subscription. Each task's own permissions and limits are set when you edit it.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -184,7 +170,10 @@ struct QueueAutomationSettingsView: View {
             statusSection
         }
         .formStyle(.grouped)
-        .onAppear { modelCatalog.refreshIfStale() }
+        .onAppear {
+            modelCatalog.refreshIfStale()
+            codexModelCatalog.refreshIfStale()
+        }
         .confirmationDialog(
             "Run the next eligible task now?",
             isPresented: $confirmingRun,
@@ -197,7 +186,7 @@ struct QueueAutomationSettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This starts a real Claude Code run against the task's working directory using its own model, tool permissions, and spending limit. It ignores the schedule and quota thresholds so you can test outside a burn window — the directory, account, and per-task limits still apply.")
+            Text("This starts a real run against the task's working directory, with the task's own provider, model, permissions, and limits. It ignores the schedule and quota thresholds so you can test outside a burn window — the directory, account, and per-task limits still apply.")
         }
         .alert("Could not run", isPresented: .init(
             get: { manualError != nil },
@@ -208,6 +197,157 @@ struct QueueAutomationSettingsView: View {
             Text(manualError ?? "")
         }
         .onAppear { autoRun.checkEligibility() }
+    }
+
+    // MARK: - New task defaults
+
+    /// Shown only for a provider that is switched on. A section offering
+    /// defaults for an agent the user is not monitoring is noise.
+    @ViewBuilder
+    private var claudeTaskDefaults: some View {
+        if settingsStore.settings.claudeCodeEnabled {
+            Picker("Claude model", selection: $settingsStore.settings.defaultTaskModel) {
+                ForEach(modelCatalog.aliases, id: \.self) { alias in
+                    Text(TaskExecutionPolicy.modelDisplayName(alias)).tag(alias)
+                }
+                if !modelCatalog.models.isEmpty {
+                    Divider()
+                    ForEach(modelCatalog.models) { model in
+                        Text(model.displayName).tag(model.id)
+                    }
+                }
+            }
+            Picker("Claude thinking", selection: Binding(
+                get: { settingsStore.settings.defaultTaskEffort ?? "" },
+                set: { settingsStore.settings.defaultTaskEffort = $0.isEmpty ? nil : $0 }
+            )) {
+                Text("Default").tag("")
+                ForEach(modelCatalog.effortLevels(for: settingsStore.settings.defaultTaskModel), id: \.self) {
+                    Text(TaskExecutionPolicy.effortDisplayName($0)).tag($0)
+                }
+            }
+            Picker("Claude spend limit", selection: $settingsStore.settings.defaultTaskBudgetUSD) {
+                ForEach(TaskExecutionPolicy.budgetOptions, id: \.self) { value in
+                    Text(value == value.rounded()
+                        ? String(format: "$%.0f", value)
+                        : String(format: "$%.2f", value)
+                    ).tag(value)
+                }
+            }
+            Text("An alias like Opus always resolves to the newest model of that family; the list itself is fetched from Anthropic, so a new model appears without updating Tokenmax.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Codex has no spend limit here because it reports no per-run cost, so
+    /// there is nothing Tokenmax could enforce. Its sandbox is the equivalent
+    /// decision, and it is the one that matters most.
+    @ViewBuilder
+    private var codexTaskDefaults: some View {
+        if settingsStore.settings.codexEnabled {
+            Picker("Codex model", selection: Binding(
+                get: { settingsStore.settings.defaultCodexModel ?? "" },
+                set: { settingsStore.settings.defaultCodexModel = $0.isEmpty ? nil : $0 }
+            )) {
+                Text(codexModelCatalog.defaultModelName.map { "Codex default (\($0))" } ?? "Codex default")
+                    .tag("")
+                if !codexModelCatalog.models.isEmpty {
+                    Divider()
+                    ForEach(codexModelCatalog.models) { model in
+                        Text(model.displayName).tag(model.id)
+                    }
+                }
+            }
+            Picker("Codex reasoning", selection: Binding(
+                get: { settingsStore.settings.defaultCodexReasoningEffort ?? "" },
+                set: { settingsStore.settings.defaultCodexReasoningEffort = $0.isEmpty ? nil : $0 }
+            )) {
+                Text("Config default").tag("")
+                ForEach(codexModelCatalog.reasoningEfforts(for: settingsStore.settings.defaultCodexModel), id: \.self) {
+                    Text($0.capitalized).tag($0)
+                }
+            }
+            Picker("Codex sandbox", selection: $settingsStore.settings.defaultCodexSandbox) {
+                ForEach(CodexSandbox.allCases) { sandbox in
+                    Text(sandbox.displayName).tag(sandbox)
+                }
+            }
+            Text("Leaving the model and reasoning on their defaults defers to your own ~/.codex/config.toml, so changing Codex there changes new tasks here. Codex reports no per-run cost, so there is no spending limit to set — the sandbox is what bounds a run.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Codex
+
+    /// Codex automation, kept behind its own switch and its own three figures.
+    ///
+    /// Separate from the master switch on purpose: someone who trusted Claude to
+    /// run unattended has not thereby agreed to a second agent doing the same,
+    /// and an upgrade must never add one for them.
+    @ViewBuilder
+    private var codexSection: some View {
+        Section("Codex") {
+            Toggle("Also run Codex tasks automatically", isOn: $settingsStore.settings.codexAutoRunEnabled)
+
+            if !settingsStore.settings.codexEnabled {
+                Label("Codex is not monitored in General, so nothing can run.", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else if !CodexCLIClient.isInstalled {
+                Label("The codex CLI could not be found.", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            Picker("Start tasks when the window resets in", selection: codex.leadTimeMinutes) {
+                ForEach(QueueAutoRunSettings.leadTimeOptions, id: \.self) { minutes in
+                    Text("\(minutes) minutes").tag(minutes)
+                }
+            }
+            Picker("Maximum tasks per window", selection: codex.maximumTasksPerWindow) {
+                ForEach(QueueAutoRunSettings.maximumTasksOptions, id: \.self) { value in
+                    Text("\(value)").tag(value)
+                }
+            }
+            Picker("Maximum total runtime", selection: codex.maximumRuntimeMinutes) {
+                ForEach(QueueAutoRunSettings.maximumRuntimeOptions, id: \.self) { value in
+                    Text("\(value) minutes").tag(value)
+                }
+            }
+
+            Text(codexWindowExplanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Everything else above applies to Codex too: the mode, quiet hours, the safety margin, the start delay, the quota floors, and every switch under Safety. Only these three are separate, because they are read against a different window.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .disabled(!isEnabled)
+    }
+
+    private var codex: Binding<CodexAutoRunOverrides> {
+        $settingsStore.settings.codexAutoRun
+    }
+
+    /// Says which window these figures will actually be measured against, since
+    /// that is the whole reason the section exists — and it depends on the plan,
+    /// so it is read from the live snapshot rather than asserted.
+    private var codexWindowExplanation: String {
+        let snapshot = usage.snapshot(for: .codex)
+        if snapshot?.sessionWindow != nil {
+            return "Your Codex plan reports a session window, so these are read against it the same way Claude's are."
+        }
+        if snapshot?.weeklyWindow != nil {
+            return "Your Codex plan reports only a weekly window, so Tokenmax spends that one instead — a task starts in the lead time before the week resets. \"Per window\" then means per week, which is usually a reason to raise these two."
+        }
+        return "Codex reports a session window on some plans and only a weekly one on others. Tokenmax spends whichever is about to expire, so on a weekly-only plan \"per window\" means per week."
     }
 
     // MARK: - Status

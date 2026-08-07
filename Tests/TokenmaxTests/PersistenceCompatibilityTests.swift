@@ -74,6 +74,24 @@ struct PersistenceCompatibilityTests {
         #expect(settings.defaultCodexModel == nil)
         #expect(settings.defaultCodexReasoningEffort == nil)
         #expect(settings.defaultCodexSandbox == CodexExecutionPolicy().sandbox)
+        // Codex's own three figures start where Claude's do, so switching Codex
+        // automation on is a decision about one agent, not a retune of both.
+        #expect(settings.codexAutoRun == CodexAutoRunOverrides())
+        #expect(settings.codexAutoRun.maximumTasksPerWindow == 1)
+    }
+
+    /// The Codex overrides must not be re-defaulted by a partial write: a file
+    /// carrying only one of the three keeps that one and defaults the rest.
+    @Test("A partly-written Codex override block keeps what it has")
+    func partialCodexOverridesKeepTheirValues() throws {
+        let settings = try decode(AppSettings.self, """
+        { "codexAutoRunEnabled": true, "codexAutoRun": { "maximumTasksPerWindow": 5 } }
+        """)
+
+        #expect(settings.codexAutoRunEnabled)
+        #expect(settings.codexAutoRun.maximumTasksPerWindow == 5)
+        #expect(settings.codexAutoRun.leadTimeMinutes == CodexAutoRunOverrides().leadTimeMinutes)
+        #expect(settings.codexAutoRun.maximumRuntimeMinutes == CodexAutoRunOverrides().maximumRuntimeMinutes)
     }
 
     /// The new-task defaults are the one place a bad value is copied onto every

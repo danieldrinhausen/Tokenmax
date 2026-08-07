@@ -301,6 +301,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// Codex needs an independent opt-in: a user who previously enabled
     /// Claude automation must never gain a second unattended agent on upgrade.
     var codexAutoRunEnabled: Bool = false
+    /// See `CodexAutoRunOverrides`. The handful of `queueAutoRun` figures that
+    /// mean something different against Codex's windows.
+    var codexAutoRun: CodexAutoRunOverrides = .init()
 
     /// Whether each provider is monitored at all. Switching one off stops its
     /// polling, hides its popover section and menu-bar bars, cancels its pending
@@ -451,6 +454,8 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.queueAutoRun
         codexAutoRunEnabled = try container.decodeIfPresent(Bool.self, forKey: .codexAutoRunEnabled)
             ?? d.codexAutoRunEnabled
+        codexAutoRun = try container.decodeIfPresent(CodexAutoRunOverrides.self, forKey: .codexAutoRun)
+            ?? d.codexAutoRun
         // `try?` rather than the plain-`try` form the other Bools use. These two
         // gate the whole app, and a hand-edited `"codexEnabled": "yes"` under
         // plain `try` would throw out of this initializer, make `JSONStore.load`

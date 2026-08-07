@@ -1130,6 +1130,85 @@ struct QueueAutoRunTests {
         #expect(decision.skipReason == .outsideLeadWindow)
     }
 
+    // MARK: - Codex's own three figures
+
+    /// The whole reason `CodexAutoRunOverrides` exists: "one task per window"
+    /// read against a seven-day window means one task per week, and the user has
+    /// to be able to say otherwise without changing what Claude does.
+    @Test("Codex's per-window task allowance is its own")
+    func codexOverridesRaiseThePerWindowTaskAllowance() {
+        var overrides = CodexAutoRunOverrides()
+        overrides.maximumTasksPerWindow = 3
+        let shared = settings(maximumTasks: 1)
+
+        #expect(overrides.applied(to: shared).maximumTasksPerWindow == 3)
+        // The shared value is untouched, so Claude still refuses a second run.
+        #expect(shared.maximumTasksPerWindow == 1)
+    }
+
+    /// Applied through the decision layer, a raised allowance actually lets a
+    /// second run start where the shared cap of one would refuse.
+    @Test("A raised Codex allowance admits a run the shared cap refuses")
+    func raisedCodexAllowanceAdmitsASecondRun() {
+        let resetAt = now.addingTimeInterval(30 * 60)
+        let window = QueueAutoRun.windowID(resetAt: resetAt, providerID: TokenmaxProvider.codex.rawValue)
+        var state = QueueAutoRunState()
+        state.record(TaskRunRecord(
+            taskID: UUID(),
+            taskTitle: "Already ran",
+            windowID: window,
+            trigger: .automatic,
+            providerID: TokenmaxProvider.codex.rawValue,
+            model: "gpt-5.6-sol",
+            workingDirectory: realDirectory,
+            status: .completed
+        ))
+
+        func decide(maximumTasks: Int) -> QueueAutoRunDecision {
+            var overrides = CodexAutoRunOverrides()
+            overrides.maximumTasksPerWindow = maximumTasks
+            return QueueAutoRun.decide(input(
+                settings: overrides.applied(to: settings(maximumTasks: 1)),
+                session: session(resetInMinutes: 30),
+                burnFallsBackToWeekly: true,
+                providerID: TokenmaxProvider.codex.rawValue,
+                state: state
+            ))
+        }
+
+        #expect(decide(maximumTasks: 1).skipReason == .maximumTasksReached)
+        #expect(decide(maximumTasks: 3).taskID != nil)
+    }
+
+    // MARK: - Codex refusals
+
+    /// A second unattended agent has to be opted into separately. The
+    /// coordinator clears `enabled` for Codex when its switch is off, which is
+    /// the same refusal as the feature being off entirely.
+    @Test("Codex automation switched off refuses even when everything else is ready")
+    func codexAutomationOffRefuses() {
+        let decision = QueueAutoRun.decide(input(
+            settings: settings(enabled: false),
+            noSessionWindow: true,
+            weeklyResetInMinutes: 30,
+            burnFallsBackToWeekly: true,
+            providerID: TokenmaxProvider.codex.rawValue
+        ))
+        #expect(decision.skipReason == .disabled)
+    }
+
+    @Test("A missing codex CLI refuses before anything is spent")
+    func missingCodexCLIRefuses() {
+        let decision = QueueAutoRun.decide(input(
+            noSessionWindow: true,
+            weeklyResetInMinutes: 30,
+            burnFallsBackToWeekly: true,
+            providerID: TokenmaxProvider.codex.rawValue,
+            cliInstalled: false
+        ))
+        #expect(decision.skipReason == .cliNotInstalled)
+    }
+
     /// A window that has not started yet is not a window to burn, whichever
     /// window it is.
     @Test("A weekly window that has not started is not burnt")

@@ -13,6 +13,15 @@ versions follow [semver](https://semver.org/).
   now has a **Provider** picker, and Settings chooses which provider new tasks
   start on. A task carries both providers' settings at once, so switching the
   picker never loses what you set on the other side.
+- **Codex tasks can run automatically.** Under **Settings → Queue automation →
+  Codex**, behind a switch of its own — trusting one agent to run unattended is
+  not the same decision as trusting two, so it stays off through an upgrade.
+  Tokenmax spends whichever Codex window is about to expire: the session window
+  on plans that report one, the weekly window on plans that do not, which is
+  where a Plus account gets its run. Codex carries its own lead time and
+  per-window allowances for that reason — against a seven-day window, "one task
+  per window" means one a week. Everything else is shared with Claude, including
+  appointments at a specific date and time.
 - **The Codex model is a list rather than a typed-in id.** Codex reports its own
   models over the App Server, including which reasoning levels each one accepts —
   they genuinely differ per model. Tokenmax now asks, caches the answer, and
