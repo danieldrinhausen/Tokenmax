@@ -97,12 +97,13 @@ struct QueueView: View {
 
     // MARK: - Chrome
 
-    /// A blank task carrying the configured model and thinking defaults, so the
-    /// common choice is made once in Settings rather than on every task.
+    /// A blank task carrying the configured model, thinking and budget defaults,
+    /// so the common choice is made once in Settings rather than on every task.
     private var newTaskDraft: TokenmaxTask {
         var task = TokenmaxTask(title: "", prompt: "")
         task.autoRun.model = settingsStore.settings.defaultTaskModel
         task.autoRun.effort = settingsStore.settings.defaultTaskEffort
+        task.autoRun.maximumBudgetUSD = settingsStore.settings.defaultTaskBudgetUSD
         return task
     }
 

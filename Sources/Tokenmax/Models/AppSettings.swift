@@ -313,10 +313,14 @@ struct AppSettings: Codable, Sendable, Equatable {
     var codexEnabled: Bool = true
 
     /// Seeded into a new task's policy so the common choice is made once rather
-    /// than on every task. Both are overridable per task in the editor, and
-    /// neither affects a task already on disk.
+    /// than on every task. All three are overridable per task in the editor, and
+    /// none affects a task already on disk.
     var defaultTaskModel: String = "sonnet"
     var defaultTaskEffort: String?
+    /// Matches `TaskExecutionPolicy`'s own default, so leaving this alone
+    /// changes nothing. It exists because someone who works in $20 tasks was
+    /// otherwise retyping the figure on every single one.
+    var defaultTaskBudgetUSD: Double = 0.50
 
     static let terminalOptions = ["Terminal", "Ghostty", "iTerm", "Warp", "Alacritty", "kitty"]
 
@@ -442,6 +446,11 @@ struct AppSettings: Codable, Sendable, Equatable {
         defaultTaskModel = try container.decodeIfPresent(String.self, forKey: .defaultTaskModel)
             ?? d.defaultTaskModel
         defaultTaskEffort = try container.decodeIfPresent(String.self, forKey: .defaultTaskEffort)
+        // Same guard as `TaskExecutionPolicy.init(from:)`: a non-positive figure
+        // here would seed every new task with a budget the CLI refuses.
+        let defaultBudget = try container.decodeIfPresent(Double.self, forKey: .defaultTaskBudgetUSD)
+            ?? d.defaultTaskBudgetUSD
+        defaultTaskBudgetUSD = defaultBudget > 0 ? defaultBudget : d.defaultTaskBudgetUSD
         // A file with every source off has no meter to draw and no clickable
         // menu bar item to reach Settings through. The UI prevents this; a
         // hand-edited file has to be caught here instead of booting invisible.

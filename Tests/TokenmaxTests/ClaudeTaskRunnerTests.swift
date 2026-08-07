@@ -120,6 +120,24 @@ struct ClaudeTaskRunnerTests {
         #expect(arguments.last == "Do it")
     }
 
+    /// The flag is built with `%.2f`, which is fine for cents but is exactly
+    /// the kind of format string that quietly acquires a locale or an
+    /// exponent. A three-figure budget is now reachable from the editor's
+    /// "Other…" field, and `1e+02` would be rejected by the CLI.
+    @Test("A large or odd spend limit reaches the CLI as plain dollars and cents")
+    func largeBudgetIsFormattedPlainly() {
+        #expect(
+            value(after: "--max-budget-usd", in: ClaudeTaskRunner.arguments(
+                prompt: "Do it", policy: policy(budget: 100)
+            )) == "100.00"
+        )
+        #expect(
+            value(after: "--max-budget-usd", in: ClaudeTaskRunner.arguments(
+                prompt: "Do it", policy: policy(budget: 37.5)
+            )) == "37.50"
+        )
+    }
+
     /// A task written before the thinking grade existed has to invoke the CLI
     /// exactly as it did, which means no flag at all rather than a default one.
     @Test("The effort flag is omitted entirely when unset")

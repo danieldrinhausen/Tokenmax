@@ -128,7 +128,15 @@ struct QueueAutomationSettingsView: View {
                         Text(TaskExecutionPolicy.effortDisplayName($0)).tag($0)
                     }
                 }
-                Text("What a new task starts with. Both are overridable per task, and changing them here leaves existing tasks alone. An alias like Opus always resolves to the newest model of that family; the list itself is fetched from Anthropic, so a new model appears without updating Tokenmax.")
+                Picker("Spend limit", selection: $settingsStore.settings.defaultTaskBudgetUSD) {
+                    ForEach(TaskExecutionPolicy.budgetOptions, id: \.self) { value in
+                        Text(value == value.rounded()
+                            ? String(format: "$%.0f", value)
+                            : String(format: "$%.2f", value)
+                        ).tag(value)
+                    }
+                }
+                Text("What a new task starts with. All three are overridable per task, and changing them here leaves existing tasks alone. An alias like Opus always resolves to the newest model of that family; the list itself is fetched from Anthropic, so a new model appears without updating Tokenmax.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

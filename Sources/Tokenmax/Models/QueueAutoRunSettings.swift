@@ -205,7 +205,18 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
     /// version ships. The editor's "Other…" field covers pinning a full id.
     static let modelOptions = ["haiku", "sonnet", "opus", "fable"]
     static let runtimeOptions = [5, 10, 15, 30, 45, 60]
-    static let budgetOptions = [0.10, 0.25, 0.50, 1.00, 2.00, 5.00]
+
+    /// Common values, not a ceiling. Deliberately open-ended at the top because
+    /// the amount worth spending depends entirely on the plan: burning a week's
+    /// remaining Max allowance on a Friday afternoon is a different order of
+    /// magnitude from a ten-minute chore. Anything not in this list is typed
+    /// into the editor's "Other…" field and stored verbatim.
+    static let budgetOptions = [0.10, 0.25, 0.50, 1.00, 2.00, 5.00, 10.00, 25.00, 50.00, 100.00]
+
+    /// Sentinel for the editor's "Other…" row. Negative because no real budget
+    /// can be, so it can never collide with a stored value — and `init(from:)`
+    /// rejects it on the way back in if it ever reaches disk.
+    static let customBudgetTag = -1.0
 
     /// The levels `claude --effort` accepts.
     static let effortOptions = ["low", "medium", "high", "xhigh", "max"]
@@ -237,7 +248,12 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
         let d = TaskExecutionPolicy()
         maximumRuntimeMinutes = try container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes)
             ?? d.maximumRuntimeMinutes
-        maximumBudgetUSD = try container.decodeIfPresent(Double.self, forKey: .maximumBudgetUSD) ?? d.maximumBudgetUSD
+        // A zero or negative budget is not "spend nothing" — the CLI rejects the
+        // flag outright, so the run would fail rather than be cheap. It is also
+        // the shape `customBudgetTag` takes, which must never survive a round
+        // trip through disk.
+        let budget = try container.decodeIfPresent(Double.self, forKey: .maximumBudgetUSD) ?? d.maximumBudgetUSD
+        maximumBudgetUSD = budget > 0 ? budget : d.maximumBudgetUSD
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? d.model
         effort = try container.decodeIfPresent(String.self, forKey: .effort)
         allowFileChanges = try container.decodeIfPresent(Bool.self, forKey: .allowFileChanges) ?? d.allowFileChanges

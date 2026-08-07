@@ -9,6 +9,10 @@ struct TaskEditorView: View {
     /// Whether macOS is blocking reads of the chosen directory. Computed off
     /// the main thread by `refreshDirectoryPermission` — never in `body`.
     @State private var directoryNeedsPermission = false
+    /// Sticky "Other…" for the spend limit. Needed because picking it does not
+    /// itself change the amount, so without this the picker would snap straight
+    /// back to the preset it was on and the field would never appear.
+    @State private var editingCustomBudget = false
     @FocusState private var focusedField: Field?
     private let onSave: (TokenmaxTask) -> Void
 
@@ -42,6 +46,13 @@ struct TaskEditorView: View {
                     .keyboardShortcut(.cancelAction)
                 Button("Save Task") {
                     draft.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    // The free-text spend limit can be emptied or zeroed, and
+                    // the CLI rejects `--max-budget-usd 0` outright — the run
+                    // would fail rather than be cheap. Normalise here as well as
+                    // in the decoder, since this value never touches disk first.
+                    if draft.autoRun.maximumBudgetUSD <= 0 {
+                        draft.autoRun.maximumBudgetUSD = TaskExecutionPolicy().maximumBudgetUSD
+                    }
                     draft.updatedAt = Date()
                     onSave(draft)
                     dismiss()
@@ -285,19 +296,17 @@ struct TaskEditorView: View {
                     .frame(width: 128, alignment: .leading)
 
                     if draft.provider == .claudeCode {
-                        field("Spend limit") {
-                            Picker("", selection: $draft.autoRun.maximumBudgetUSD) {
-                                ForEach(TaskExecutionPolicy.budgetOptions, id: \.self) { value in
-                                    Text(String(format: "$%.2f", value)).tag(value)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: 112, alignment: .leading)
-                        }
-                        .frame(width: 112, alignment: .leading)
+                        spendLimitField
                     }
 
                     Spacer(minLength: 0)
+                }
+
+                if draft.provider == .claudeCode {
+                    Text("The limit applies per run. A follow-up in the thread view starts a new one, which gets the same allowance again.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -354,6 +363,61 @@ struct TaskEditorView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Presets plus an "Other…" escape hatch, for the same reason the model
+    /// field has one: the useful range spans two orders of magnitude — a chore
+    /// worth ten cents and a Friday-afternoon burn of a week's leftover
+    /// allowance are both legitimate — and no list covers that without becoming
+    /// a scroll. It also fixes a real bug: a value outside the list used to
+    /// render as an empty picker and was silently overwritten on first touch.
+    private var spendLimitField: some View {
+        field("Spend limit") {
+            Picker("", selection: budgetSelection) {
+                ForEach(TaskExecutionPolicy.budgetOptions, id: \.self) { value in
+                    Text(currency(value)).tag(value)
+                }
+                Divider()
+                Text("Other…").tag(TaskExecutionPolicy.customBudgetTag)
+            }
+            .labelsHidden()
+            .frame(width: 112, alignment: .leading)
+
+            if isCustomBudget {
+                TextField("5.00", value: $draft.autoRun.maximumBudgetUSD, format: .number.precision(.fractionLength(2)))
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 112)
+            }
+        }
+        .frame(width: 112, alignment: .leading)
+    }
+
+    private var isCustomBudget: Bool {
+        editingCustomBudget || !TaskExecutionPolicy.budgetOptions.contains(draft.autoRun.maximumBudgetUSD)
+    }
+
+    /// Selecting "Other…" keeps the current figure rather than clearing it —
+    /// unlike the model field, where the previous alias would read as an
+    /// already-pinned id. Here the previous amount is the obvious thing to
+    /// edit upwards from.
+    private var budgetSelection: Binding<Double> {
+        Binding(
+            get: { isCustomBudget ? TaskExecutionPolicy.customBudgetTag : draft.autoRun.maximumBudgetUSD },
+            set: { selected in
+                guard selected != TaskExecutionPolicy.customBudgetTag else {
+                    editingCustomBudget = true
+                    return
+                }
+                editingCustomBudget = false
+                draft.autoRun.maximumBudgetUSD = selected
+            }
+        )
+    }
+
+    /// Whole dollars lose the cents, so a $100 limit does not read as noise
+    /// next to a $0.25 one.
+    private func currency(_ value: Double) -> String {
+        value == value.rounded() ? String(format: "$%.0f", value) : String(format: "$%.2f", value)
     }
 
     private var estimatedRuntimeField: some View {

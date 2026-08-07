@@ -88,6 +88,57 @@ struct PersistenceCompatibilityTests {
         #expect(task.selectedEffort == nil)
     }
 
+    // MARK: - Spend limit
+
+    /// The editor's free-text field can be emptied or zeroed, and a hand-edited
+    /// file can hold anything. `--max-budget-usd 0` is not a cheap run — the CLI
+    /// rejects the flag, so the task fails instead. Anything non-positive has to
+    /// come back as the default.
+    @Test("A non-positive spend limit decodes as the default rather than as free")
+    func nonPositiveBudgetFallsBackToDefault() throws {
+        let zero = try decode(TokenmaxTask.self, """
+        { "title": "Zero", "prompt": "Do it", "autoRun": { "maximumBudgetUSD": 0 } }
+        """)
+        let negative = try decode(TokenmaxTask.self, """
+        { "title": "Sentinel", "prompt": "Do it", "autoRun": { "maximumBudgetUSD": -1 } }
+        """)
+
+        #expect(zero.autoRun.maximumBudgetUSD == TaskExecutionPolicy().maximumBudgetUSD)
+        #expect(negative.autoRun.maximumBudgetUSD == TaskExecutionPolicy().maximumBudgetUSD)
+        // The "Other…" sentinel must never be mistaken for a real budget.
+        #expect(TaskExecutionPolicy.customBudgetTag < 0)
+    }
+
+    /// A figure typed into "Other…" is not in `budgetOptions` and must survive
+    /// anyway — the old picker-only editor silently reset such values.
+    @Test("A spend limit outside the preset list survives a round trip")
+    func customBudgetRoundTrips() throws {
+        var task = TokenmaxTask(title: "Burn", prompt: "Do it")
+        task.autoRun.maximumBudgetUSD = 37.50
+
+        let data = try JSONStore.makeEncoder().encode(task)
+        let decoded = try JSONStore.makeDecoder().decode(TokenmaxTask.self, from: data)
+
+        #expect(decoded.autoRun.maximumBudgetUSD == 37.50)
+        #expect(!TaskExecutionPolicy.budgetOptions.contains(37.50))
+    }
+
+    @Test("Settings written before the default spend limit existed keep $0.50")
+    func loadsSettingsWithoutDefaultBudget() throws {
+        let settings = try decode(AppSettings.self, """
+        { "defaultTaskModel": "opus" }
+        """)
+
+        #expect(settings.defaultTaskModel == "opus")
+        // Upgrading must not raise anyone's per-task spending by itself.
+        #expect(settings.defaultTaskBudgetUSD == TaskExecutionPolicy().maximumBudgetUSD)
+
+        let zeroed = try decode(AppSettings.self, """
+        { "defaultTaskBudgetUSD": 0 }
+        """)
+        #expect(zeroed.defaultTaskBudgetUSD == TaskExecutionPolicy().maximumBudgetUSD)
+    }
+
     @Test("A pinned model id and thinking grade survive a round trip")
     func pinnedModelAndEffortRoundTrip() throws {
         var task = TokenmaxTask(title: "Pinned", prompt: "Do it")

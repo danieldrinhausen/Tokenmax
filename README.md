@@ -469,7 +469,7 @@ limit** — not its estimate — fits before the safety margin. Anything else, a
 Settings say which condition failed.
 
 Each task carries its own limits: model, runtime ceiling, spend ceiling (enforced by the CLI itself
-via `--max-budget-usd`), and two capability toggles. File tools are confined to the working directory
+via `--max-budget-usd`, a preset or any amount you type), and two capability toggles. File tools are confined to the working directory
 with `Write(**)`-style path scoping — without it, an allowlisted `Write` is auto-approved for *any*
 path on the machine. Shell access is a separate opt-in precisely because it removes that confinement.
 `--dangerously-skip-permissions` is never used.

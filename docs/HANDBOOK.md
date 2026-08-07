@@ -244,7 +244,7 @@ quota is only useful if you have something ready to spend it on.
 | **Working directory** | Where it runs. Also the boundary file tools are confined to. |
 | **Runtime estimate** | Required for automation. Without it the task can only be run by hand. |
 | **Runtime limit** | Hard ceiling. The run is killed here. |
-| **Spend limit** | Enforced by the CLI itself via `--max-budget-usd`. |
+| **Spend limit** | Enforced by the CLI itself via `--max-budget-usd`. Pick a preset or type any amount under **Other…**. It applies per run, so a reply in the thread view gets the same allowance again. |
 | **Automation** | Whether Tokenmax may ever start this on its own. |
 
 Two ways to run a card:
