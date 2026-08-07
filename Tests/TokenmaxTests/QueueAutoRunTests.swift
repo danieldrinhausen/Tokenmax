@@ -1197,6 +1197,29 @@ struct QueueAutoRunTests {
         #expect(decision.skipReason == .disabled)
     }
 
+    /// An API-key Codex runs tasks perfectly well, which is why this has to be
+    /// an explicit refusal: there is no plan allowance behind the run, and the
+    /// work is billed per token.
+    @Test("A Codex signed in with an API key is refused, with a reason that says so")
+    func codexAPIKeyLoginIsRefused() {
+        #expect(QueueAutoRun.codexAccountGate(isAPIKeyOnly: true) == .codexAPIKeyConfigured)
+        #expect(QueueAutoRun.codexAccountGate(isAPIKeyOnly: false) == nil)
+        // The sentence has to name the fix, since nothing else in the app will.
+        #expect(QueueAutoRunDecision.SkipReason.codexAPIKeyConfigured.explanation.contains("codex login"))
+        #expect(QueueAutoRunDecision.SkipReason.codexAPIKeyConfigured.isNoteworthy)
+    }
+
+    /// The gate reads a stored fact rather than the usage state, because the
+    /// state an API-key login produces is an ordinary failure — the queue must
+    /// not refuse on a network blip nor allow a run on a billed login.
+    @Test("An API-key login is a case of its own, not free text")
+    func apiKeyLoginIsAStructuredError() {
+        let error = ProviderError.apiKeyConfigured("Codex")
+        #expect(error == ProviderError.apiKeyConfigured("Codex"))
+        #expect(error != ProviderError.underlying(error.errorDescription ?? ""))
+        #expect(error.errorDescription?.contains("API key") == true)
+    }
+
     @Test("A missing codex CLI refuses before anything is spent")
     func missingCodexCLIRefuses() {
         let decision = QueueAutoRun.decide(input(

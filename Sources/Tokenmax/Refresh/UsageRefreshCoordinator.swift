@@ -252,6 +252,8 @@ final class UsageRefreshCoordinator: ObservableObject {
             }
 
             isAwaitingTokenRenewal = false
+            // A reading arrived, so whatever the login was, it meters quota now.
+            isAPIKeyOnly = false
             state = .loaded(snapshot)
             JSONStore.save(snapshot, to: snapshotURL)
             resetBackoff()
@@ -294,6 +296,12 @@ final class UsageRefreshCoordinator: ObservableObject {
                 isAwaitingTokenRenewal = false
                 state = .needsReauthentication
                 return
+            case .apiKeyConfigured:
+                // Not a terminal state of its own: the message below says what
+                // happened, and any last good reading stays on screen. The flag
+                // is what the queue reads, so it can refuse a run with the real
+                // reason rather than reporting a missing quota window.
+                isAPIKeyOnly = true
             case .noWindowsReturned, .underlying:
                 break
             }
@@ -356,6 +364,15 @@ final class UsageRefreshCoordinator: ObservableObject {
     /// perform the only action that clears the staleness. Only a genuinely newer
     /// observation clears this now.
     @Published private(set) var isAwaitingTokenRenewal = false
+
+    /// Whether the last refresh found an API-key login rather than a
+    /// subscription one.
+    ///
+    /// A stored fact for the same reason as the flag above: the state it
+    /// produces is an ordinary `.unavailable`, indistinguishable from a network
+    /// blip, and the queue must not refuse a run on a blip nor allow one on a
+    /// login that would be billed per token. Cleared by any successful reading.
+    @Published private(set) var isAPIKeyOnly = false
 
     /// The newest observation actually seen, used to tell a fresh reading from
     /// the client replaying the one we already had.

@@ -32,6 +32,12 @@ enum ProviderError: Error, LocalizedError, Equatable {
     /// with. This one really does need a sign-in.
     case needsReauthentication
     case noWindowsReturned
+    /// Signed in with an API key rather than a subscription. The agent still
+    /// runs, but there is no plan allowance to meter and the work is billed per
+    /// token — which is why this is a distinct case rather than free text: the
+    /// queue has to refuse on it, and matching on a message string to do that
+    /// would break the first time the wording changed.
+    case apiKeyConfigured(String)
     case underlying(String)
 
     var errorDescription: String? {
@@ -42,6 +48,8 @@ enum ProviderError: Error, LocalizedError, Equatable {
         case .tokenExpired: "Claude Code's access token expired; it refreshes on next use."
         case .needsReauthentication: "Claude Code needs to be re-authenticated."
         case .noWindowsReturned: "No quota windows were returned."
+        case let .apiKeyConfigured(name):
+            "\(name) is authenticated with an API key. It can run tasks, but this account has no subscription quota meter."
         case let .underlying(message): message
         }
     }

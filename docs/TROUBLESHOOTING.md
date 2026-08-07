@@ -302,15 +302,30 @@ Automation**. The common ones:
 
 Preview mode is the one people forget. It is deliberately sticky.
 
-**A Codex task will never start automatically in 0.1.** Codex automation is
-gated behind its own setting, deliberately separate from Claude's so that
-enabling unattended Claude runs cannot hand you a second unattended agent by
-inheritance. That setting defaults to off, and this build ships no control for
-it — so a Codex task can satisfy every condition above and still sit there.
-That is the current behaviour, not a misconfiguration on your side.
+### A Codex task never starts automatically
 
-Run Codex tasks yourself with **Run with Provider**. Claude automation is
-unaffected.
+Codex automation has a switch of its own — **Settings → Queue automation →
+Codex** — kept separate from Claude's so that enabling unattended Claude runs
+cannot hand you a second unattended agent by inheritance. It defaults to off,
+including through an upgrade, so this is the first thing to check.
+
+Four more causes are specific to Codex:
+
+- **Codex is not monitored.** Settings → General → *Monitor Codex usage*. A
+  provider that is switched off has stopped refreshing, and nothing runs against
+  a frozen reading.
+- **Codex is signed in with an API key.** There is then no plan allowance to
+  meter and the run would be billed per token, so Tokenmax refuses and says so.
+  `codex login` with a ChatGPT account fixes it.
+- **The window is not close enough to resetting.** If your plan reports only a
+  weekly window, that is the one being spent, and the run happens in the lead
+  time before the *week* resets — not daily.
+- **The window's task allowance is used up.** On a weekly-only plan, the default
+  *maximum tasks per window* of one means one task a week. Raise it in the Codex
+  section.
+
+The status line in Settings names whichever condition is actually failing, and
+the Codex section says which window your own plan reports.
 
 ### An appointment came and went and nothing ran
 
@@ -329,7 +344,7 @@ rather than starting hours late against a project that has moved on. Give it a
 new time, or raise that grace period if you routinely close the lid.
 
 An appointment that is simply still in the future reports itself as waiting, not
-as a problem, and it does not consume the per-session task or runtime budgets —
+as a problem, and it does not consume the per-window task or runtime budgets —
 so a full window is not the reason either.
 
 ### A Codex task ignored the cost cap

@@ -54,6 +54,10 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         // must not run against pay-as-you-go billing either.
         case notSubscriptionAuth
         case apiKeyConfigured
+        /// The Codex equivalent, kept separate because the fix is a different
+        /// command in a different place and a shared sentence could name only
+        /// one of them.
+        case codexAPIKeyConfigured
 
         // Per-task reasons. Never the top-level verdict on their own — they
         // explain why one card is ineligible while another is not.
@@ -138,6 +142,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "Claude Code is not signed in to a Claude subscription."
             case .apiKeyConfigured:
                 "An API key is configured in ~/.claude/settings.json, so a run would be billed."
+            case .codexAPIKeyConfigured:
+                "Codex is signed in with an API key, so a run would be billed per token rather than covered by a ChatGPT plan. Sign in with “codex login” to run Codex tasks automatically."
             case .notApprovedForAutomation:
                 "Not marked for automatic execution."
             case .workingDirectoryMissing:
@@ -684,6 +690,20 @@ enum QueueAutoRun {
         if runInFlight { return .runInFlight }
         if !task.workingDirectoryExists { return .workingDirectoryMissing }
         return nil
+    }
+
+    /// The Codex counterpart of `accountGate`.
+    ///
+    /// An API-key Codex can run tasks perfectly well, which is exactly why this
+    /// has to refuse rather than let it: there is no plan allowance behind the
+    /// run, every quota gate above is reading a number that will never arrive,
+    /// and the work is billed per token.
+    ///
+    /// Applied to hand-started runs too, matching what the Claude gate has
+    /// always done. The point is not that the user did not ask — it is that
+    /// nothing here can tell them what the run will cost.
+    static func codexAccountGate(isAPIKeyOnly: Bool) -> QueueAutoRunDecision.SkipReason? {
+        isAPIKeyOnly ? .codexAPIKeyConfigured : nil
     }
 
     /// Translates the session opener's account gates into this feature's

@@ -292,8 +292,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // once the cheap guards have all passed.
         if outcome.isEligible,
            let taskID = outcome.taskID,
-           taskStore.tasks.first(where: { $0.id == taskID })?.provider == .claudeCode,
-           let gate = QueueAutoRun.accountGate(expensiveGate()) {
+           let task = taskStore.tasks.first(where: { $0.id == taskID }),
+           let gate = accountGate(for: task.provider) {
             outcome = .skip(reason: gate)
         }
 
@@ -413,6 +413,25 @@ final class QueueAutoRunCoordinator: ObservableObject {
         } else if let taskID = outcome.taskID {
             let title = taskStore.tasks.first { $0.id == taskID }?.title ?? "?"
             Log.shared.write("autorun: eligible — \(title)")
+        }
+    }
+
+    /// Whether this provider's account makes an unattended run unwise, or nil.
+    ///
+    /// Same rule for both — never spend against pay-as-you-go billing — reached
+    /// two different ways. Claude's needs a subprocess and a file read, so it is
+    /// cached and deliberately runs only after every cheap guard has passed.
+    /// Codex's costs nothing: the usage refresh already discovered the login
+    /// type, and asking again would mean a second App Server for an answer
+    /// already in hand.
+    private func accountGate(for provider: TokenmaxProvider, force: Bool = false)
+        -> QueueAutoRunDecision.SkipReason?
+    {
+        switch provider {
+        case .claudeCode:
+            QueueAutoRun.accountGate(expensiveGate(force: force))
+        case .codex:
+            QueueAutoRun.codexAccountGate(isAPIKeyOnly: usage.isAPIKeyOnly(for: .codex))
         }
     }
 
@@ -759,7 +778,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         }
 
         // The account gates still apply: a manual run must not be billed either.
-        if task.provider == .claudeCode, let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
+        if let gate = accountGate(for: task.provider, force: true) {
             Log.shared.write("autorun: manual run refused — \(gate.rawValue)")
             return gate
         }
@@ -804,7 +823,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return reason
         }
 
-        if task.provider == .claudeCode, let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
+        if let gate = accountGate(for: task.provider, force: true) {
             Log.shared.write("autorun: reply refused — \(gate.rawValue)")
             return gate
         }

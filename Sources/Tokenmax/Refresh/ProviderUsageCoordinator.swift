@@ -55,6 +55,11 @@ final class ProviderUsageCoordinator: ObservableObject {
     func state(for provider: TokenmaxProvider) -> UsageState { coordinator(for: provider).state }
     func isStale(for provider: TokenmaxProvider) -> Bool { coordinator(for: provider).isStale }
     func snapshot(for provider: TokenmaxProvider) -> UsageSnapshot? { state(for: provider).snapshot }
+    /// Whether this provider's last refresh found an API-key login. Read by the
+    /// queue, which must not start a run that would be billed per token.
+    func isAPIKeyOnly(for provider: TokenmaxProvider) -> Bool {
+        coordinator(for: provider).isAPIKeyOnly
+    }
 
     /// The windows currently in their "spend it now" stretch, per source.
     ///

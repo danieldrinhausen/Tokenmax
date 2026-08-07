@@ -539,7 +539,7 @@ cycle, and if no session is open the run starts one.
 Only the timing is overridden. The session and weekly quota floors, quiet hours, any credit check you
 switched on, the account gates and the task's own limits all still apply, so an appointment can reach no
 further into your allowance than the same task would have on its own. It also does not consume the
-per-session task and runtime allowances, which budget the opportunistic burn rather than work you
+per-window task and runtime allowances, which budget the opportunistic burn rather than work you
 asked for by name.
 
 It runs once — the time is cleared when the run starts — and it expires if it is missed. Nothing
