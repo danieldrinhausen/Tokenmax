@@ -771,14 +771,31 @@ struct QueueAutoRunTests {
         #expect(skipReason(input(settings: permissive, extraUsageEnabled: nil)) == nil)
     }
 
-    /// Opposite default to `SessionOpenerSettings`, deliberately. The opener
-    /// only ever runs into a freshly reset window and cannot reach a charge;
-    /// the queue exists to spend the tail of one, which is exactly where the
-    /// allowance ends.
-    @Test("The queue's credit guard is on by default, unlike the opener's")
-    func extraUsageGuardDefaultsOn() {
-        #expect(QueueAutoRunSettings().skipWhenExtraUsageEnabled)
+    /// Same default as the opener's, and for the same reason: credits enabled
+    /// is a normal account state, and refusing on it alone disables the feature
+    /// for everyone who has them. This guard shipped defaulting on and stopped
+    /// the queue outright on the first such account — the quota thresholds
+    /// already keep a run away from the allowance, so it refused runs that
+    /// could never have been charged.
+    @Test("The credit guard is off by default, like the opener's")
+    func extraUsageGuardDefaultsOff() {
+        #expect(!QueueAutoRunSettings().skipWhenExtraUsageEnabled)
         #expect(!SessionOpenerSettings().skipWhenExtraUsageEnabled)
+    }
+
+    /// The guard being off must not be a way past the numeric thresholds —
+    /// those are what actually keep a run clear of the plan allowance.
+    @Test("With the credit guard off the quota floors still refuse")
+    func creditGuardOffStillRespectsQuotaFloors() {
+        let permissive = settings(skipWhenExtraUsage: false)
+        #expect(
+            skipReason(input(settings: permissive, weeklyRemaining: 2, extraUsageEnabled: true))
+                == .weeklyQuotaLow
+        )
+        #expect(
+            skipReason(input(settings: permissive, session: session(remaining: 5), extraUsageEnabled: true))
+                == .sessionQuotaLow
+        )
     }
 
     /// Ordering matters: a user who is below their weekly threshold *and* has

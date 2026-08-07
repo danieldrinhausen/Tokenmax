@@ -113,9 +113,11 @@ structural, not configurable:
 - Shell access is a separate opt-in because it removes that confinement.
 - Each run carries a CLI-enforced spend cap (`--max-budget-usd`) and a runtime
   ceiling enforced by Tokenmax.
-- The queue refuses to start while the account can be charged for usage credits,
-  and `stopWhenQuotaExhausted` ends a run already under way when either window
-  empties. Past the plan allowance the CLI keeps going and bills.
+- Past the plan allowance the CLI keeps going and bills usage credits. The
+  quota thresholds stop a run well short of that line;
+  `stopWhenQuotaExhausted` ends one already under way if a window empties
+  anyway. `skipWhenExtraUsageEnabled` refuses categorically and is opt-in —
+  credits being enabled says nothing about proximity to the line.
 - The opener runs with every tool disabled, in a fresh temp directory, with an
   allowlisted environment, and refuses to run under an API key.
 

@@ -143,18 +143,23 @@ struct PersistenceCompatibilityTests {
 
     // MARK: - Usage credits
 
-    /// Both guards must arrive switched *on* for a file that predates them.
-    /// This is the one place where the tolerant-decoder default is deliberately
-    /// the restrictive value: an upgrade that quietly opened the door to billed
-    /// credits would be discovered on an invoice.
-    @Test("An automation block written before the credit guards gets them on")
-    func loadsAutoRunWithoutCreditGuards() throws {
+    /// An upgrade must not switch on a guard that stops the queue. The
+    /// categorical credit refusal is opt-in — the quota thresholds are what
+    /// keep a run clear of the plan allowance, and defaulting this on silently
+    /// disabled automation for every account with credits enabled.
+    @Test("An automation block written before the credit guard leaves it off")
+    func loadsAutoRunWithoutCreditGuard() throws {
         let settings = try decode(AppSettings.self, """
         { "queueAutoRun": { "enabled": true, "mode": "automatic", "leadTimeMinutes": 60 } }
         """)
 
         #expect(settings.queueAutoRun.leadTimeMinutes == 60)
-        #expect(settings.queueAutoRun.skipWhenExtraUsageEnabled)
+        #expect(!settings.queueAutoRun.skipWhenExtraUsageEnabled)
+        // Switching it on must survive, or the option is not one.
+        let explicit = try decode(AppSettings.self, """
+        { "queueAutoRun": { "skipWhenExtraUsageEnabled": true } }
+        """)
+        #expect(explicit.queueAutoRun.skipWhenExtraUsageEnabled)
     }
 
     @Test("A task written before the quota watchdog existed gets it on")

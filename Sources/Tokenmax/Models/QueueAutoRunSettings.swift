@@ -121,16 +121,23 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
 
     /// Refuse to start anything while the account can charge for extra usage.
     ///
-    /// On by default, where `SessionOpenerSettings.skipWhenExtraUsageEnabled`
-    /// is off — the two features sit at opposite ends of a window. The opener
-    /// only ever runs into a window that has just reset, with the weekly
-    /// allowance above its threshold, so it cannot reach a charge and a blanket
-    /// refusal there only disabled the feature for anyone who has credits on.
-    /// The auto-runner is the inverse by design: it exists to spend the tail of
-    /// a window, which is exactly where the plan allowance runs out and paid
-    /// credits take over. Past that point the CLI does not stop — it keeps
-    /// going and bills.
-    var skipWhenExtraUsageEnabled: Bool = true
+    /// Off by default, matching `SessionOpenerSettings`, and for the reason
+    /// given there: having credits enabled is a normal thing to have, and
+    /// refusing on that alone disables the feature for everyone who does.
+    ///
+    /// This shipped defaulting *on*, arguing that the auto-runner spends the
+    /// tail of a window and so sits exactly where the allowance ends. That
+    /// ignored the guards immediately above: a run cannot start below
+    /// `minimumSessionRemainingPercent` or `minimumWeeklyRemainingPercent`, so
+    /// it stops well short of the boundary where a charge becomes possible. The
+    /// default bought no safety and silently stopped the queue for the first
+    /// account that had credits switched on, which is how it was found.
+    ///
+    /// Kept as an option because it is categorical where the thresholds are
+    /// numeric — it holds even if the reported percentages are wrong.
+    /// `TaskExecutionPolicy.stopWhenQuotaExhausted` is what actually watches
+    /// the boundary, and it does that without refusing to start.
+    var skipWhenExtraUsageEnabled: Bool = false
 
     var notifyOnStart: Bool = true
     var notifyOnCompletion: Bool = true

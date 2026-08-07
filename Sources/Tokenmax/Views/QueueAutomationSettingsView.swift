@@ -287,23 +287,32 @@ struct QueueAutomationSettingsView: View {
         return lines
     }
 
-    /// Says what the toggle currently means for this account rather than
-    /// restating it. "Not reported" is deliberately distinct from "disabled":
-    /// an unknown is refused, and someone whose queue never fires needs to see
-    /// that rather than guess at it.
+    /// Reports this account's credit setting and what the switch does with it.
+    ///
+    /// Deliberately *not* the skip reason, which the Status section below
+    /// already shows in full — two paragraphs saying the same thing in
+    /// different words is how a settings pane becomes unreadable. This one
+    /// answers "what is true of my account", the other "why did nothing run".
+    ///
+    /// Off is the default because the quota thresholds above already stop a run
+    /// well short of the plan allowance, so this refuses runs that could never
+    /// have been charged. It earns its place only as a categorical guard for
+    /// anyone who does not trust the reported percentages.
     private var extraUsageDescription: String {
         let credits = usage.state.snapshot?.extraUsageEnabled
+        let state = switch credits {
+        case true: "Usage credits are enabled on this account."
+        case false: "Usage credits are disabled on this account, so the plan allowance is already a hard stop."
+        case nil: "Anthropic is not reporting whether usage credits are enabled."
+        }
         guard settingsStore.settings.queueAutoRun.skipWhenExtraUsageEnabled else {
-            return "Off, so tasks may run past the plan allowance and be charged as usage credits."
+            return state + " Your quota thresholds above are what keep a run away from the plan allowance; switch this on for a guard that holds even if the reported percentages are wrong."
         }
-        switch credits {
-        case true:
-            return "Usage credits are enabled on this account, so nothing will run. This is on by default because the queue exists to spend the tail of a window — exactly where the plan allowance ends and credits take over. Turn credits off at claude.ai, or switch this off to rely on the quota thresholds alone."
-        case false:
-            return "Usage credits are disabled on this account, so the plan allowance is a hard stop."
-        case nil:
-            return "Anthropic is not reporting whether usage credits are enabled, so nothing will run. An unreported setting is treated as unsafe."
-        }
+        // An unknown is refused too, and a queue that never fires without
+        // saying why is the state most easily mistaken for a broken app.
+        return credits == false
+            ? state + " Nothing is blocked."
+            : state + " Nothing will run while this is on."
     }
 
     private var extraUsageBlocks: Bool {

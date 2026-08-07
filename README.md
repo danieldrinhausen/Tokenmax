@@ -489,14 +489,19 @@ that has moved on.
 Two settings elsewhere will otherwise stop it silently, so the editor warns about both: the task
 must be marked **Always allow automatic execution**, and it still needs a runtime estimate.
 
-The credit guard deserves a note, because it is the one default that differs from the session
-opener's. Past the plan allowance Claude Code does not stop — it bills usage credits — and this
-feature exists to spend the tail of a window, which is exactly where that boundary sits. So it is
-**on** by default here and off for the opener, which only ever runs into a freshly reset window and
-cannot reach a charge. An unreported credit setting counts as unsafe and refuses. Backing it up,
-each task has a **Stop if the quota runs out** switch that ends a run already under way when either
-window empties; it reacts within a usage refresh rather than instantly, so it is the net rather than
-the guard.
+A word on usage credits, since that is where real money starts. If your Anthropic account has extra
+usage enabled, Claude Code does not stop when the plan allowance runs out — it keeps working and
+bills per token. What keeps a queued run away from that line is the pair of quota thresholds above:
+a task cannot start below them, so it stops well short of the boundary. On top of that, each task
+has a **Stop if the quota runs out** switch, on by default, which ends a run already under way when
+either window empties. It reacts within a usage refresh rather than instantly, so it is the net
+rather than the guard.
+
+**Never run when usage credits could be charged** is a third, categorical option and is **off** by
+default. Having credits enabled is a normal thing to have and says nothing about how close you are
+to the line, so refusing on it alone stops the queue for runs that could never have been charged.
+Switch it on if you would rather not depend on the reported percentages being right — it holds even
+when they are wrong, and it treats an unreported credit setting as unsafe.
 
 Each task carries its own limits: model, runtime ceiling, spend ceiling (enforced by the CLI itself
 via `--max-budget-usd`, a preset or any amount you type), and two capability toggles. File tools are confined to the working directory

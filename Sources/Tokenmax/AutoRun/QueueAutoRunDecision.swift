@@ -109,10 +109,15 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "The weekly quota is unknown, so spending cannot be checked."
             case .weeklyQuotaLow:
                 "Weekly quota is below your threshold."
+            // Names the switch rather than the pane. This sentence is shown in
+            // the popover, in the log, *and* inside Settings itself — where
+            // "change it in Settings" pointed at the control three centimetres
+            // above it. It also has to say what happened, not what might: with
+            // the guard on nothing runs, so nothing is being charged.
             case .extraUsageEnabled:
-                "Usage credits are switched on for this account, so a run past the plan allowance would be charged. Turn credits off at claude.ai, or allow them in Settings."
+                "Usage credits are enabled on this account, so nothing was started. Switch off “Never run when usage credits could be charged” to run on your quota thresholds alone."
             case .extraUsageUnknown:
-                "Cannot tell whether usage credits would be charged, so nothing was started."
+                "Anthropic did not report whether usage credits are enabled, so nothing was started. Switch off “Never run when usage credits could be charged” to run on your quota thresholds alone."
             case .runInFlight:
                 "A task is already running."
             case .maximumTasksReached:
