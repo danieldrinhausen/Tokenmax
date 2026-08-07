@@ -5,6 +5,17 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- **The Homebrew install route, which never worked.** The README, the info page
+  and the changelog all documented
+  `brew install --cask danieldrinhausen/tap/tokenmax`, but the tap it names was
+  never created, so the command could only ever fail. The disk image from
+  [Releases](https://github.com/danieldrinhausen/Tokenmax/releases) is the
+  install route, and the only one there has been. A tap remains worth doing —
+  `docs/RELEASING.md` says what it needs — but it will be written before it is
+  written about.
+
 ## [0.1.7] - 2026-08-07
 
 ### Added
@@ -33,13 +44,6 @@ versions follow [semver](https://semver.org/).
   refreshes it at most daily, the same way it already handles Anthropic's model
   list. A model released after your copy of Tokenmax appears on its own, and
   **Other…** still accepts anything typed by hand.
-- **Installable with Homebrew.**
-  `brew install --cask danieldrinhausen/tap/tokenmax` installs and
-  `brew upgrade --cask tokenmax` follows releases, from a
-  [tap of its own](https://github.com/danieldrinhausen/homebrew-tap) that tracks
-  this repository's releases without anyone having to remember it. The download
-  is still the same signed, unnotarized image, so the one-time **Open Anyway**
-  remains — Homebrew quarantines what it fetches exactly as a browser does.
 
 ### Fixed
 
