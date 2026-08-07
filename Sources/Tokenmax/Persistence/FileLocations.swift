@@ -27,6 +27,11 @@ enum FileLocations {
     /// The fetched list of Claude models, cached so the task editor is
     /// populated at launch and keeps working offline.
     static var modelCatalogFile: URL { supportDirectory.appendingPathComponent("model-catalog.json") }
+    /// The same, for Codex. Separate file rather than a shared one so a stale or
+    /// corrupt catalog for one provider cannot empty the other's picker.
+    static var codexModelCatalogFile: URL {
+        supportDirectory.appendingPathComponent("codex-model-catalog.json")
+    }
     static var notificationStateFile: URL { supportDirectory.appendingPathComponent("notification-state.json") }
     /// Which reset cycles the session opener has already acted on. Not derived
     /// data — losing it would let the same cycle be opened twice.

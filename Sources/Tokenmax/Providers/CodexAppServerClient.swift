@@ -44,10 +44,37 @@ final class CodexAppServerClient: @unchecked Sendable {
     static let timeout: TimeInterval = 12
 
     func readAccountAndLimits() async throws -> (Account, RateLimits) {
-        try await Task.detached(priority: .utility) { try self.readSynchronously() }.value
+        try await Task.detached(priority: .utility) {
+            try self.withSession { request in
+                let accountResult = try request(2, "account/read", ["refreshToken": false])
+                let limitsResult = try request(3, "account/rateLimits/read", [:])
+                return (Self.decodeAccount(accountResult), try Self.decodeLimits(limitsResult))
+            }
+        }.value
     }
 
-    private func readSynchronously() throws -> (Account, RateLimits) {
+    /// The models this account may choose between, as Codex itself reports them.
+    ///
+    /// Fetched rather than hardcoded for the same reason the Claude catalog is:
+    /// a model released next month has to appear without a Tokenmax release, and
+    /// the reasoning levels differ per model in a way no static list can track.
+    func readModels() async throws -> [CodexCatalogModel] {
+        try await Task.detached(priority: .utility) {
+            try self.withSession { request in
+                Self.decodeModels(try request(2, "model/list", [:]))
+            }
+        }.value
+    }
+
+    /// One short-lived read-only App Server, and the JSON-RPC handshake every
+    /// read needs before it can ask anything.
+    ///
+    /// Tokenmax deliberately starts a fresh server per read rather than keeping
+    /// one alive: no agent process lingers in the background, and Codex stays
+    /// fully responsible for its stored credentials and token refreshes.
+    private func withSession<T>(
+        _ body: (_ request: (Int, String, [String: Any]) throws -> [String: Any]) throws -> T
+    ) throws -> T {
         guard let executable = CodexCLIClient.locate() else { throw ClientError.notInstalled }
 
         let process = Process()
@@ -81,7 +108,7 @@ final class CodexAppServerClient: @unchecked Sendable {
             let data = try JSONSerialization.data(withJSONObject: payload)
             try input.fileHandleForWriting.write(contentsOf: data + Data("\n".utf8))
         }
-        func request(_ id: Int, method: String, params: [String: Any] = [:]) throws -> [String: Any] {
+        func request(_ id: Int, _ method: String, _ params: [String: Any]) throws -> [String: Any] {
             try send(["method": method, "id": id, "params": params])
             guard let response = reader.wait(for: id, timeout: Self.timeout) else {
                 throw ClientError.timedOut(method)
@@ -95,13 +122,43 @@ final class CodexAppServerClient: @unchecked Sendable {
             return result
         }
 
-        _ = try request(1, method: "initialize", params: [
+        _ = try request(1, "initialize", [
             "clientInfo": ["name": "tokenmax", "title": "Tokenmax", "version": "0.1"]
         ])
         try send(["method": "initialized", "params": [:]])
-        let accountResult = try request(2, method: "account/read", params: ["refreshToken": false])
-        let limitsResult = try request(3, method: "account/rateLimits/read")
-        return (Self.decodeAccount(accountResult), try Self.decodeLimits(limitsResult))
+        return try body(request)
+    }
+
+    /// `model/list` returns `{data: [Model]}`. Only the fields the editor needs
+    /// are read; everything else is ignored rather than modelled, so a field
+    /// Codex adds cannot break the decode.
+    ///
+    /// Hidden models are dropped: Codex marks them as kept out of its own
+    /// picker, and Tokenmax has no better claim to show them.
+    static func decodeModels(_ result: [String: Any]) -> [CodexCatalogModel] {
+        let data = result["data"] as? [[String: Any]] ?? []
+        return data.compactMap { entry in
+            guard let id = entry["id"] as? String, !id.isEmpty else { return nil }
+            if entry["hidden"] as? Bool == true { return nil }
+            return CodexCatalogModel(
+                id: id,
+                displayName: (entry["displayName"] as? String) ?? id,
+                summary: entry["description"] as? String,
+                isDefault: (entry["isDefault"] as? Bool) ?? false,
+                reasoningEfforts: reasoningEfforts(entry["supportedReasoningEfforts"])
+            )
+        }
+    }
+
+    /// Codex 0.146 reports each level as `{reasoningEffort, description}`;
+    /// earlier App Server versions sent bare strings. Accept both, so an
+    /// upgrade in either direction does not empty the picker.
+    private static func reasoningEfforts(_ value: Any?) -> [String] {
+        guard let levels = value as? [Any] else { return [] }
+        return levels.compactMap { level in
+            if let name = level as? String { return name }
+            return (level as? [String: Any])?["reasoningEffort"] as? String
+        }
     }
 
     static func decodeAccount(_ result: [String: Any]) -> Account {

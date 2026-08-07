@@ -37,10 +37,15 @@ struct CodexExecutionPolicy: Codable, Sendable, Equatable {
 
     static let runtimeOptions = TaskExecutionPolicy.runtimeOptions
 
-    /// Codex's own levels, which are not Claude's — it has `minimal` and no
-    /// `xhigh`/`max`. The value is passed through verbatim as a TOML string, so
-    /// a level Codex adds later still works without a rebuild.
-    static let reasoningEffortOptions = ["minimal", "low", "medium", "high"]
+    /// The fallback list, used only when the fetched catalog has nothing to say
+    /// about the chosen model.
+    ///
+    /// Codex reports the real levels per model over `model/list`, and they
+    /// genuinely differ between models — see `CodexModelCatalog`. This list is
+    /// what the picker falls back to when the CLI is missing or the catalog has
+    /// never been fetched. The value is passed through verbatim as a TOML
+    /// string, so a level Codex adds later still works without a rebuild.
+    static let reasoningEffortOptions = ["low", "medium", "high", "xhigh", "max"]
 
     init() {}
 
