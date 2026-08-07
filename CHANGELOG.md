@@ -7,6 +7,19 @@ versions follow [semver](https://semver.org/).
 
 ### Added
 
+- **A task can be run by Codex.** The queue could already execute a Codex task —
+  the runner, the sandbox policy and the reasoning setting were all there — but
+  nothing in the app could create one, so every task was Claude's. The editor
+  now has a **Provider** picker, and Settings chooses which provider new tasks
+  start on. A task carries both providers' settings at once, so switching the
+  picker never loses what you set on the other side.
+- **The Codex model is a list rather than a typed-in id.** Codex reports its own
+  models over the App Server, including which reasoning levels each one accepts —
+  they genuinely differ per model. Tokenmax now asks, caches the answer, and
+  refreshes it at most daily, the same way it already handles Anthropic's model
+  list. A model released after your copy of Tokenmax appears on its own, and
+  **Other…** still accepts anything typed by hand.
+
 - **Installable with Homebrew.**
   `brew install --cask danieldrinhausen/tap/tokenmax` installs and
   `brew upgrade --cask tokenmax` follows releases, from a

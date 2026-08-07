@@ -437,9 +437,31 @@ Turning it off does **not** silence reminders. A rule set to "only notify when t
 would otherwise suppress every reminder forever once there is no way left to queue anything, so
 that condition is ignored while the queue is off and the banner drops its task count.
 
-Each card offers two ways to run. **Run with Claude** executes the task headlessly through
-`claude -p` and streams the output to a log. **Open in Terminal**, under the ⋯ menu, is the original
-manual path: validate the directory, copy the prompt, open your terminal there, and hand over.
+Each card offers two ways to run. **Run with Provider** executes the task headlessly — through
+`claude -p` for a Claude task, or the Codex App Server for a Codex one — and streams the output to a
+log. **Open in Terminal**, under the ⋯ menu, is the original manual path: validate the directory,
+copy the prompt, open your terminal there, and hand over.
+
+### Choosing the provider
+
+A task's editor has a **Provider** picker when both providers are switched on in Settings. It
+decides which agent runs the task, and the fields below it follow the choice:
+
+| | Claude Code | Codex |
+|---|---|---|
+| Model | aliases and ids fetched from Anthropic | ids fetched from Codex over `model/list` |
+| Thinking | `--effort`, per model | reasoning effort, per model |
+| Spend limit | `--max-budget-usd` per run | not offered — Codex reports no per-run cost |
+| Permissions | file and shell toggles | a sandbox: read-only or workspace-write |
+
+Both providers' settings live on the task at once, so switching the picker back and forth never
+loses what you set on the other side. **Settings → Queue automation → New task defaults** chooses
+which provider a new task starts on, along with its model, thinking and limits.
+
+The model lists are fetched, not built in, so a model released after your copy of Tokenmax appears
+on its own. Each list is cached to disk and refreshed at most daily, and either way the field
+accepts a hand-typed id under **Other…**. Leaving a Codex task on **Codex default** defers to the
+model in your own `~/.codex/config.toml`.
 
 **View Result** opens what the run produced: the model's final answer first, then which tools it
 denied (the usual reason a run looks like it under-delivered), then a collapsed list of the steps it

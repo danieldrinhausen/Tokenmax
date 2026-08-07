@@ -4,6 +4,8 @@ import SwiftUI
 struct TaskEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var modelCatalog: ModelCatalogStore
+    @EnvironmentObject private var codexModelCatalog: CodexModelCatalogStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     @State private var draft: TokenmaxTask
     /// Whether macOS is blocking reads of the chosen directory. Computed off
@@ -70,9 +72,10 @@ struct TaskEditorView: View {
             if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 focusedField = .title
             }
-            // The editor is the only place the model list is read, so this is
-            // where it is kept current. No-ops unless the cache is a day old.
+            // The editor is the only place the model lists are read, so this is
+            // where they are kept current. No-ops unless the cache is a day old.
             modelCatalog.refreshIfStale()
+            codexModelCatalog.refreshIfStale()
         }
     }
 
@@ -252,6 +255,8 @@ struct TaskEditorView: View {
 
     private var executionFields: some View {
         VStack(alignment: .leading, spacing: 14) {
+            providerField
+
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Automation")
@@ -329,21 +334,14 @@ struct TaskEditorView: View {
                             .disabled(availableEffortLevels.isEmpty)
                         }
                     } else {
-                        field("Model") {
-                            TextField("Codex default", text: Binding(
-                                get: { draft.codex.model ?? "" },
-                                set: { draft.codex.model = $0.isEmpty ? nil : $0 }
-                            ))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: .infinity)
-                        }
+                        codexModelField
                         field("Reasoning") {
                             Picker("", selection: effortBinding(
                                 get: { draft.codex.reasoningEffort },
                                 set: { draft.codex.reasoningEffort = $0 }
                             )) {
                                 Text("Config default").tag("")
-                                ForEach(CodexExecutionPolicy.reasoningEffortOptions, id: \.self) { level in
+                                ForEach(availableCodexEfforts, id: \.self) { level in
                                     Text(level.capitalized).tag(level)
                                 }
                             }
@@ -365,6 +363,74 @@ struct TaskEditorView: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Which agent runs this task.
+    ///
+    /// Hidden rather than disabled when only one provider is switched on: a
+    /// single-provider user has no decision to make here, and a greyed-out
+    /// control reads as something broken rather than something irrelevant. The
+    /// task keeps a full policy for both providers either way, so switching
+    /// back and forth never loses the settings on the other side.
+    @ViewBuilder
+    private var providerField: some View {
+        if settingsStore.settings.enabledProviders.count > 1 {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Provider")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Which agent runs this task. Limits and permissions below follow the choice.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    Picker("", selection: providerSelection) {
+                        ForEach(TokenmaxProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 150)
+                }
+
+                ForEach(providerWarnings, id: \.self) { warning in
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(10)
+            .background(settingBackground, in: RoundedRectangle(cornerRadius: 9))
+        }
+    }
+
+    private var providerSelection: Binding<TokenmaxProvider> {
+        Binding(
+            get: { draft.provider },
+            set: { draft.providerID = $0.rawValue }
+        )
+    }
+
+    /// The configuration that would make this task unrunnable, said here rather
+    /// than discovered when it silently never starts. Mirrors `scheduleWarnings`.
+    private var providerWarnings: [String] {
+        var warnings: [String] = []
+        let provider = draft.provider
+        if !settingsStore.settings.isEnabled(provider) {
+            warnings.append("\(provider.displayName) is switched off in Settings, so this task will not run.")
+        }
+        if provider == .codex, !CodexCLIClient.isInstalled {
+            warnings.append("The codex CLI could not be found.")
+        }
+        if provider == .codex, !settingsStore.settings.codexAutoRunEnabled {
+            warnings.append("Automatic runs for Codex are switched off, so this task will only run when you start it.")
+        }
+        return warnings
     }
 
     /// A one-off appointment, as an alternative to waiting for a burn window.
@@ -662,6 +728,82 @@ struct TaskEditorView: View {
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    /// The same shape as `claudeModelField`: every model the account can use,
+    /// then "Other…" for anything the catalog has not heard of.
+    ///
+    /// "Codex default" leads because it is the right answer for most people —
+    /// it defers to the model already chosen in `~/.codex/config.toml`, so
+    /// changing it there changes it here too.
+    @ViewBuilder
+    private var codexModelField: some View {
+        field("Model") {
+            Picker("", selection: codexModelSelection) {
+                Text(codexDefaultLabel).tag("")
+                if !codexModelCatalog.models.isEmpty {
+                    Divider()
+                    ForEach(codexModelCatalog.models) { model in
+                        Text(model.displayName).tag(model.id)
+                    }
+                }
+                Divider()
+                Text("Other…").tag(Self.customModelTag)
+            }
+            .labelsHidden()
+            .frame(width: 190, alignment: .leading)
+
+            if isCustomCodexModel {
+                TextField("gpt-5.6-sol", text: Binding(
+                    get: { draft.codex.model ?? "" },
+                    set: { draft.codex.model = $0.isEmpty ? nil : $0 }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11, design: .monospaced))
+                .frame(width: 190)
+            }
+        }
+    }
+
+    /// Names what Codex would actually pick, when the catalog knows. "Codex
+    /// default" on its own is accurate but tells the user nothing.
+    private var codexDefaultLabel: String {
+        codexModelCatalog.defaultModelName.map { "Codex default (\($0))" } ?? "Codex default"
+    }
+
+    private var isCustomCodexModel: Bool {
+        guard let model = draft.codex.model, !model.isEmpty else { return false }
+        return !codexModelCatalog.models.contains { $0.id == model }
+    }
+
+    private var codexModelSelection: Binding<String> {
+        Binding(
+            get: {
+                if isCustomCodexModel { return Self.customModelTag }
+                return draft.codex.model ?? ""
+            },
+            set: { selected in
+                // Switching *to* "Other…" clears the field rather than leaving
+                // the catalogued id in it, which would read as already-pinned.
+                draft.codex.model = selected.isEmpty || selected == Self.customModelTag ? nil : selected
+                // A model that does not offer the chosen level must not silently
+                // keep it — Codex would reject the turn.
+                if let effort = draft.codex.reasoningEffort,
+                   !codexModelCatalog.reasoningEfforts(for: draft.codex.model).contains(effort) {
+                    draft.codex.reasoningEffort = nil
+                }
+            }
+        )
+    }
+
+    /// The chosen model's own levels, plus whatever the task already holds — a
+    /// value saved before this build must not vanish from its own picker.
+    private var availableCodexEfforts: [String] {
+        let levels = codexModelCatalog.reasoningEfforts(for: draft.codex.model)
+        guard let current = draft.codex.reasoningEffort, !current.isEmpty, !levels.contains(current) else {
+            return levels
+        }
+        return levels + [current]
     }
 
     /// Sentinel that cannot collide with a real model id.

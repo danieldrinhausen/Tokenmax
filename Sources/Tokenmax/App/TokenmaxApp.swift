@@ -17,6 +17,7 @@ struct TokenmaxApp: App {
     @StateObject private var sessionOpener: SessionOpenerCoordinator
     @StateObject private var autoRun: QueueAutoRunCoordinator
     @StateObject private var modelCatalog = ModelCatalogStore()
+    @StateObject private var codexModelCatalog = CodexModelCatalogStore()
     @StateObject private var updates: UpdateCheckCoordinator
 
     init() {
@@ -123,6 +124,7 @@ struct TokenmaxApp: App {
             sessionOpener: sessionOpener,
             autoRun: autoRun,
             modelCatalog: modelCatalog,
+            codexModelCatalog: codexModelCatalog,
             updates: updates
         )
     }
@@ -138,6 +140,7 @@ struct SharedEnvironment: ViewModifier {
     let sessionOpener: SessionOpenerCoordinator
     let autoRun: QueueAutoRunCoordinator
     let modelCatalog: ModelCatalogStore
+    let codexModelCatalog: CodexModelCatalogStore
     let updates: UpdateCheckCoordinator
 
     func body(content: Content) -> some View {
@@ -153,6 +156,7 @@ struct SharedEnvironment: ViewModifier {
             .environmentObject(sessionOpener)
             .environmentObject(autoRun)
             .environmentObject(modelCatalog)
+            .environmentObject(codexModelCatalog)
             .environmentObject(updates)
     }
 }

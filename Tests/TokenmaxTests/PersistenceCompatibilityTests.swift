@@ -66,6 +66,51 @@ struct PersistenceCompatibilityTests {
         // monitoring a provider the user was already watching.
         #expect(settings.claudeCodeEnabled)
         #expect(settings.codexEnabled)
+        // A queue built before Tokenmax could create Codex tasks was entirely
+        // Claude's. The upgrade must not start pointing new tasks elsewhere.
+        #expect(settings.defaultTaskProvider == .claudeCode)
+        // nil means "whatever is in the user's own ~/.codex/config.toml", so a
+        // new Codex task defers to the Codex they already configured.
+        #expect(settings.defaultCodexModel == nil)
+        #expect(settings.defaultCodexReasoningEffort == nil)
+        #expect(settings.defaultCodexSandbox == CodexExecutionPolicy().sandbox)
+    }
+
+    /// The new-task defaults are the one place a bad value is copied onto every
+    /// task made afterwards, so an unreadable one must cost that setting alone.
+    @Test("An unreadable default provider costs that setting, not the file")
+    func unreadableDefaultProviderKeepsTheRestOfTheFile() throws {
+        let settings = try decode(AppSettings.self, """
+        {
+          "defaultTaskProvider": "gemini",
+          "defaultCodexSandbox": "danger-full-access",
+          "defaultTaskModel": "opus",
+          "queueEnabled": false
+        }
+        """)
+
+        #expect(settings.defaultTaskProvider == .claudeCode)
+        #expect(settings.defaultCodexSandbox == CodexExecutionPolicy().sandbox)
+        // The settings either side of the bad ones survived.
+        #expect(settings.defaultTaskModel == "opus")
+        #expect(!settings.queueEnabled)
+    }
+
+    @Test("The Codex new-task defaults survive a round trip")
+    func codexDefaultsRoundTrip() throws {
+        let settings = try decode(AppSettings.self, """
+        {
+          "defaultTaskProvider": "codex",
+          "defaultCodexModel": "gpt-5.6-sol",
+          "defaultCodexReasoningEffort": "xhigh",
+          "defaultCodexSandbox": "workspace-write"
+        }
+        """)
+
+        #expect(settings.defaultTaskProvider == .codex)
+        #expect(settings.defaultCodexModel == "gpt-5.6-sol")
+        #expect(settings.defaultCodexReasoningEffort == "xhigh")
+        #expect(settings.defaultCodexSandbox == .workspaceWrite)
     }
 
     // MARK: - Model and thinking grade

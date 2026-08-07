@@ -97,13 +97,23 @@ struct QueueView: View {
 
     // MARK: - Chrome
 
-    /// A blank task carrying the configured model, thinking and budget defaults,
-    /// so the common choice is made once in Settings rather than on every task.
+    /// A blank task carrying the configured provider, model, thinking and budget
+    /// defaults, so the common choice is made once in Settings rather than on
+    /// every task.
+    ///
+    /// Both providers' policies are seeded regardless of which one is the
+    /// default: switching the provider in the editor then lands on the settings
+    /// the user chose for it, rather than on bare struct defaults.
     private var newTaskDraft: TokenmaxTask {
+        let settings = settingsStore.settings
         var task = TokenmaxTask(title: "", prompt: "")
-        task.autoRun.model = settingsStore.settings.defaultTaskModel
-        task.autoRun.effort = settingsStore.settings.defaultTaskEffort
-        task.autoRun.maximumBudgetUSD = settingsStore.settings.defaultTaskBudgetUSD
+        task.providerID = settings.defaultTaskProvider.rawValue
+        task.autoRun.model = settings.defaultTaskModel
+        task.autoRun.effort = settings.defaultTaskEffort
+        task.autoRun.maximumBudgetUSD = settings.defaultTaskBudgetUSD
+        task.codex.model = settings.defaultCodexModel
+        task.codex.reasoningEffort = settings.defaultCodexReasoningEffort
+        task.codex.sandbox = settings.defaultCodexSandbox
         return task
     }
 

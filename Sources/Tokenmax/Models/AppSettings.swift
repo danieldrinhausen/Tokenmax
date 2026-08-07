@@ -312,11 +312,26 @@ struct AppSettings: Codable, Sendable, Equatable {
     var claudeCodeEnabled: Bool = true
     var codexEnabled: Bool = true
 
+    /// Which provider a new task is created for.
+    ///
+    /// Claude by default, including for someone upgrading: a task queue built
+    /// before Tokenmax could create Codex tasks was entirely Claude's, and the
+    /// upgrade must not quietly start pointing new tasks at a second agent.
+    var defaultTaskProvider: TokenmaxProvider = .claudeCode
+
     /// Seeded into a new task's policy so the common choice is made once rather
-    /// than on every task. All three are overridable per task in the editor, and
-    /// none affects a task already on disk.
+    /// than on every task. All are overridable per task in the editor, and none
+    /// affects a task already on disk.
     var defaultTaskModel: String = "sonnet"
     var defaultTaskEffort: String?
+
+    /// The Codex half of the same idea. nil model and effort mean "whatever is
+    /// in the user's own `~/.codex/config.toml`", which is the right default:
+    /// someone who configured Codex once should not have to configure it again
+    /// here. The sandbox has no such source, so it takes the policy default.
+    var defaultCodexModel: String?
+    var defaultCodexReasoningEffort: String?
+    var defaultCodexSandbox: CodexSandbox = CodexExecutionPolicy().sandbox
     /// Matches `TaskExecutionPolicy`'s own default, so leaving this alone
     /// changes nothing. It exists because someone who works in $20 tasks was
     /// otherwise retyping the figure on every single one.
@@ -443,9 +458,19 @@ struct AppSettings: Codable, Sendable, Equatable {
         claudeCodeEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .claudeCodeEnabled))
             ?? d.claudeCodeEnabled
         codexEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .codexEnabled)) ?? d.codexEnabled
+        // `try?` for the same reason as the two above: an unrecognised provider
+        // name must cost this one setting, not the whole settings file.
+        defaultTaskProvider = (try? container.decodeIfPresent(TokenmaxProvider.self, forKey: .defaultTaskProvider))
+            ?? d.defaultTaskProvider
         defaultTaskModel = try container.decodeIfPresent(String.self, forKey: .defaultTaskModel)
             ?? d.defaultTaskModel
         defaultTaskEffort = try container.decodeIfPresent(String.self, forKey: .defaultTaskEffort)
+        defaultCodexModel = try container.decodeIfPresent(String.self, forKey: .defaultCodexModel)
+        defaultCodexReasoningEffort = try container.decodeIfPresent(
+            String.self, forKey: .defaultCodexReasoningEffort
+        )
+        defaultCodexSandbox = (try? container.decodeIfPresent(CodexSandbox.self, forKey: .defaultCodexSandbox))
+            ?? d.defaultCodexSandbox
         // Same guard as `TaskExecutionPolicy.init(from:)`: a non-positive figure
         // here would seed every new task with a budget the CLI refuses.
         let defaultBudget = try container.decodeIfPresent(Double.self, forKey: .defaultTaskBudgetUSD)
