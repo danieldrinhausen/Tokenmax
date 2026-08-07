@@ -61,6 +61,15 @@ not spend".
 **Add tests.** Swift Testing (`@Test`, `#expect`). Give the test a sentence-long
 name that states the rule, so a failure explains itself.
 
+**Document anything a user can see, in the same PR.** The README says what a
+feature is and why it behaves that way, [docs/HANDBOOK.md](docs/HANDBOOK.md) how
+to use it, [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) the support
+question it will generate, and `CHANGELOG.md` under `Unreleased` that it
+happened. A feature explained only in the changelog is one nobody finds. While
+you are in there, fix the sentences your change made wrong — a stale sentence
+does more damage than a missing one, because a reader trusts it and stops
+looking.
+
 ## Pull requests
 
 CI runs `make test` on macOS; it must be green. Keep the diff focused — one
