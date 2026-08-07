@@ -238,28 +238,36 @@ struct ReadyTaskCardView: View {
     }
 
     private var text: String {
+        // An appointment outranks the generic verdict. Showing it only while
+        // the task is still waiting meant it vanished from the card at the
+        // exact moment it came round — the card read "Auto-run approved" and
+        // the time the user set was nowhere on screen.
+        if let when = task.scheduledStart, autoRunBlock == nil || autoRunBlock == .notYetScheduled {
+            let stamp = when.formatted(.dateTime.weekday().hour().minute())
+            return autoRunBlock == nil ? "Scheduled for \(stamp) · due now" : "Scheduled for \(stamp)"
+        }
+
         switch autoRunBlock {
         case .none:
-            "Auto-run approved"
+            return "Auto-run approved"
         case .notApprovedForAutomation:
-            "Manual only"
+            return "Manual only"
         case .workingDirectoryMissing:
-            "Auto-run blocked · working directory missing"
+            return "Auto-run blocked · working directory missing"
         case .noRuntimeEstimate:
-            "Auto-run blocked · no estimate"
+            return "Auto-run blocked · no estimate"
         case .insufficientTime:
-            "Auto-run waiting · not enough time before the reset"
+            return "Auto-run waiting · not enough time before the reset"
         case .runtimeExceedsWindowBudget:
-            "Auto-run waiting · longer than the remaining session budget"
-        // The date itself, not the sentence: "Scheduled for Fri 16:00" is the
-        // one thing worth reading at a glance on a card that is merely waiting.
+            return "Auto-run waiting · longer than the remaining session budget"
+        // Only reachable with no date set, which the branch above has already
+        // handled — a bare "Scheduled" is better than a crash-shaped blank.
         case .notYetScheduled:
-            task.scheduledStart.map { "Scheduled for \($0.formatted(.dateTime.weekday().hour().minute()))" }
-                ?? "Scheduled"
+            return "Scheduled"
         case .scheduleExpired:
-            "Auto-run missed · its scheduled time has passed"
+            return "Auto-run missed · its scheduled time has passed"
         case let .some(reason):
-            "Auto-run blocked · \(reason.explanation)"
+            return "Auto-run blocked · \(reason.explanation)"
         }
     }
 }
