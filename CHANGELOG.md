@@ -5,6 +5,26 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-07
+
+### Fixed
+
+- **Codex task processes now have the same lifecycle guarantees as Claude task
+  processes.** Tokenmax drains stderr so a noisy command cannot deadlock, caps
+  retained output and raw logs, terminates the whole process group on timeout or
+  cancellation, and refuses an unreadable working directory before launch.
+
+- **A paid queue run cannot start unless its run record was saved first.** Disk
+  errors used to be logged and ignored, which could let a task spend quota
+  without leaving the record that prevents it from being repeated after a
+  restart. Tokenmax now fails closed, names the suppression in the UI, and
+  refuses further runs until the storage problem is fixed and the app restarted.
+
+- **The optional Claude Code statusline integration now works from its normal
+  path under Application Support.** The installed command is shell-quoted,
+  unrelated lookalike commands are not claimed, and uninstall restores the
+  complete statusline configuration Tokenmax displaced instead of deleting it.
+
 ## [0.1.4] - 2026-08-06
 
 ### Fixed
