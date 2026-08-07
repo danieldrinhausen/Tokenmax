@@ -390,7 +390,7 @@ struct TaskEditorView: View {
                 .datePickerStyle(.field)
                 .frame(width: 220, alignment: .leading)
 
-                Text("Tokenmax ignores the burn-window schedule for this task and starts it at that time — even if no session is open, which starts a new one. Every other guard still applies: your session and weekly quota floors, quiet hours, the usage-credit check, and the task's own limits. It runs once; the time is cleared when it starts.")
+                Text("Tokenmax ignores the burn-window schedule for this task and starts it at that time — even if no session is open, which starts a new one. Every other guard still applies: your session and weekly quota floors, quiet hours, any credit check you switched on, and the task's own limits. It runs once; the time is cleared when it starts.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -481,10 +481,11 @@ decision logic can be watched for days before it is trusted with real quota and 
 
 A task runs automatically only when *all* of this holds: the task is marked **Always allow automatic
 execution**, its working directory exists, it has a runtime estimate, the usage reading is fresh, the
-session and weekly quotas are both above their thresholds, the account cannot be charged for usage
-credits, the session is inside the lead window, no other run is in flight, the per-session task and
-runtime budgets have room, and the task's **runtime limit** — not its estimate — fits before the
-safety margin. Anything else, and the popover and Settings say which condition failed.
+session and weekly quotas are both above their thresholds, the session is inside the lead window, no
+other run is in flight, the per-session task and runtime budgets have room, and the task's **runtime
+limit** — not its estimate — fits before the safety margin. Anything else, and the popover and
+Settings say which condition failed. Switching on **Never run when usage credits could be charged**
+adds one more condition; it is off by default, [for reasons below](#running-a-task-at-a-set-time).
 
 ### Running a task at a set time
 
@@ -493,8 +494,8 @@ away on Friday afternoon — use the week's leftover allowance then". A task can
 **specific time** in its editor. At that moment it runs, regardless of where the session is in its
 cycle, and if no session is open the run starts one.
 
-Only the timing is overridden. The session and weekly quota floors, quiet hours, the usage-credit
-check, the account gates and the task's own limits all still apply, so an appointment can reach no
+Only the timing is overridden. The session and weekly quota floors, quiet hours, any credit check you
+switched on, the account gates and the task's own limits all still apply, so an appointment can reach no
 further into your allowance than the same task would have on its own. It also does not consume the
 per-session task and runtime allowances, which budget the opportunistic burn rather than work you
 asked for by name.
