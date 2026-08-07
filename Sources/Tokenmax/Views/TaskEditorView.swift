@@ -265,8 +265,6 @@ struct TaskEditorView: View {
 
                 Picker("", selection: $draft.executionMode) {
                     Text("Manual only").tag(ExecutionMode.manual)
-                    Text("Ask before running").tag(ExecutionMode.askBeforeRunning)
-                    Text("Allow once during the current session").tag(ExecutionMode.approvedForSession)
                     Text("Always allow automatic execution").tag(ExecutionMode.automatic)
                 }
                 .labelsHidden()
@@ -527,18 +525,14 @@ struct TaskEditorView: View {
     }
 
     /// Says what the selected mode actually means, next to where it is picked.
-    /// Four radio labels alone leave the difference between "ask" and "allow
-    /// once" to be guessed at.
+    /// Whether Tokenmax may spend quota unattended is worth a sentence rather
+    /// than two labels.
     private var executionModeExplanation: String {
         switch draft.executionMode {
         case .manual:
             "Tokenmax never starts this on its own. You can still run it yourself from the queue."
-        case .askBeforeRunning:
-            "Tokenmax notifies you when this could run, and waits for you to start it."
-        case .approvedForSession:
-            "Tokenmax may start this without asking, once, during the current session window."
         case .automatic:
-            "Tokenmax may start this without asking whenever the queue's conditions are met."
+            "Tokenmax may start this without asking whenever the queue's conditions are met. Settings → Queue Automation decides whether it starts by itself or notifies you first."
         }
     }
 

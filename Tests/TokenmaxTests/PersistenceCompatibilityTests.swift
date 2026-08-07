@@ -367,6 +367,23 @@ struct PersistenceCompatibilityTests {
         #expect(task.executionMode == .manual)
     }
 
+    /// These two shipped, so they are on real disks. Neither was ever read by
+    /// the decision path — both behaved as `manual` — so decoding them as
+    /// `manual` preserves the behaviour rather than changing it. The one thing
+    /// that must not happen is either becoming `automatic`, which would start
+    /// spending on tasks nobody approved for it.
+    @Test("The retired execution modes decode as manual, never as automatic")
+    func retiredExecutionModesAreManual() throws {
+        for retired in ["askBeforeRunning", "approvedForSession"] {
+            let task = try decode(TokenmaxTask.self, """
+            { "title": "Upgraded", "prompt": "x", "executionMode": "\(retired)" }
+            """)
+            #expect(task.executionMode == .manual, "\(retired) must not survive as anything else")
+        }
+        // Two cases, so the picker and the guard cannot drift apart again.
+        #expect(ExecutionMode.allCases.count == 2)
+    }
+
     @Test("Auto-run settings written by an older version still load")
     func loadsPartialAutoRunSettings() throws {
         let settings = try decode(QueueAutoRunSettings.self, """

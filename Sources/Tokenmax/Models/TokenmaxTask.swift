@@ -45,10 +45,20 @@ enum TaskStatus: String, Codable, Sendable, CaseIterable, Identifiable {
     }
 }
 
+/// Whether Tokenmax may start this task by itself.
+///
+/// Two cases, because there are two behaviours. `askBeforeRunning` and
+/// `approvedForSession` used to sit between them and were never read by
+/// anything: the only test in the decision path is `executionMode !=
+/// .automatic`, so both behaved exactly like `manual` while the editor
+/// promised a notification and a one-off run that no code delivered. A
+/// retired value decodes to `manual`, which is what it already did.
+///
+/// "Ask before running" still exists as a *queue-wide* mode in
+/// `QueueAutoRunMode`, where it is implemented. Offering the same words per
+/// task for a setting that does nothing is what made the two indistinguishable.
 enum ExecutionMode: String, Codable, Sendable, CaseIterable {
     case manual
-    case askBeforeRunning
-    case approvedForSession
     case automatic
 }
 
