@@ -5,16 +5,20 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
-### Removed
+### Added
 
-- **The Homebrew install route, which never worked.** The README, the info page
-  and the changelog all documented
-  `brew install --cask danieldrinhausen/tap/tokenmax`, but the tap it names was
-  never created, so the command could only ever fail. The disk image from
-  [Releases](https://github.com/danieldrinhausen/Tokenmax/releases) is the
-  install route, and the only one there has been. A tap remains worth doing —
-  `docs/RELEASING.md` says what it needs — but it will be written before it is
-  written about.
+- **Installable with Homebrew, this time for real.**
+  `brew install --cask danieldrinhausen/tap/tokenmax` installs and
+  `brew upgrade --cask tokenmax` follows releases, from a
+  [tap of its own](https://github.com/danieldrinhausen/homebrew-tap) that polls
+  this repository hourly and bumps itself when a release appears. The download is
+  the same signed, unnotarized image, so the one-time **Open Anyway** remains —
+  Homebrew quarantines what it fetches exactly as a browser does.
+
+  0.1.6 and 0.1.7 documented this command against a tap that had not been
+  created, so it could only fail; that is why it was withdrawn between the two
+  releases. The tap now exists, is public, and was verified end to end before
+  this sentence was written.
 
 ## [0.1.7] - 2026-08-07
 
