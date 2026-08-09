@@ -77,11 +77,15 @@ final class ModelCatalogStore: ObservableObject {
     /// Called when a screen that shows the model list appears — deliberately
     /// *not* at launch.
     ///
-    /// Fetching at launch would mean a second keychain read on top of the usage
-    /// one, for a list that changes a few times a year and is only ever read in
-    /// the task editor and Settings. Refreshing where it is used costs nothing
-    /// on a cold start and still guarantees the list is current whenever anyone
-    /// actually looks at it.
+    /// Fetching at launch would mean network traffic at the worst moment for a
+    /// list that changes a few times a year and is only ever read in the task
+    /// editor and Settings. Refreshing where it is used costs nothing on a cold
+    /// start and still guarantees the list is current whenever anyone actually
+    /// looks at it.
+    ///
+    /// It used to also mean a *second keychain read* on top of the usage one,
+    /// and so a second consent dialog. It no longer does: both readers share
+    /// `ClaudeCredentialCache`, and whichever gets there first pays for both.
     ///
     /// Only reaches the network when the cache is older than a day, so opening
     /// the editor repeatedly does not repeatedly fetch.

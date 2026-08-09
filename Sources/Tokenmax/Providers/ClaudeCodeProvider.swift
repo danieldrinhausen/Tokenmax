@@ -16,6 +16,7 @@ final class ClaudeCodeProvider: UsageProvider {
     private let client: ClaudeOAuthUsageClient
     private let readStatusline: @Sendable () -> (StatuslinePayload, Date)?
     private let readCredentials: @Sendable () throws -> ClaudeKeychain.Credentials
+    private let invalidateCredentials: @Sendable () -> Void
     private let cliInstalled: @Sendable () -> Bool
     private let cliVersion: @Sendable () -> String
 
@@ -23,12 +24,14 @@ final class ClaudeCodeProvider: UsageProvider {
         client: ClaudeOAuthUsageClient = ClaudeOAuthUsageClient(),
         readStatusline: @escaping @Sendable () -> (StatuslinePayload, Date)? = { StatuslineUsageReader.read() },
         readCredentials: @escaping @Sendable () throws -> ClaudeKeychain.Credentials = { try ClaudeKeychain.readCredentials() },
+        invalidateCredentials: @escaping @Sendable () -> Void = { ClaudeKeychain.invalidateCache() },
         cliInstalled: @escaping @Sendable () -> Bool = { ClaudeCLIClient.isInstalled },
         cliVersion: @escaping @Sendable () -> String = { ClaudeCLIClient.version() }
     ) {
         self.client = client
         self.readStatusline = readStatusline
         self.readCredentials = readCredentials
+        self.invalidateCredentials = invalidateCredentials
         self.cliInstalled = cliInstalled
         self.cliVersion = cliVersion
     }
@@ -75,6 +78,17 @@ final class ClaudeCodeProvider: UsageProvider {
             extraUsageEnabled = response.extraUsage?.isEnabled
         } catch {
             primaryError = error
+            // A rejected token is the one signal that the credentials we hold
+            // are behind Claude Code's rotation, so drop them and let the next
+            // refresh read the keychain again. Retrying here instead would be
+            // worse than useless: the client's 180s floor was just armed by the
+            // request that failed, so an immediate second call returns
+            // `.rateLimited` and would replace a precise "token expired" state
+            // with a generic error.
+            if let error = error as? UsageClientError, case .unauthorized = error {
+                invalidateCredentials()
+                Log.shared.write("provider: token rejected, dropped cached credentials")
+            }
             Log.shared.write("provider: oauth source failed: \(error.localizedDescription)")
         }
 
@@ -115,12 +129,14 @@ final class ClaudeCodeProvider: UsageProvider {
     /// clock check is only a hint: the endpoint may still accept the token, and
     /// if it does not, the 401 lands in `mapped` and produces the same state
     /// anyway. Bailing out early could only ever turn a working request into an
-    /// error, so the one thing this does is re-read the keychain once, since
-    /// Claude Code has often rotated the token since the first read.
+    /// error.
+    ///
+    /// This used to read twice when the first read looked expired, to pick up a
+    /// rotation. `ClaudeCredentialCache` now does that where it belongs — it
+    /// never hands out a token past its own expiry — and the second read here
+    /// only ever bought a second consent dialog in the same tick.
     private func loadCredentials() throws -> ClaudeKeychain.Credentials {
         do {
-            let credentials = try readCredentials()
-            guard credentials.isExpired else { return credentials }
             return try readCredentials()
         } catch let error as ClaudeKeychain.KeychainError {
             switch error {

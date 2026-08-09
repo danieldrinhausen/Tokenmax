@@ -20,6 +20,29 @@ versions follow [semver](https://semver.org/).
   releases. The tap now exists, is public, and was verified end to end before
   this sentence was written.
 
+### Fixed
+
+- **The keychain dialog no longer returns every refresh.** The macOS prompt for
+  `Claude Code-credentials` offers *Allow* as well as *Always Allow*, and only
+  *Always Allow* records a grant. Every refresh tick used to issue its own
+  keychain read — every 60s with the popover open, every 300s behind it, twice
+  over when the token looked expired, and once more for the model catalog — so
+  anyone who took the middle button got a dialog a minute for as long as the app
+  ran. That was the substance of the first round of outside feedback.
+
+  Credentials are now held in memory by a single shared `ClaudeCredentialCache`,
+  so the worst case is one prompt per launch rather than one per refresh.
+  Successes only are cached: a denial or a missing item is retried on the next
+  call, since neither is a decision worth remembering. Nothing reaches disk, no
+  token is handed out past its own `expiresAt`, and a 401 from the usage
+  endpoint drops the cache so a rotated token is picked up on the next tick.
+
+  This caps the annoyance; it does not remove the prompt. Because the bundle is
+  self-signed it carries no Team Identifier, so macOS keys the grant to the
+  build's code hash and a new binary is a new program — one prompt per version
+  installed. [Troubleshooting](docs/TROUBLESHOOTING.md#the-keychain-prompt-comes-back-every-time)
+  now explains which button to press and what would actually end it.
+
 ## [0.1.7] - 2026-08-07
 
 ### Added

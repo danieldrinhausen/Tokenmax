@@ -143,6 +143,62 @@ struct ProviderFreshnessTests {
         }
     }
 
+    /// The cached credentials must not outlive the token they hold. A 401 is
+    /// the only evidence Tokenmax gets that Claude Code rotated the item, so it
+    /// has to drop the cache — otherwise the app keeps presenting a dead token
+    /// until it is relaunched.
+    @Test("A rejected token drops the cached credentials")
+    func rejectedTokenInvalidatesCache() async {
+        let invalidated = Invalidations()
+        let provider = ClaudeCodeProvider(
+            client: ClaudeOAuthUsageClient(session: stubbedSession(body: "{}", status: 401)),
+            readStatusline: { nil },
+            readCredentials: { self.credentials() },
+            invalidateCredentials: { invalidated.record() },
+            cliInstalled: { true },
+            cliVersion: { "2.1.220" }
+        )
+
+        _ = try? await provider.fetchUsage()
+
+        #expect(invalidated.count == 1)
+    }
+
+    /// A working request must leave the cache alone — invalidating on success
+    /// would restore the dialog-per-refresh this all exists to remove.
+    @Test("A successful fetch keeps the cached credentials")
+    func successKeepsCache() async throws {
+        let invalidated = Invalidations()
+        let provider = ClaudeCodeProvider(
+            client: ClaudeOAuthUsageClient(session: stubbedSession(body: """
+            { "five_hour": { "utilization": 20, "resets_at": 1785500000 } }
+            """)),
+            readStatusline: { nil },
+            readCredentials: { self.credentials() },
+            invalidateCredentials: { invalidated.record() },
+            cliInstalled: { true },
+            cliVersion: { "2.1.220" }
+        )
+
+        _ = try await provider.fetchUsage()
+
+        #expect(invalidated.count == 0)
+    }
+
+    private final class Invalidations: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        var count: Int {
+            lock.lock(); defer { lock.unlock() }
+            return value
+        }
+
+        func record() {
+            lock.lock(); value += 1; lock.unlock()
+        }
+    }
+
     /// Blanking the popover to "Never updated" over a token that heals itself
     /// within minutes throws away the only data there is.
     @Test("A transient token expiry keeps the last good reading")

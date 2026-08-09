@@ -84,8 +84,9 @@ notarized: **System Settings → Privacy & Security → Open Anyway**. Once per 
 [details below](#install).
 
 **2. Allow the keychain prompt.** macOS asks for the `Claude Code-credentials` item. That
-prompt *is* Tokenmax reading your quota — choose **Always Allow**. Decline it and the
-meters stay empty.
+prompt *is* Tokenmax reading your quota — choose **Always Allow**, not *Allow*. *Allow*
+covers a single read, so the dialog comes back on the next refresh; **Always Allow** is
+what makes it stop. Decline it and the meters stay empty.
 
 **3. Look at the menu bar.** Out of the box that is two bars — Claude session over Claude
 week — and a countdown to the session reset. It is only a starting point; step 5 changes
@@ -152,8 +153,11 @@ launch is refused with "Apple could not verify … is free of malware". To allow
 Terminal equivalent, if you prefer: `xattr -dr com.apple.quarantine /Applications/Tokenmax.app`.
 
 macOS will then prompt once for access to the `Claude Code-credentials` keychain item — that is
-Tokenmax reading your quota. Choose **Always Allow**; see
-[Where the quota data comes from](#where-the-quota-data-comes-from).
+Tokenmax reading your quota. Choose **Always Allow**, which is the only button that records a
+grant: *Allow* covers one read and the dialog returns on the next refresh. If it is already
+returning, [The keychain prompt comes back every
+time](docs/TROUBLESHOOTING.md#the-keychain-prompt-comes-back-every-time) explains what to do. See
+also [Where the quota data comes from](#where-the-quota-data-comes-from).
 
 ### Folder access
 
@@ -645,13 +649,14 @@ Developer account:
 3. On the first launch after switching, grant the keychain and folder access once more — the new
    identity is unknown to the existing grants.
 
-**File-access grants then survive every rebuild. The keychain prompt does not.** Measured on a
-cert-signed build: the ACL for `Claude Code-credentials` held 85 Tokenmax entries, all keyed by bare
-`cdhash` and none by the designated requirement — while a Developer ID-signed app in the same ACL
-did get a requirement-based grant. macOS appears not to extend that treatment to a self-signed root,
-however thoroughly it is trusted. So expect one keychain prompt per build you compile; it is the
-file-access half that the certificate is really buying, and that is the half an unattended run
-depends on.
+**File-access grants then survive every rebuild. The keychain prompt does not.** Measured on the
+live item on a cert-signed build: 89 trusted-application entries for `Claude Code-credentials`, 87
+of them Tokenmax build paths, and a partition list holding exactly `apple-tool:` plus the CDHash of
+the installed build. A self-signed certificate carries **no Team Identifier**, so macOS has nothing
+but the per-build hash to key a grant to; a Developer ID-signed app in the same ACL, which does have
+one, kept a single entry across its updates. So expect one keychain prompt per build you compile.
+It is the file-access half that the certificate is really buying, and that is the half an unattended
+run depends on.
 
 You can confirm it took:
 

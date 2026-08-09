@@ -245,6 +245,13 @@ between network calls.
 (`claudeAiOauth` → `accessToken` / `refreshToken` / `expiresAt` /
 `subscriptionType`).
 
+Every reader goes through one shared `ClaudeCredentialCache`, because each read
+can raise a consent dialog and there is more than one reader (usage refresh,
+model catalog). It caches successes only — never a denial, never a `notFound`,
+which would turn "not logged in yet" into a state only a relaunch clears — hands
+nothing out past its own `expiresAt`, and is dropped when the endpoint answers
+401. In memory for the life of the process; never on disk.
+
 - **Failure mode:** quota display dies; task execution keeps working.
 - **Prevention:** `make doctor` verifies the shape.
 - **Never:** write credentials to disk, or refresh the token — that would race

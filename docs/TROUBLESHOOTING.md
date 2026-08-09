@@ -37,27 +37,53 @@ xattr -dr com.apple.quarantine /Applications/Tokenmax.app
 
 ### The keychain prompt comes back every time
 
-**You build it yourself.** Expect one prompt per build. macOS records the
-"Always Allow" grant against the app's **code hash**, which changes every time
-you compile, so each new binary is a program it has never seen. Nothing is
-wrong; the previous grant simply does not apply to the build you just made.
+**First, check which button you pressed.** The macOS dialog offers *Deny*,
+*Allow* and *Always Allow*, and only **Always Allow** writes a grant. *Allow*
+authorises that one read — so the next time Tokenmax refreshes your quota, it
+has to ask again. If the prompt returns every few minutes rather than every few
+weeks, this is almost certainly why. Answer the next one with **Always Allow**.
+
+A wrong answer is merely annoying rather than unusable: Tokenmax holds the
+credentials in memory for as long as it runs, so it asks at most once per launch
+instead of once per refresh. Nothing is written to disk, and a token
+the endpoint rejects is dropped immediately.
+
+**You build it yourself.** Expect one prompt per build. macOS records the grant
+against the app's **code hash**, which changes every time you compile, so each
+new binary is a program it has never seen. Nothing is wrong; the previous grant
+simply does not apply to the build you just made.
 
 A self-signed certificate does *not* avoid this, despite giving the bundle a
-stable designated requirement. Inspected on a cert-signed build: the keychain
-ACL for `Claude Code-credentials` held 85 Tokenmax entries, every one of them a
-bare `cdhash`, and none using the designated requirement — while a
-Developer ID-signed app in the same ACL did get a requirement-based grant. The
-certificate is still worth having (it is what keeps macOS *file-access* grants
-from being discarded, which is the failure that strands an unattended run), but
-it does not stop the keychain re-prompt.
+stable designated requirement. Measured on the live item on a cert-signed build:
+the decrypt ACL for `Claude Code-credentials` held 89 trusted-application
+entries, 87 of them Tokenmax build paths, and the item's partition list held
+exactly `apple-tool:` plus `cdhash:<the installed build>` — the CDHash of
+`/Applications/Tokenmax.app` and nothing else. The reason is visible in
+`codesign`: a self-signed certificate carries **no Team Identifier**, so the
+only stable-looking thing macOS has to key a grant to is the per-build hash. A
+Developer ID-signed app in the same ACL, which does have a Team Identifier, got
+a single entry that has survived its updates.
 
-So a rebuild-heavy session means a prompt per rebuild. It settles as soon as you
-stop rebuilding.
+The certificate is still worth having — it is what keeps macOS *file-access*
+grants from being discarded, the failure that strands an unattended run — but it
+does not stop the keychain re-prompt. A rebuild-heavy session means a prompt per
+rebuild, and it settles as soon as you stop rebuilding.
 
 **You installed a release and it re-prompts.** One prompt per downloaded version
-is normal, for the same reason — a new version is a new binary. If it asks again
-for a version you have already allowed, that is a bug: check that the bundle
-identifier has not changed and file an issue with your macOS version.
+is normal, for the same reason — a new version is a new binary, with a new hash.
+If it asks again for a version you have already allowed **with Always Allow**,
+that is a bug: check that the bundle identifier has not changed and file an
+issue with your macOS version.
+
+**What would actually end it** is signing with an Apple-anchored certificate
+(Developer ID, which carries a Team Identifier), so the grant can attach to a
+requirement that stays true across versions rather than to a hash that does not.
+That needs the paid Apple Developer Program and has not been done yet; see
+[docs/RELEASING.md](RELEASING.md#deferred-on-purpose).
+
+**What not to do:** "Allow all applications to access this item" in Keychain
+Access does silence it, by handing your Claude OAuth refresh token to every
+program on the machine. Do not.
 
 ### The app launches but nothing appears
 
