@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-08-09
+
 ### Added
 
 - **Installable with Homebrew, this time for real.**
