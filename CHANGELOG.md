@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-08-21
+
 ### Added
 
 - **A status-line-only data source, for people who want the keychain dialog
