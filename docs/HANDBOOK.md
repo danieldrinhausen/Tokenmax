@@ -24,14 +24,20 @@ launch it, and every other feature is off until you turn it on.
 **1. Launch it and answer the keychain prompt.**
 
 macOS asks once for access to the `Claude Code-credentials` keychain item. That
-prompt *is* Tokenmax reading your quota — decline it and the meters stay empty.
+prompt *is* Tokenmax reading your quota — decline it and the meters stay empty
+(Tokenmax takes the no and stops asking until you click Refresh yourself).
 Choose **Always Allow**, not *Allow*: only *Always Allow* records a grant, and
-*Allow* brings the dialog back on the next refresh.
+*Allow* brings the dialog back a few hours later when Claude Code rotates its
+token.
 
 If the prompt returns after every rebuild, that is expected for a locally built
 copy and is not a bug. The README's [Building a
 release](../README.md#building-a-release) section explains the one-time
 certificate fix.
+
+If you would rather never see the dialog at all, there is a
+[recipe](#recipes) for that — status-line-only monitoring, at the cost of
+background freshness and automation.
 
 **2. Check the menu bar.**
 
@@ -422,6 +428,15 @@ run late.
 Enable the session opener with a delay that lands it before you sit down. Accept
 that the five-hour clock starts when it fires, not when you arrive.
 
+**"I want the meters, and macOS must never show me a keychain dialog."**
+Install the status-line shim from **Settings → Data Source**, then switch the
+data source to **Status line only**. The keychain is never read, so there is
+nothing for macOS to ask about. The trade: readings update only while a Claude
+Code session is answering, the per-model weeklies and plan name disappear, and
+the opener and automatic task runs pause — a mode that cannot poll cannot
+confirm what an unattended run just spent. Running a task by hand still works.
+Install the shim *before* switching, or the meters will simply say unknown.
+
 ---
 
 ## Questions people ask
@@ -439,8 +454,10 @@ satisfy yourself that how you use it fits Anthropic's terms.
 
 **Why does the quota sometimes disagree with what Claude Code shows?**
 Two sources with different freshness. The usage endpoint can be polled any time;
-the statusline fallback only updates while a session is running. When both are
-available the fresher, higher-confidence reading wins.
+the statusline only updates while a session is running. In the default keychain
+mode, when both are available the fresher, higher-confidence reading wins; in
+status-line-only mode there is just the one source, as fresh as your last
+session response.
 
 **Can I use this with an API key instead of a subscription?**
 For quota display, no — there is no window to report; API-key billing is metered

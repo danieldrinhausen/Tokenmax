@@ -87,7 +87,9 @@ notarized: **System Settings → Privacy & Security → Open Anyway**. Once per 
 prompt *is* Tokenmax reading your quota — choose **Always Allow**, not *Allow*. *Allow*
 covers a single read, so the dialog comes back a few hours later when Claude Code rotates
 its token; **Always Allow** is what makes it stop. Decline it and the meters stay empty —
-and Tokenmax takes the no: it stops asking until you click Refresh yourself.
+and Tokenmax takes the no: it stops asking until you click Refresh yourself. If you would
+rather macOS never asked at all, **Settings → Data Source** has a status-line-only mode
+that never touches the keychain — [the trade-offs](#where-the-quota-data-comes-from).
 
 **3. Look at the menu bar.** Out of the box that is two bars — Claude session over Claude
 week — and a countdown to the session reset. It is only a starting point; step 5 changes
@@ -201,18 +203,20 @@ fine.
 ### Claude Code
 
 The Claude Code CLI has **no** `usage` subcommand, and session transcripts carry no rate-limit
-state. Tokenmax uses two real sources instead:
+state. Tokenmax uses two real sources instead, and **Settings → Data Source** chooses how:
 
-| | Source | Status | Pollable |
-|---|---|---|---|
-| Primary | `GET api.anthropic.com/api/oauth/usage` | Undocumented | Any time |
-| Fallback | Claude Code `statusLine` hook | Documented | Only during a session |
+| | Source | Status | Pollable | Keychain |
+|---|---|---|---|---|
+| macOS Keychain (default) | `GET api.anthropic.com/api/oauth/usage`, statusline as gap-filler | Undocumented | Any time | Read |
+| Status line only | Claude Code `statusLine` hook | Documented | Only during a session | Never touched |
 
-The primary reads the OAuth token Claude Code already stores in your login keychain
+**macOS Keychain** reads the OAuth token Claude Code already stores in your login keychain
 (`Claude Code-credentials`). **macOS prompts once per version** — choose *Always Allow*. The grant
 is bound to the app's code hash, so it asks again for each new binary: once per release you install,
 and once per rebuild if you are compiling it yourself. A code-signing certificate does not change
-this — see [Building a release](#building-a-release).
+this — see [Building a release](#building-a-release). Answer with *Allow* instead and the prompt
+also returns whenever Claude Code rotates the token, a few hours apart — which is what "the prompt
+appears randomly during the day" almost always is.
 
 Tokenmax never writes credentials to disk, never refreshes the token itself (that would race
 Claude Code's own refresh), and sends nothing anywhere except Anthropic.
@@ -222,9 +226,20 @@ for — the endpoint throttles hard without the exact `User-Agent: claude-code/<
 this keeps well inside safe limits. The popover still ticks every 60s; those ticks are served from
 cache.
 
-The fallback is opt-in from **Settings → Data Source**. It writes a shim script and sets
-`statusLine` in `~/.claude/settings.json`, wrapping any status line you already use. Remove the
-`statusLine` key to uninstall.
+**Status line only** exists for people who want the consent dialog gone entirely. It reads nothing
+but the file the shim writes, so the keychain is never touched and macOS has nothing to ask about —
+not once, not per version. The trade is freshness and detail for silence: readings update only
+while a Claude Code session is answering and go stale in between, and the status line does not
+carry the per-model weeklies, the plan name or the usage-credit flag. Because a mode that cannot
+poll also cannot confirm what an unattended run just spent, the **session opener and automatic
+task runs pause** in this mode, with the reason named in Settings; running a task by hand still
+works. Everything Tokenmax cannot see is shown as unknown rather than guessed.
+
+The shim behind both rows is opt-in from **Settings → Data Source**. It writes a shim script and
+sets `statusLine` in `~/.claude/settings.json`, wrapping any status line you already use. Remove
+the `statusLine` key to uninstall. In keychain mode it is a gap-filler — per-window, whichever
+reading is higher-confidence and fresher wins; in status-line-only mode it is the sole source, so
+install it before switching.
 
 ### Codex
 
@@ -253,6 +268,10 @@ If the fetch fails there is no dead end — the built-in aliases (`haiku`, `sonn
 still work, and an alias resolves to the newest model of that family at run time rather than
 pinning a version. A full model id typed into the editor's *Other…* field is stored exactly as
 typed, which is how you pin one deliberately.
+
+Under the status-line-only data source the catalog fetch is paused too — it uses the same keychain
+token as usage, and fetching it would reintroduce the dialog that mode exists to remove. The
+aliases and the last cached list carry the pickers.
 
 ## Files
 

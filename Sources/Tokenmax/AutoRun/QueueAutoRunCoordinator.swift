@@ -198,6 +198,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
             state: state,
             runInFlight: activeRun != nil,
             awaitingFreshUsage: awaitingFreshUsage,
+            // Claude only: Codex quota never involves the keychain, so the
+            // data-source choice says nothing about it.
+            statuslineOnly: provider == .claudeCode
+                && settingsStore.settings.claudeDataSource == .statuslineOnly,
             now: now
         )
     }

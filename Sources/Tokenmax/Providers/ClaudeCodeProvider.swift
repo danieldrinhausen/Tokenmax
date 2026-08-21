@@ -7,6 +7,12 @@ import Foundation
 /// while a session is running). Per-window, whichever has the better
 /// (confidence, freshness) pair wins — so a live session can top up the weekly
 /// number even if the network call failed.
+///
+/// Under `ClaudeDataSource.statuslineOnly` the composition collapses to the
+/// shim alone. That mode's promise is "Tokenmax never touches the keychain",
+/// so the credential read and the endpoint are not fallbacks there — they are
+/// forbidden. A missing payload is reported as `.statuslineNoData`, never
+/// papered over with a credential read.
 final class ClaudeCodeProvider: UsageProvider {
     static let providerID = "claude-code"
 
@@ -20,6 +26,7 @@ final class ClaudeCodeProvider: UsageProvider {
     private let retryDeniedAccess: @Sendable () -> Void
     private let cliInstalled: @Sendable () -> Bool
     private let cliVersion: @Sendable () -> String
+    private let dataSource: @Sendable () -> ClaudeDataSource
 
     init(
         client: ClaudeOAuthUsageClient = ClaudeOAuthUsageClient(),
@@ -28,7 +35,11 @@ final class ClaudeCodeProvider: UsageProvider {
         invalidateCredentials: @escaping @Sendable () -> Void = { ClaudeKeychain.invalidateCache() },
         retryDeniedAccess: @escaping @Sendable () -> Void = { ClaudeKeychain.retryDeniedAccess() },
         cliInstalled: @escaping @Sendable () -> Bool = { ClaudeCLIClient.isInstalled },
-        cliVersion: @escaping @Sendable () -> String = { ClaudeCLIClient.version() }
+        cliVersion: @escaping @Sendable () -> String = { ClaudeCLIClient.version() },
+        // A closure, not a value: the user can change the choice while the app
+        // runs, and it has to take effect on the next fetch, not the next
+        // launch.
+        dataSource: @escaping @Sendable () -> ClaudeDataSource = { ClaudeDataSourceFlag.shared.current }
     ) {
         self.client = client
         self.readStatusline = readStatusline
@@ -37,6 +48,7 @@ final class ClaudeCodeProvider: UsageProvider {
         self.retryDeniedAccess = retryDeniedAccess
         self.cliInstalled = cliInstalled
         self.cliVersion = cliVersion
+        self.dataSource = dataSource
     }
 
     /// Forgets a remembered keychain denial, so the next read may raise the
@@ -55,6 +67,10 @@ final class ClaudeCodeProvider: UsageProvider {
 
     func checkAuthentication() async -> AuthenticationState {
         guard cliInstalled() else { return .notInstalled }
+        // Statusline-only mode has nothing to authenticate — the shim's file
+        // is world-readable usage data — and checking anyway would read the
+        // keychain, which is the one thing this mode promises never to do.
+        guard dataSource() == .keychain else { return .authenticated }
         do {
             let credentials = try readCredentials()
             return credentials.isExpired ? .needsReauthentication : .authenticated
@@ -69,6 +85,10 @@ final class ClaudeCodeProvider: UsageProvider {
 
     func fetchUsage() async throws -> ProviderUsage {
         guard cliInstalled() else { throw ProviderError.notInstalled(displayName) }
+
+        if dataSource() == .statuslineOnly {
+            return try statuslineOnlyUsage()
+        }
 
         let credentials = try loadCredentials()
 
@@ -130,6 +150,33 @@ final class ClaudeCodeProvider: UsageProvider {
             windows: windows.sorted { $0.kind.sortOrder < $1.kind.sortOrder },
             fetchedAt: observedAt,
             extraUsageEnabled: extraUsageEnabled
+        )
+    }
+
+    /// The whole reading, from the shim's file alone. No keychain, no network.
+    ///
+    /// What the file cannot carry stays honestly absent rather than guessed:
+    /// `planName` is nil (the subscription type lives in the keychain
+    /// payload), the per-model weeklies are simply not reported, and
+    /// `extraUsageEnabled` is nil — *unknown*, not "off". That nil is
+    /// load-bearing: the automation guard that refuses to run when credits
+    /// might be charged reads unknown as "do not spend".
+    private func statuslineOnlyUsage() throws -> ProviderUsage {
+        guard let (payload, observedAt) = readStatusline() else {
+            throw ProviderError.statuslineNoData
+        }
+        let windows = StatuslineUsageReader.windows(from: payload, observedAt: observedAt)
+        guard !windows.isEmpty else { throw ProviderError.statuslineNoData }
+
+        return ProviderUsage(
+            providerID: identifier,
+            planName: nil,
+            windows: windows.sorted { $0.kind.sortOrder < $1.kind.sortOrder },
+            // The file's mtime, not Date(): the reading is only as fresh as
+            // the last session response, and stamping it "now" would hide
+            // exactly the staleness this mode trades away.
+            fetchedAt: windows.map(\.observedAt).max() ?? observedAt,
+            extraUsageEnabled: nil
         )
     }
 

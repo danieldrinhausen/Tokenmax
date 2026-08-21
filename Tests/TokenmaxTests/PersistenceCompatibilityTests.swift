@@ -66,6 +66,9 @@ struct PersistenceCompatibilityTests {
         // monitoring a provider the user was already watching.
         #expect(settings.claudeCodeEnabled)
         #expect(settings.codexEnabled)
+        // Keychain is what every existing install already does, and moving a
+        // user to statusline-only would also silently pause their automation.
+        #expect(settings.claudeDataSource == .keychain)
         // A queue built before Tokenmax could create Codex tasks was entirely
         // Claude's. The upgrade must not start pointing new tasks elsewhere.
         #expect(settings.defaultTaskProvider == .claudeCode)
@@ -354,6 +357,26 @@ struct PersistenceCompatibilityTests {
 
         #expect(settings.codexEnabled)
         #expect(settings.terminalApplication == "Ghostty")
+    }
+
+    /// The mode's whole point is not asking, so "off" — statusline-only — must
+    /// survive being written down, and a value from the future must cost the
+    /// setting rather than the file.
+    @Test("The Claude data-source choice round-trips, and an unknown one falls back")
+    func claudeDataSourceRoundTripsAndFallsBack() throws {
+        var written = AppSettings()
+        written.claudeDataSource = .statuslineOnly
+        let data = try JSONStore.makeEncoder().encode(written)
+        #expect(
+            try JSONStore.makeDecoder().decode(AppSettings.self, from: data).claudeDataSource
+                == .statuslineOnly
+        )
+
+        let unknown = try decode(AppSettings.self, """
+        { "claudeDataSource": "telepathy", "remindersEnabled": true }
+        """)
+        #expect(unknown.claudeDataSource == .keychain)
+        #expect(unknown.remindersEnabled)
     }
 
     /// Disabling hides rather than deletes: the rule has to be waiting when the

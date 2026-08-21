@@ -290,6 +290,14 @@ struct AppSettings: Codable, Sendable, Equatable {
     var terminalApplication: String = "Terminal"
     var statuslineShimInstalled: Bool = false
 
+    /// Where the Claude numbers come from — the keychain-backed endpoint, or
+    /// the status line alone. See `ClaudeDataSource` for why this exists.
+    ///
+    /// Keychain by default, including for someone upgrading: it is the
+    /// behaviour every existing install already has, and silently moving a
+    /// user to statusline-only would also silently pause their automation.
+    var claudeDataSource: ClaudeDataSource = .keychain
+
     /// See `SessionOpenerSettings`. Off by default.
     var sessionOpener: SessionOpenerSettings = .init()
 
@@ -448,6 +456,11 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.terminalApplication
         statuslineShimInstalled = try container.decodeIfPresent(Bool.self, forKey: .statuslineShimInstalled)
             ?? d.statuslineShimInstalled
+        // `try?` so an unrecognised value costs this one setting, not the
+        // file — and the fallback is keychain, the mode whose failure modes
+        // (a consent dialog) are annoying rather than silent.
+        claudeDataSource = (try? container.decodeIfPresent(ClaudeDataSource.self, forKey: .claudeDataSource))
+            ?? d.claudeDataSource
         sessionOpener = try container.decodeIfPresent(SessionOpenerSettings.self, forKey: .sessionOpener)
             ?? d.sessionOpener
         queueAutoRun = try container.decodeIfPresent(QueueAutoRunSettings.self, forKey: .queueAutoRun)

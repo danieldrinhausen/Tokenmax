@@ -534,21 +534,49 @@ struct DataSourceSettingsView: View {
                 }
 
                 if settingsStore.settings.claudeCodeEnabled {
-                    LabeledContent("Endpoint") {
-                        Text("api.anthropic.com/api/oauth/usage")
-                            .font(.system(size: 10, design: .monospaced))
+                    Picker("Data source", selection: $settingsStore.settings.claudeDataSource) {
+                        ForEach(ClaudeDataSource.allCases) { source in
+                            Text(source.displayName).tag(source)
+                        }
                     }
-                    LabeledContent("Credentials") {
-                        Text("macOS Keychain")
+
+                    if settingsStore.settings.claudeDataSource == .keychain {
+                        LabeledContent("Endpoint") {
+                            Text("api.anthropic.com/api/oauth/usage")
+                                .font(.system(size: 10, design: .monospaced))
+                        }
+                        LabeledContent("Credentials") {
+                            Text("macOS Keychain")
+                        }
+                        Text("Reads the OAuth token Claude Code already stores in your login keychain, so readings work in the background and include the per-model weeklies, your plan and the usage-credit flag. macOS asks for permission, and asks again when Claude Code rotates the token past an “Allow”-only grant. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Reads only the file the status line shim writes, so Tokenmax never touches the keychain and macOS never asks for anything. Readings update while a Claude Code session is answering and go stale when it is not; the per-model weeklies, the plan name and the usage-credit flag are not reported. The session opener and unattended runs are paused in this mode, because neither can confirm quota without the endpoint. Running a task by hand still works.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if !settingsStore.settings.statuslineShimInstalled {
+                            Label(
+                                "The status line shim is not installed, so this mode has no data at all. Install it below.",
+                                systemImage: "exclamationmark.triangle"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    Text("Reads the OAuth token Claude Code already stores in your login keychain. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
             }
 
             if settingsStore.settings.claudeCodeEnabled {
-                Section("Fallback — Claude Code status line") {
+                Section(
+                    settingsStore.settings.claudeDataSource == .statuslineOnly
+                        ? "Claude Code status line"
+                        : "Fallback — Claude Code status line"
+                ) {
                     Toggle("Install status line shim", isOn: Binding(
                         get: { settingsStore.settings.statuslineShimInstalled },
                         set: { toggleShim($0) }
@@ -576,14 +604,24 @@ struct DataSourceSettingsView: View {
                         Button("Refresh models") {
                             Task { await modelCatalog.refresh(force: true) }
                         }
-                        .disabled(modelCatalog.isRefreshing)
+                        .disabled(
+                            modelCatalog.isRefreshing
+                                || settingsStore.settings.claudeDataSource == .statuslineOnly
+                        )
                         Spacer()
                     }
                     .font(.caption)
-                    Text("Fetched from api.anthropic.com/v1/models with the same keychain token as your usage, so a newly released model shows up in the task editor without updating Tokenmax. Refreshed daily; the last list is cached and used offline. If the fetch fails, the built-in aliases still work.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if settingsStore.settings.claudeDataSource == .statuslineOnly {
+                        Text("Paused: the catalog is fetched with the same keychain token as usage, and the status-line-only data source promises never to read it. The built-in aliases and the last cached list still work.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Fetched from api.anthropic.com/v1/models with the same keychain token as your usage, so a newly released model shows up in the task editor without updating Tokenmax. Refreshed daily; the last list is cached and used offline. If the fetch fails, the built-in aliases still work.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
 
@@ -625,6 +663,13 @@ struct DataSourceSettingsView: View {
         .onAppear {
             settingsStore.settings.statuslineShimInstalled = StatuslineShimInstaller.isInstalled
             modelCatalog.refreshIfStale()
+        }
+        // The switch should have visible consequences at once, not at the next
+        // timer tick: switching away from the keychain replaces the meters with
+        // statusline readings (or an honest "no reading yet"), and switching
+        // back fills in what the status line cannot carry.
+        .onChange(of: settingsStore.settings.claudeDataSource) {
+            Task { await usage.refresh(reason: "data source changed", manual: true, provider: .claudeCode) }
         }
     }
 

@@ -21,6 +21,13 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         case disabled
         case queueDisabled
         case cliNotInstalled
+        /// The Claude data source is statusline-only, which cannot confirm
+        /// quota around an unattended run: headless runs do not drive the
+        /// status line, so the post-run reading this feature waits for would
+        /// never arrive, and the extra-usage flag is never reported at all.
+        /// Hand-started runs are unaffected — clicking the button is the
+        /// approval those gates exist to stand in for.
+        case statuslineOnlyMonitoring
         /// Cannot currently confirm the quota guards.
         case dataStale
         case noSessionWindow
@@ -99,6 +106,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "The task queue is switched off."
             case .cliNotInstalled:
                 "The claude CLI could not be found."
+            case .statuslineOnlyMonitoring:
+                "Claude usage is read from the status line only, which cannot confirm quota after an unattended run. Choose “macOS Keychain” under Settings → Data Source to run tasks automatically; running a task by hand still works."
             case .dataStale:
                 "Waiting for a fresh usage reading before running anything."
             case .noSessionWindow:
@@ -226,6 +235,12 @@ enum QueueAutoRun {
         var runInFlight: Bool
         /// Set after a run completes, until a reading newer than it arrives.
         var awaitingFreshUsage: Bool
+        /// True when this provider's usage is read from the status line alone.
+        /// Categorical, unlike `isStale`: statusline data can be seconds old
+        /// and still unable to answer "what did that run just spend", so the
+        /// mode refuses unattended runs outright rather than per reading.
+        /// Always false for Codex, whose source never involves the keychain.
+        var statuslineOnly: Bool
         var now: Date
 
         init(
@@ -243,6 +258,7 @@ enum QueueAutoRun {
             state: QueueAutoRunState = .init(),
             runInFlight: Bool = false,
             awaitingFreshUsage: Bool = false,
+            statuslineOnly: Bool = false,
             now: Date = Date()
         ) {
             self.providerID = providerID
@@ -259,6 +275,7 @@ enum QueueAutoRun {
             self.state = state
             self.runInFlight = runInFlight
             self.awaitingFreshUsage = awaitingFreshUsage
+            self.statuslineOnly = statuslineOnly
             self.now = now
         }
     }
@@ -496,6 +513,11 @@ enum QueueAutoRun {
         // One at a time, always — before anything else, because a second run
         // must be refused whatever the quota happens to look like.
         guard !input.runInFlight else { return .skip(reason: .runInFlight) }
+
+        // Categorical, ahead of the staleness check: statusline-only data can
+        // be perfectly fresh and still unable to confirm what a run just
+        // spent, so no reading in this mode ever clears the guard.
+        guard !input.statuslineOnly else { return .skip(reason: .statuslineOnlyMonitoring) }
 
         if settings.requireFreshUsageData {
             guard !input.isStale else { return .skip(reason: .dataStale) }

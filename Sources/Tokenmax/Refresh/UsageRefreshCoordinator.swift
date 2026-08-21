@@ -308,7 +308,11 @@ final class UsageRefreshCoordinator: ObservableObject {
                 // is what the queue reads, so it can refuse a run with the real
                 // reason rather than reporting a missing quota window.
                 isAPIKeyOnly = true
-            case .noWindowsReturned, .underlying:
+            // `.statuslineNoData` lands here on purpose: "no reading yet" in
+            // statusline-only mode keeps any last good reading on screen with
+            // the message underneath, exactly like a transient failure. It is
+            // not an auth state — there is nothing the user must grant.
+            case .noWindowsReturned, .statuslineNoData, .underlying:
                 break
             }
         }

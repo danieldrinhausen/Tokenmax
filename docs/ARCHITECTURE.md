@@ -74,7 +74,30 @@ map](#the-drift-map) below has a small footprint.
 
 Two usage sources, merged by confidence and freshness in
 `ClaudeCodeProvider.merge`. The endpoint can be polled any time; the statusline
-only updates while a session runs. Codex is a parallel path through
+only updates while a session runs.
+
+Which sources participate is `ClaudeDataSource`, chosen in Settings and read
+off the main actor through `ClaudeDataSourceFlag` (the one word of settings
+that has to cross that boundary — `fetchUsage` cannot touch
+`SettingsStore.settings`). Under `statuslineOnly` the keychain is never read —
+by `fetchUsage`, `checkAuthentication` or the model-catalog refresh — because
+the mode's entire promise is that macOS has nothing to ask consent for; a
+quiet fallback to a credential read anywhere would break it. The mode also
+adds a named suppression to both spend decisions
+(`statuslineOnlyMonitoring` in `QueueAutoRunDecision` and
+`SessionOpenerDecision`): a source that cannot be polled cannot confirm what
+an unattended run just spent, and ambiguity on a spending path resolves to
+"do not spend".
+
+The keychain read itself sits behind `ClaudeCredentialCache`, which besides
+caching credentials remembers an explicit *Deny* for the rest of the launch —
+`errSecUserCanceled`/`errSecAuthFailed` map to `accessDenied` and are
+replayed without touching the keychain again, while
+`errSecInteractionNotAllowed` (a locked keychain during a background tick)
+stays transient and is retried. A manual Refresh clears the remembered
+denial; nothing else does. The distinction is load-bearing: caching the
+transient case would switch monitoring off because a screen was locked at the
+wrong moment. Codex is a parallel path through
 `CodexAppServerClient` and does not share these sources: one short-lived
 read-only `codex app-server` per read, spoken to over JSON-RPC and allowed to
 exit, so no agent process lingers and Codex stays responsible for its own

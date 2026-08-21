@@ -14,6 +14,12 @@ enum SessionOpenerDecision: Equatable, Sendable {
     enum SkipReason: String, Equatable, Sendable, CaseIterable {
         case disabled
         case cliNotInstalled
+        /// The Claude data source is statusline-only. The opener acts exactly
+        /// when no session is running — which is exactly when the status line
+        /// stops updating — so its weekly-quota guard would always be reading
+        /// a stale number, and its post-run verification could never see the
+        /// window it opened. Categorical, not a staleness that a retry clears.
+        case statuslineOnlyMonitoring
         /// Cannot currently confirm the quota guards. Postpones, never cancels —
         /// see `SessionOpener.decide`.
         case dataStale
@@ -60,6 +66,8 @@ enum SessionOpenerDecision: Equatable, Sendable {
                 "Not enabled."
             case .cliNotInstalled:
                 "The claude CLI could not be found."
+            case .statuslineOnlyMonitoring:
+                "Claude usage is read from the status line only, which stops updating exactly when a window has ended. Choose “macOS Keychain” under Settings → Data Source to use the opener."
             case .dataStale:
                 "Waiting for a fresh reading before opening."
             case .noSessionWindow:
@@ -141,6 +149,9 @@ enum SessionOpener {
         /// The one cause of staleness the opener may act through — see
         /// `mayOpenOnStaleData`.
         var awaitingTokenRenewal: Bool
+        /// True when Claude usage is read from the status line alone. Refused
+        /// outright — see `SkipReason.statuslineOnlyMonitoring`.
+        var statuslineOnly: Bool
         /// Age of the reading the other fields came from. Only consulted when
         /// the reading is stale.
         var dataAge: TimeInterval
@@ -157,6 +168,7 @@ enum SessionOpener {
             extraUsageEnabled: Bool? = nil,
             isStale: Bool = false,
             awaitingTokenRenewal: Bool = false,
+            statuslineOnly: Bool = false,
             dataAge: TimeInterval = 0,
             cliInstalled: Bool = true,
             state: SessionOpenerState = .init(),
@@ -170,6 +182,7 @@ enum SessionOpener {
             self.extraUsageEnabled = extraUsageEnabled
             self.isStale = isStale
             self.awaitingTokenRenewal = awaitingTokenRenewal
+            self.statuslineOnly = statuslineOnly
             self.dataAge = dataAge
             self.cliInstalled = cliInstalled
             self.state = state
@@ -204,6 +217,12 @@ enum SessionOpener {
     static func decide(_ input: Input) -> SessionOpenerDecision {
         guard input.settings.enabled else { return .skip(reason: .disabled) }
         guard input.cliInstalled else { return .skip(reason: .cliNotInstalled) }
+
+        // Ahead of everything that reads the snapshot, because in this mode no
+        // snapshot — however recent — can carry the guards. This also refuses
+        // "Send opener now": the button bypasses the schedule, never a safety
+        // condition, and the weekly floor is unverifiable here either way.
+        guard !input.statuslineOnly else { return .skip(reason: .statuslineOnlyMonitoring) }
 
         // Named up here because it is the overwhelmingly common case and the
         // most useful thing to show the user — but only a current reading may

@@ -101,6 +101,7 @@ struct SessionOpenerTests {
         extraUsageEnabled: Bool? = false,
         isStale: Bool = false,
         awaitingTokenRenewal: Bool = false,
+        statuslineOnly: Bool = false,
         dataAge: TimeInterval = 0,
         cliInstalled: Bool = true,
         state: SessionOpenerState? = nil,
@@ -115,6 +116,7 @@ struct SessionOpenerTests {
             extraUsageEnabled: extraUsageEnabled,
             isStale: isStale,
             awaitingTokenRenewal: awaitingTokenRenewal,
+            statuslineOnly: statuslineOnly,
             dataAge: dataAge,
             cliInstalled: cliInstalled,
             state: state ?? stateWithExpiredWindow(),
@@ -151,6 +153,20 @@ struct SessionOpenerTests {
     @Test("Refuses on stale data, because the spending guards cannot be checked")
     func refusesOnStaleData() {
         #expect(skipReason(input(isStale: true)) == .dataStale)
+    }
+
+    /// Categorical, unlike staleness: the opener acts exactly when no session
+    /// is running, which is exactly when the status line stops updating, so no
+    /// reading in this mode can ever carry the weekly-quota guard.
+    @Test("Refuses outright when Claude usage is read from the status line only")
+    func refusesUnderStatuslineOnlyMonitoring() {
+        #expect(skipReason(input(statuslineOnly: true)) == .statuslineOnlyMonitoring)
+        // A fresh reading does not clear it — the refusal is about the mode,
+        // not the age of the data.
+        #expect(skipReason(input(isStale: false, statuslineOnly: true)) == .statuslineOnlyMonitoring)
+        // And the lookalike: keychain monitoring with the same otherwise-ready
+        // input still opens.
+        #expect(skipReason(input(statuslineOnly: false)) == nil)
     }
 
     /// The whole point of the "no grace period" design: stale data delays the

@@ -121,6 +121,7 @@ final class SessionOpenerCoordinator: ObservableObject {
             extraUsageEnabled: snapshot?.extraUsageEnabled,
             isStale: usage.isStale,
             awaitingTokenRenewal: usage.isAwaitingTokenRenewal,
+            statuslineOnly: settingsStore.settings.claudeDataSource == .statuslineOnly,
             dataAge: snapshot.map { now.timeIntervalSince($0.fetchedAt) } ?? .greatestFiniteMagnitude,
             cliInstalled: cliInstalled(),
             state: state,

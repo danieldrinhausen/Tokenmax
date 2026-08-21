@@ -32,6 +32,11 @@ enum ProviderError: Error, LocalizedError, Equatable {
     /// with. This one really does need a sign-in.
     case needsReauthentication
     case noWindowsReturned
+    /// The data source is statusline-only and the shim has not written a
+    /// payload yet. A distinct case rather than `noWindowsReturned` because
+    /// the fix is different: nothing is broken, a Claude Code session just has
+    /// to answer once — and the keychain must not be consulted instead.
+    case statuslineNoData
     /// Signed in with an API key rather than a subscription. The agent still
     /// runs, but there is no plan allowance to meter and the work is billed per
     /// token — which is why this is a distinct case rather than free text: the
@@ -48,6 +53,8 @@ enum ProviderError: Error, LocalizedError, Equatable {
         case .tokenExpired: "Claude Code's access token expired; it refreshes on next use."
         case .needsReauthentication: "Claude Code needs to be re-authenticated."
         case .noWindowsReturned: "No quota windows were returned."
+        case .statuslineNoData:
+            "No status line reading yet. Usage appears once a Claude Code session responds; the keychain is never consulted in this mode."
         case let .apiKeyConfigured(name):
             "\(name) is authenticated with an API key. It can run tasks, but this account has no subscription quota meter."
         case let .underlying(message): message

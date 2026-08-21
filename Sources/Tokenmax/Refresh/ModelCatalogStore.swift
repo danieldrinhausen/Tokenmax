@@ -19,6 +19,7 @@ final class ModelCatalogStore: ObservableObject {
     private let cacheURL: URL
     private let loadCredentials: @Sendable () throws -> ClaudeKeychain.Credentials
     private let cliVersion: @Sendable () -> String
+    private let dataSource: @Sendable () -> ClaudeDataSource
 
     /// Refetched at most daily in normal running. The client enforces its own
     /// six-hour floor underneath this.
@@ -30,12 +31,14 @@ final class ModelCatalogStore: ObservableObject {
         loadCredentials: @escaping @Sendable () throws -> ClaudeKeychain.Credentials = {
             try ClaudeKeychain.readCredentials()
         },
-        cliVersion: @escaping @Sendable () -> String = { ClaudeCLIClient.version() }
+        cliVersion: @escaping @Sendable () -> String = { ClaudeCLIClient.version() },
+        dataSource: @escaping @Sendable () -> ClaudeDataSource = { ClaudeDataSourceFlag.shared.current }
     ) {
         self.client = client
         self.cacheURL = cacheURL
         self.loadCredentials = loadCredentials
         self.cliVersion = cliVersion
+        self.dataSource = dataSource
         catalog = JSONStore.load(ModelCatalog.self, from: cacheURL) ?? ModelCatalog()
     }
 
@@ -97,6 +100,15 @@ final class ModelCatalogStore: ObservableObject {
     /// `force` is the Settings button: it bypasses both the staleness check here
     /// and the request floor in the client.
     func refresh(force: Bool = false) async {
+        // The catalog fetch uses the same keychain token as usage, so running
+        // it in statusline-only mode would reintroduce the consent dialog that
+        // mode exists to remove — through a side door nobody would think to
+        // look at. The built-in aliases carry the picker instead. Guarded here
+        // rather than at the call sites, which are several and will be added to.
+        guard dataSource() == .keychain else {
+            Log.shared.write("models: skipped — Claude data source is statusline-only")
+            return
+        }
         guard !isRefreshing else { return }
         isRefreshing = true
         defer { isRefreshing = false }

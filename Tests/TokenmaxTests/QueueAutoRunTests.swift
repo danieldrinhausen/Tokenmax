@@ -122,6 +122,7 @@ struct QueueAutoRunTests {
         state: QueueAutoRunState = .init(),
         runInFlight: Bool = false,
         awaitingFreshUsage: Bool = false,
+        statuslineOnly: Bool = false,
         now: Date? = nil
     ) -> QueueAutoRun.Input {
         QueueAutoRun.Input(
@@ -141,6 +142,7 @@ struct QueueAutoRunTests {
             state: state,
             runInFlight: runInFlight,
             awaitingFreshUsage: awaitingFreshUsage,
+            statuslineOnly: statuslineOnly,
             now: now ?? self.now
         )
     }
@@ -183,6 +185,25 @@ struct QueueAutoRunTests {
         let decision = QueueAutoRun.decide(input(tasks: [queued]))
         #expect(decision.taskID == queued.id)
         if case .run = decision {} else { Issue.record("expected .run, got \(decision)") }
+    }
+
+    /// Statusline-only monitoring cannot confirm what a run just spent —
+    /// headless runs do not drive the status line — so the mode refuses
+    /// unattended runs outright, however fresh the reading looks.
+    @Test("Refuses unattended runs when Claude usage is statusline-only")
+    func refusesUnderStatuslineOnlyMonitoring() {
+        #expect(skipReason(input(statuslineOnly: true)) == .statuslineOnlyMonitoring)
+        // Freshness does not clear it: the refusal is the mode, not the age.
+        #expect(skipReason(input(isStale: false, statuslineOnly: true)) == .statuslineOnlyMonitoring)
+        // The lookalike stays quiet: the same input under keychain monitoring
+        // still runs.
+        #expect(skipReason(input(statuslineOnly: false)) == nil)
+        // An appointment is an override of *when*, never of this: a dated task
+        // that has come due is still refused.
+        #expect(
+            skipReason(input(tasks: [scheduled(minutesFromNow: -1)], statuslineOnly: true))
+                == .statuslineOnlyMonitoring
+        )
     }
 
     @Test("Mode decides what an eligible task turns into")

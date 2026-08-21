@@ -5,6 +5,22 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **A status-line-only data source, for people who want the keychain dialog
+  gone entirely.** **Settings → Data Source** now chooses where the Claude
+  numbers come from. The default remains the keychain-backed usage endpoint —
+  accurate, pollable, and the only source that carries the per-model weeklies,
+  the plan name and the usage-credit flag. The new **Status line only** mode
+  reads nothing but the file the statusline shim writes, so the keychain is
+  never touched and macOS never asks — not once, not per version. The trade is
+  stated rather than hidden: readings update only while a Claude Code session
+  is answering, and because a mode that cannot poll cannot confirm what an
+  unattended run just spent, the session opener and automatic task runs pause
+  under it, each naming the reason in Settings. Running a task by hand still
+  works. The model-catalog fetch pauses too — it uses the same keychain token,
+  and fetching it would reintroduce the dialog the mode exists to remove.
+
 ### Fixed
 
 - **Denying the keychain prompt no longer brings it back every five minutes.**

@@ -90,6 +90,13 @@ That needs the paid Apple Developer Program and has not been done yet; see
 Access does silence it, by handing your Claude OAuth refresh token to every
 program on the machine. Do not.
 
+**If you want the dialog gone regardless of buttons and certificates:**
+**Settings → Data Source → Status line only** never reads the keychain, so
+macOS has nothing to ask about. The trade is real — readings only update while
+a Claude Code session is answering, and the opener and automatic runs pause —
+but for a machine that mostly wants a meter, it is the honest zero-prompt
+option. Install the status-line shim first or the meters will read unknown.
+
 ### The app launches but nothing appears
 
 Tokenmax is a menu bar app with no dock icon by default. Look in the menu bar,
@@ -110,9 +117,14 @@ Work through these in order:
    denied** if so. Tokenmax takes a *Deny* at its word and stops asking — click
    **Refresh** in the popover to be asked again. Open **Keychain Access** and
    check Tokenmax under the item's Access Control if it still fails.
-3. **Run `make doctor`.** It tells you whether the keychain item still has the
+3. **Is the data source set to Status line only, without the shim?** In that
+   mode the only source is the file the shim writes; if the shim is not
+   installed — or no Claude Code session has answered since — there is nothing
+   to show, and unknown is the honest reading. Install the shim from
+   **Settings → Data Source**, or switch back to the keychain source.
+4. **Run `make doctor`.** It tells you whether the keychain item still has the
    shape Tokenmax expects and whether the endpoint answers.
-4. **Check the log** for `usage:` lines. `usage: SCHEMA DRIFT` means the endpoint
+5. **Check the log** for `usage:` lines. `usage: SCHEMA DRIFT` means the endpoint
    changed shape and Tokenmax needs updating — see [When upstream
    changes](#when-upstream-changes).
 
@@ -135,8 +147,11 @@ automatic runs, but it never cancels a scheduled reminder.
 ### The numbers disagree with Claude Code's own display
 
 Two sources with different freshness. The usage endpoint can be polled any time;
-the statusline fallback only updates while a session is actually running. When
-both are available, the fresher and higher-confidence reading wins.
+the statusline only updates while a session is actually running. In the default
+keychain mode, when both are available, the fresher and higher-confidence
+reading wins. In status-line-only mode there is just the one source, exactly as
+fresh as the last session response — a bigger gap between sessions is that mode
+working as described, not drift.
 
 A gap of a few percent between them is normal. A gap of tens of percent is worth
 an issue.
@@ -331,6 +346,9 @@ Automation**. The common ones:
 - its **runtime limit**, not its estimate, does not fit before the safety margin
 - the reading is stale
 - automation is still in **preview only** mode
+- the Claude data source is **Status line only** — a mode that cannot poll
+  cannot confirm what a run just spent, so unattended Claude runs pause until
+  the source is switched back; running a task by hand still works
 
 Preview mode is the one people forget. It is deliberately sticky.
 
@@ -420,6 +438,8 @@ The guards most often responsible:
 - **not a first-party subscription** — `claude auth status` must report claude.ai
 - **an `apiKeyHelper` or API key in `~/.claude/settings.json`**
 - **quiet hours**
+- **the Claude data source is Status line only** — the opener cannot verify its
+  own run without polling, so it waits until the keychain source is restored
 
 ### It says "unverified" and stopped permanently
 
