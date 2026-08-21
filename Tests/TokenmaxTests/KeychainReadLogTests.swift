@@ -3,10 +3,8 @@ import Testing
 
 @testable import Tokenmax
 
-/// The rule these guard: the log must say whether the consent dialog appeared,
-/// and the only evidence is elapsed time — so the classification has to be
-/// right at the boundary, and must never claim a dialog for a status that
-/// cannot raise one.
+/// The rule these guard: elapsed time is evidence that a consent dialog
+/// appeared, not proof, and the log must not turn that inference into a fact.
 @Suite("Keychain read log")
 struct KeychainReadLogTests {
     @Test("A millisecond read is reported as silent — no dialog can have been answered")
@@ -16,17 +14,17 @@ struct KeychainReadLogTests {
         #expect(!line.contains("consent dialog"))
     }
 
-    @Test("A read that blocked for seconds is reported as a shown dialog")
+    @Test("A read that blocked for seconds is reported as likely waiting on a dialog")
     func slowReadMeansDialog() {
         let line = KeychainReadLog.line(outcome: .ok, elapsed: 8.2, itemModified: nil)
-        #expect(line.contains("consent dialog was shown"))
+        #expect(line.contains("likely waited on a consent dialog"))
     }
 
-    @Test("A slow denial is a dialog the user answered with Deny")
+    @Test("A slow denial names the outcome without claiming the inference as fact")
     func slowDenialMeansDialog() {
         let line = KeychainReadLog.line(outcome: .denied, elapsed: 3.1, itemModified: nil)
         #expect(line.contains("read denied"))
-        #expect(line.contains("consent dialog was shown"))
+        #expect(line.contains("likely waited on a consent dialog"))
     }
 
     /// A locked keychain by definition raised nothing, however long macOS took
@@ -37,17 +35,17 @@ struct KeychainReadLogTests {
         let line = KeychainReadLog.line(
             outcome: .interactionNotAllowed, elapsed: 5.0, itemModified: nil
         )
-        #expect(!line.contains("consent dialog was shown"))
-        #expect(line.contains("keychain locked"))
+        #expect(!line.contains("likely waited on a consent dialog"))
+        #expect(line.contains("interaction unavailable"))
     }
 
-    @Test("The rotation timestamp is carried when known and absent when not")
+    @Test("The item modification timestamp is carried when known and absent when not")
     func rotationTimestamp() {
         let rotated = Date(timeIntervalSince1970: 1_774_000_000)
         let with = KeychainReadLog.line(outcome: .ok, elapsed: 0.01, itemModified: rotated)
         let without = KeychainReadLog.line(outcome: .ok, elapsed: 0.01, itemModified: nil)
-        #expect(with.contains("item last rotated"))
-        #expect(!without.contains("item last rotated"))
+        #expect(with.contains("item last modified"))
+        #expect(!without.contains("item last modified"))
     }
 
     @Test("Every outcome names itself in the line")

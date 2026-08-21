@@ -21,15 +21,13 @@ versions follow [semver](https://semver.org/).
   works. The model-catalog fetch pauses too — it uses the same keychain token,
   and fetching it would reintroduce the dialog the mode exists to remove.
 
-- **Every keychain read is logged, with a dialog detector built in.** macOS
-  gives no signal that it showed the consent prompt, but it cannot hide time:
-  a read served from a grant answers in milliseconds, one that raised the
-  dialog blocks until a human answers. The log now records each read's
-  trigger, outcome and duration — classified `silent` or `a consent dialog
-  was shown` — plus the item's last rotation time and, at launch, the
-  binary's cdhash that grants are keyed to. "The prompt keeps appearing" is
-  now answerable from `make logs` instead of from memory; the troubleshooting
-  guide has the full table of when a prompt is expected.
+- **Every keychain read is logged with the evidence needed to diagnose it.**
+  The log records each read's trigger, outcome and duration — a fast read is
+  `silent`, while a slow one `likely waited on a consent dialog` — plus the
+  item's last modification time and, at launch, the binary's cdhash that
+  grants are keyed to. Timing is evidence rather than proof, so the wording
+  stays honest while making "the prompt keeps appearing" answerable from
+  `make logs` instead of memory.
 
 ### Fixed
 
@@ -42,6 +40,17 @@ versions follow [semver](https://semver.org/).
   Only an answered dialog is remembered — a keychain that was merely locked at
   the moment of a background tick keeps being retried, so a locked screen can
   never switch monitoring off.
+
+- **Forced background verification no longer overrides a Keychain denial.**
+  The opener and automatic queue both force fresh network readings, but that
+  internal meaning of "manual" briefly also cleared a remembered *Deny* and
+  could reopen the dialog without a click. Retrying consent is now a separate
+  signal carried only by user refresh controls.
+
+- **Concurrent credential callers now share the in-flight Keychain read.** A
+  usage refresh and model-catalog fetch arriving together could both observe an
+  empty cache and raise duplicate dialogs. One caller now owns the read while
+  the others wait for its result.
 
 ## [0.1.8] - 2026-08-09
 

@@ -31,8 +31,8 @@ import Foundation
 /// `errSecInteractionNotAllowed` is environmental, not an answer, and is kept
 /// out of that case for exactly this reason.
 ///
-/// **Staleness.** Claude Code rotates the token in place, without telling
-/// anyone. A cached token stays usable until its own `expiresAt`, which is
+/// **Staleness.** Claude Code changes the token without telling anyone. A
+/// cached token stays usable until its own `expiresAt`, which is
 /// checked on every hand-out, and a token the endpoint rejects is dropped by
 /// the caller through `invalidate()`. Those two together are what keep a
 /// rotation from being noticed only at relaunch.
@@ -48,9 +48,10 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// does the dialog appear" is unanswerable from memory; the log is the
     /// instrument users can actually hand over.
     private let log: @Sendable (String) -> Void
-    private let lock = NSLock()
+    private let condition = NSCondition()
     private var stored: ClaudeKeychain.Credentials?
     private var denied = false
+    private var isReading = false
 
     init(
         read: @escaping @Sendable () throws -> ClaudeKeychain.Credentials,
@@ -70,36 +71,53 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// refusing to *use* an expired token: the provider still tries whatever it
     /// gets against the endpoint, since the clock is only a hint.
     func credentials() throws -> ClaudeKeychain.Credentials {
-        lock.lock()
+        condition.lock()
+        while isReading {
+            // Several coordinators can arrive together on launch. The first
+            // one owns the system dialog; the rest wait for its answer instead
+            // of presenting the same question in parallel.
+            condition.wait()
+        }
         if denied {
-            lock.unlock()
+            condition.unlock()
             throw ClaudeKeychain.KeychainError.accessDenied
         }
         if let stored, !stored.isExpired(at: now()) {
-            lock.unlock()
+            condition.unlock()
             return stored
         }
         // Named before the read so every keychain line in the log has the line
         // above it saying why the read happened at all.
         let trigger = stored == nil ? "nothing cached yet" : "cached token expired"
         stored = nil
-        lock.unlock()
+        isReading = true
+        condition.unlock()
         log("keychain: reading (\(trigger))")
 
-        // Read outside the lock: it can block on a consent dialog for as long
-        // as the user takes to answer, and holding a lock across that would
-        // stall every other caller behind the same dialog.
+        // The Keychain call itself runs without the condition locked. Other
+        // callers deliberately wait above: stalling behind one dialog is the
+        // correct result; raising a dialog per caller is not.
         do {
             let fresh = try read()
-            lock.lock()
+            condition.lock()
             stored = fresh
-            lock.unlock()
+            isReading = false
+            condition.broadcast()
+            condition.unlock()
             return fresh
         } catch ClaudeKeychain.KeychainError.accessDenied {
-            lock.lock()
+            condition.lock()
             denied = true
-            lock.unlock()
+            isReading = false
+            condition.broadcast()
+            condition.unlock()
             throw ClaudeKeychain.KeychainError.accessDenied
+        } catch {
+            condition.lock()
+            isReading = false
+            condition.broadcast()
+            condition.unlock()
+            throw error
         }
     }
 
@@ -109,11 +127,11 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// Called when the endpoint rejects the token — the only reliable signal
     /// that Claude Code has rotated it since we looked.
     func invalidate() {
-        lock.lock()
+        condition.lock()
         let droppedSomething = stored != nil || denied
         stored = nil
         denied = false
-        lock.unlock()
+        condition.unlock()
         // Logged only when there was something to drop — an invalidate of an
         // already-empty cache explains no subsequent read.
         if droppedSomething {
@@ -128,10 +146,10 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// "ask me again" the denial backoff waits for. A timer tick never clears
     /// it — that would put the every-five-minutes dialog straight back.
     func retryAfterDenial() {
-        lock.lock()
+        condition.lock()
         let wasDenied = denied
         denied = false
-        lock.unlock()
+        condition.unlock()
         // Every manual refresh calls this; only the one that actually forgives
         // a denial is worth a line, or the log claims dialogs that never came.
         if wasDenied {

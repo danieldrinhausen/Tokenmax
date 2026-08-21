@@ -85,8 +85,9 @@ notarized: **System Settings → Privacy & Security → Open Anyway**. Once per 
 
 **2. Allow the keychain prompt.** macOS asks for the `Claude Code-credentials` item. That
 prompt *is* Tokenmax reading your quota — choose **Always Allow**, not *Allow*. *Allow*
-covers a single read, so the dialog comes back a few hours later when Claude Code rotates
-its token; **Always Allow** is what makes it stop. Decline it and the meters stay empty —
+covers a single read, so the dialog returns when Tokenmax next has to consult the item —
+normally after a relaunch, token expiry or a rejected cached token. **Always Allow** records
+a grant for the current item. Decline it and the meters stay empty —
 and Tokenmax takes the no: it stops asking until you click Refresh yourself. If you would
 rather macOS never asked at all, **Settings → Data Source** has a status-line-only mode
 that never touches the keychain — [the trade-offs](#where-the-quota-data-comes-from).
@@ -157,7 +158,8 @@ Terminal equivalent, if you prefer: `xattr -dr com.apple.quarantine /Application
 
 macOS will then prompt once for access to the `Claude Code-credentials` keychain item — that is
 Tokenmax reading your quota. Choose **Always Allow**, which is the only button that records a
-grant: *Allow* covers one read, and the dialog returns when Claude Code next rotates its token.
+grant for the current item: *Allow* covers one read, and the dialog returns when Tokenmax next
+has to consult the keychain.
 If it is already returning, [The keychain prompt comes back every
 time](docs/TROUBLESHOOTING.md#the-keychain-prompt-comes-back-every-time) explains what to do. See
 also [Where the quota data comes from](#where-the-quota-data-comes-from).
@@ -214,9 +216,10 @@ state. Tokenmax uses two real sources instead, and **Settings → Data Source** 
 (`Claude Code-credentials`). **macOS prompts once per version** — choose *Always Allow*. The grant
 is bound to the app's code hash, so it asks again for each new binary: once per release you install,
 and once per rebuild if you are compiling it yourself. A code-signing certificate does not change
-this — see [Building a release](#building-a-release). Answer with *Allow* instead and the prompt
-also returns whenever Claude Code rotates the token, a few hours apart — which is what "the prompt
-appears randomly during the day" almost always is.
+this — see [Building a release](#building-a-release). Answer with *Allow* instead and only that read
+is authorised; the in-memory cache delays the next question until a relaunch, expiry or rejected
+token. Some Claude Code/macOS versions have also been reported to recreate the item or its access
+control during credential maintenance, which can discard even an *Always Allow* grant.
 
 Tokenmax never writes credentials to disk, never refreshes the token itself (that would race
 Claude Code's own refresh), and sends nothing anywhere except Anthropic.

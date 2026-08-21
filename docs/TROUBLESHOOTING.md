@@ -38,42 +38,46 @@ xattr -dr com.apple.quarantine /Applications/Tokenmax.app
 ### The keychain prompt comes back every time
 
 **When the prompt is expected, and when it is not.** For someone who answers
-**Always Allow**, this is the complete list — anything outside it is worth
-reporting:
+**Always Allow**, these are the usual cases. Claude Code owns the item and its
+storage behaviour has changed between versions, so a prompt outside the table
+is worth reporting with the log evidence below, not declaring impossible:
 
 | Moment | Prompt expected? | Why |
 |---|---|---|
 | First launch ever | **Yes, once** | macOS has never seen this app read the item |
 | After installing a new version | **Yes, once** | The grant is keyed to the binary's code hash; a new version is a new hash |
 | After rebuilding it yourself | **Yes, once per build** | Same reason — every compile produces a new hash |
-| Starting the app (same binary) | No | The grant is on the item and survives restarts |
-| Claude Code rotating its token (every few hours) | No | Rotation updates the item in place; the grant survives |
+| Starting the app (same binary and item) | No | The recorded grant still matches both |
+| Claude Code updating credentials in place | Normally no | An in-place data update should preserve the item's grant |
+| Claude Code recreating the item or its ACL | **Possibly once** | A replacement can discard third-party grants; this has varied across Claude Code/macOS versions |
 | A new session window starting | No | Window resets never touch the keychain |
 | Idle, sleep/wake, lock/unlock | No | None of these are keychain reads; a locked keychain defers the read, it does not prompt |
 | After `claude logout` + login | **Possibly once** | If Claude Code recreates the item rather than updating it, the new item carries no grants |
 
-Answer with **Allow** instead and one row changes: every token rotation
-becomes a prompt, because *Allow* covered only the read it was asked for.
-That is the "randomly during the day" pattern.
+Answer with **Allow** instead and the next keychain read asks again, because
+*Allow* covered only the read it was asked for. Tokenmax's memory cache delays
+that read until a relaunch, local expiry or rejected cached token, which makes
+the resulting prompts look random even though the rule is simply one read.
 
 **The log records every read, so you can check rather than guess.** Run
 `make logs` (or read `~/Library/Application Support/Tokenmax/tokenmax.log`)
 and look for `keychain:` lines. Each read logs why it happened (`nothing
 cached yet`, `cached token expired`), what came back, how long it took —
-and the duration is the dialog detector: a read served from a grant answers
-in milliseconds and is logged `silent`, while a read that raised the dialog
-blocks until you answer it and is logged `a consent dialog was shown`. Each
-line also carries when Claude Code last rotated the item, and every launch
+and duration is useful evidence: a read served from a grant normally answers
+in milliseconds and is logged `silent`, while a slow read is logged `likely
+waited on a consent dialog`. Timing cannot prove which system UI appeared, so
+the log deliberately says *likely*. Each line also carries when Claude Code
+last modified the item, and every launch
 logs the binary's `cdhash` — if the hash differs from the previous launch
 line, the next prompt is the expected once-per-build one. When reporting a
 prompt that seems wrong, these lines are exactly what to include.
 
 **First, check which button you pressed.** The macOS dialog offers *Deny*,
-*Allow* and *Always Allow*, and only **Always Allow** writes a grant. *Allow*
-authorises that one read — Tokenmax holds it in memory, but Claude Code rotates
-its token every few hours and reading the new one means asking again. If the
-prompt returns a few times a day at seemingly random moments, this is almost
-certainly why: the moments are token rotations. Answer the next one with
+*Allow* and *Always Allow*, and only **Always Allow** writes a grant for the
+current item. *Allow* authorises that one read — Tokenmax holds the result in
+memory, but must consult the item again after a relaunch, local expiry or
+rejected cached token. If the prompt returns a few times a day at seemingly
+random moments, this is the first thing to rule out. Answer the next one with
 **Always Allow**.
 
 *Deny* is taken at its word. Tokenmax remembers the answer for as long as it

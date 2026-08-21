@@ -129,7 +129,14 @@ struct QueueView: View {
                 state: usage.state(for: provider),
                 isStale: usage.isStale(for: provider),
                 onRefresh: {
-                    Task { await usage.refresh(reason: "queue", manual: true, provider: provider) }
+                    Task {
+                        await usage.refresh(
+                            reason: "queue",
+                            manual: true,
+                            retryDeniedKeychainAccess: true,
+                            provider: provider
+                        )
+                    }
                 }
             )
         }
@@ -333,7 +340,13 @@ struct QueueView: View {
 
     private func refresh() {
         directories.invalidate()
-        Task { await usage.refresh(reason: "queue window", manual: true) }
+        Task {
+            await usage.refresh(
+                reason: "queue window",
+                manual: true,
+                retryDeniedKeychainAccess: true
+            )
+        }
     }
 
     /// Backs "Run Next".

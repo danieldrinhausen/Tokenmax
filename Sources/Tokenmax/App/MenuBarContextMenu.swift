@@ -129,7 +129,13 @@ final class MenuBarContextMenu: NSObject {
         case .openQueue:
             requestWindow(.tokenmaxOpenQueue)
         case .refresh:
-            Task { await usage.refreshAll(reason: "menubar menu", manual: true) }
+            Task {
+                await usage.refreshAll(
+                    reason: "menubar menu",
+                    manual: true,
+                    retryDeniedKeychainAccess: true
+                )
+            }
         case .quit:
             NSApp.terminate(nil)
         }

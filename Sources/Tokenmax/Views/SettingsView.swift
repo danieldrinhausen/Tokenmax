@@ -548,7 +548,7 @@ struct DataSourceSettingsView: View {
                         LabeledContent("Credentials") {
                             Text("macOS Keychain")
                         }
-                        Text("Reads the OAuth token Claude Code already stores in your login keychain, so readings work in the background and include the per-model weeklies, your plan and the usage-credit flag. macOS asks for permission, and asks again when Claude Code rotates the token past an “Allow”-only grant. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
+                        Text("Reads the OAuth token Claude Code already stores in your login keychain, so readings work in the background and include the per-model weeklies, your plan and the usage-credit flag. macOS asks for permission; “Allow” covers one read, while “Always Allow” records a grant for the current item. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -669,7 +669,15 @@ struct DataSourceSettingsView: View {
         // statusline readings (or an honest "no reading yet"), and switching
         // back fills in what the status line cannot carry.
         .onChange(of: settingsStore.settings.claudeDataSource) {
-            Task { await usage.refresh(reason: "data source changed", manual: true, provider: .claudeCode) }
+            let retryDenied = settingsStore.settings.claudeDataSource == .keychain
+            Task {
+                await usage.refresh(
+                    reason: "data source changed",
+                    manual: true,
+                    retryDeniedKeychainAccess: retryDenied,
+                    provider: .claudeCode
+                )
+            }
         }
     }
 

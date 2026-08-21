@@ -148,11 +148,12 @@ enum ClaudeKeychain {
         }
     }
 
-    /// When Claude Code last wrote the item — i.e. the last token rotation.
+    /// When Claude Code last wrote the item — useful correlation for a likely
+    /// token rotation, but not proof of why it changed.
     ///
     /// Attribute reads are not gated by the item's ACL, only reads of the
     /// secret data are, so this never raises a dialog. It is how each log
-    /// line can carry the rotation timestamp without costing a prompt.
+    /// line can carry the modification timestamp without costing a prompt.
     private static func itemModificationDate() -> Date? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

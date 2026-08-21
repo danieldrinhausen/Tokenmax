@@ -5,8 +5,8 @@ import Foundation
 /// This choice exists because of the keychain consent dialog. Reading the
 /// OAuth token is the accurate source — pollable any time, exact, and the only
 /// one that reports the per-model weeklies, the plan name and the extra-usage
-/// flag — but the item belongs to another app, so macOS asks, and asks again
-/// every time Claude Code rotates the token past an *Allow*-only grant. The
+/// flag — but the item belongs to another app, so macOS asks, and an *Allow*
+/// answer authorises only that one read. The
 /// status line is the documented source and needs no permission at all; it
 /// just goes quiet whenever Claude Code is not answering.
 enum ClaudeDataSource: String, Codable, Sendable, CaseIterable, Identifiable {

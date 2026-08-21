@@ -12,13 +12,15 @@ the shipped shape is the one that survived.
 mechanisms produced that one symptom, and they needed separating because each
 has a different correct fix:
 
-1. **An *Allow*-only grant plus token rotation.** The macOS consent dialog
+1. **An *Allow*-only answer plus a later read.** The macOS consent dialog
    offers *Deny*, *Allow* and *Always Allow*, and only the last writes a
    persistent grant. *Allow* authorises one read; Tokenmax caches the
-   credentials in memory, but Claude Code rotates its OAuth token every few
-   hours, and reading the rotated token is a new read — a new dialog. The
-   "random" moments were token rotations. Nothing was broken; the button was
-   wrong, and nothing in the app or docs said so.
+   credentials in memory, but a relaunch, local expiry or rejected token sends
+   it back to the item — a new read and therefore a new dialog. Claude Code may
+   also replace or rewrite the item's access control while maintaining its
+   credentials; that behaviour has varied across versions and can invalidate
+   even a recorded third-party grant. The old explanation reduced all of this
+   to "token rotation", which the available evidence did not justify.
 
 2. **A *Deny* that was never remembered.** A denial threw
    `ProviderError.accessDenied`, the refresh loop backed off, and the next
@@ -34,7 +36,8 @@ has a different correct fix:
 
 Mechanism 3 is unfixable from inside the repo. Mechanisms 1 and 2 are why the
 prompt felt broken, and mechanism 1 is why even a perfect fix for 2 could not
-make the prompt *stop* for an *Allow* user. That is what forced the second
+make the prompt *stop* for an *Allow* user. Upstream replacement of the item or
+its ACL is likewise outside Tokenmax. That is what forced the second
 question: should there be a mode with no prompt at all?
 
 ## Decision 1 — remember a denial for the launch, nothing longer
@@ -120,15 +123,15 @@ it has nothing to protect.
 
 ## Decision 4 — what the docs had to say, and where
 
-The README owns "why does it behave this way" (rotation mechanics, the
+The README owns "why does it behave this way" (read and item-lifetime mechanics, the
 *Allow* vs *Always Allow* distinction, what the new mode trades); the
 troubleshooting guide owns the symptom ("the prompt comes back every time" —
 the words a confused user would search); the handbook owns the workflow (a
 recipe: shim first, then switch); the architecture doc owns the pattern (the
 flag, the gates, the suppression cases); the info page owns the pitch-level
 sentence. One correction ran through all of them: a Developer ID certificate
-makes *Always Allow* survive updates, but it does nothing for an *Allow*-only
-grant against rotation — the earlier docs implied signing would end the
+makes *Always Allow* survive Tokenmax updates, but it does nothing for an
+*Allow*-only answer or an upstream replacement of Claude's item — the earlier docs implied signing would end the
 prompts, which was a confident wrong sentence, and those are worse than gaps.
 
 ## What was deliberately not done

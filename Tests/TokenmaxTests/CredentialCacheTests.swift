@@ -65,6 +65,75 @@ struct CredentialCacheTests {
         #expect(reads.count == 1)
     }
 
+    /// Launch can ask the usage provider and model catalog for credentials at
+    /// the same time. A shared cache is not enough if both observe it empty
+    /// before either read returns: that produces two stacked consent dialogs.
+    @Test("Concurrent cache misses coalesce into one keychain read")
+    func concurrentMissesCoalesce() {
+        let reads = ReadCounter()
+        let releaseRead = DispatchSemaphore(value: 0)
+        let firstReadStarted = DispatchSemaphore(value: 0)
+        let callers = DispatchGroup()
+        let queue = DispatchQueue(label: "credential-cache-test", attributes: .concurrent)
+        let cache = ClaudeCredentialCache(read: {
+            reads.increment()
+            firstReadStarted.signal()
+            releaseRead.wait()
+            return self.credentials()
+        })
+
+        callers.enter()
+        queue.async {
+            _ = try? cache.credentials()
+            callers.leave()
+        }
+        #expect(firstReadStarted.wait(timeout: .now() + 1) == .success)
+
+        callers.enter()
+        queue.async {
+            _ = try? cache.credentials()
+            callers.leave()
+        }
+
+        // Two signals keep the old, broken implementation from deadlocking:
+        // it starts two reads; the fixed implementation consumes only one.
+        releaseRead.signal()
+        releaseRead.signal()
+        #expect(callers.wait(timeout: .now() + 1) == .success)
+        #expect(reads.count == 1)
+    }
+
+    /// `manual` also means "force a network refresh" to the unattended opener
+    /// and post-run verifier. That must not be mistaken for a user's request to
+    /// reopen an answered consent dialog.
+    @Test("A forced refresh retries a denial only when the user requested it")
+    @MainActor
+    func forcedRefreshDoesNotForgiveDenial() async {
+        let retries = ReadCounter()
+        let provider = ClaudeCodeProvider(
+            readCredentials: { throw ClaudeKeychain.KeychainError.accessDenied },
+            retryDeniedAccess: { retries.increment() },
+            cliInstalled: { true },
+            dataSource: { .keychain }
+        )
+        let coordinator = UsageRefreshCoordinator(
+            provider: provider,
+            settingsStore: SettingsStore(),
+            snapshotURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("denial-retry-\(UUID().uuidString).json")
+        )
+
+        await coordinator.refresh(reason: "automatic verifier", manual: true)
+        #expect(retries.count == 0)
+
+        await coordinator.refresh(
+            reason: "refresh button",
+            manual: true,
+            retryDeniedKeychainAccess: true
+        )
+        #expect(retries.count == 1)
+    }
+
     @Test("A token past its expiry is re-read rather than handed out")
     func rereadsExpiredToken() throws {
         let reads = ReadCounter()

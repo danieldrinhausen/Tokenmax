@@ -389,7 +389,14 @@ struct MenuBarPopoverView: View {
     private func perform(_ action: Recovery, provider: TokenmaxProvider = .claudeCode) {
         switch action {
         case .refresh, .retry:
-            Task { await usage.refresh(reason: "recovery", manual: true, provider: provider) }
+            Task {
+                await usage.refresh(
+                    reason: "recovery",
+                    manual: true,
+                    retryDeniedKeychainAccess: true,
+                    provider: provider
+                )
+            }
         case .openTerminal:
             // All the auth and install failures are fixed by running `claude`
             // somewhere, and somewhere is home.
@@ -542,7 +549,13 @@ struct MenuBarPopoverView: View {
             // refreshes every provider. The per-provider Refresh links in the
             // section headers are the narrow ones.
             Button {
-                Task { await usage.refreshAll(reason: "manual", manual: true) }
+                Task {
+                    await usage.refreshAll(
+                        reason: "manual",
+                        manual: true,
+                        retryDeniedKeychainAccess: true
+                    )
+                }
             } label: {
                 if usage.isRefreshingAny {
                     Text("Refreshing…")

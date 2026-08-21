@@ -207,8 +207,14 @@ final class UsageRefreshCoordinator: ObservableObject {
 
     // MARK: - Refresh
 
-    /// `manual` bypasses backoff — an explicit Refresh click should always try.
-    func refresh(reason: String, manual: Bool = false) async {
+    /// `manual` bypasses network backoff. `retryDeniedKeychainAccess` is kept
+    /// separate because automatic verification also forces fresh network data,
+    /// but only a user's Refresh click may reopen an answered consent dialog.
+    func refresh(
+        reason: String,
+        manual: Bool = false,
+        retryDeniedKeychainAccess: Bool = false
+    ) async {
         if !manual, let backoffUntil, Date() < backoffUntil {
             return
         }
@@ -219,6 +225,8 @@ final class UsageRefreshCoordinator: ObservableObject {
 
         if manual {
             resetBackoff()
+        }
+        if retryDeniedKeychainAccess {
             // A remembered keychain denial is cleared here and nowhere else:
             // the denied state in the popover says "click Refresh", and that
             // click — not a timer tick — is the "ask me again" it waits for.

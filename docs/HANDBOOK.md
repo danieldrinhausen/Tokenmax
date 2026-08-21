@@ -27,8 +27,9 @@ macOS asks once for access to the `Claude Code-credentials` keychain item. That
 prompt *is* Tokenmax reading your quota — decline it and the meters stay empty
 (Tokenmax takes the no and stops asking until you click Refresh yourself).
 Choose **Always Allow**, not *Allow*: only *Always Allow* records a grant, and
-*Allow* brings the dialog back a few hours later when Claude Code rotates its
-token.
+*Allow* covers only that read. Tokenmax's in-memory cache delays the next
+question until it must consult the item again, normally after a relaunch,
+expiry or rejected token.
 
 If the prompt returns after every rebuild, that is expected for a locally built
 copy and is not a bug. The README's [Building a

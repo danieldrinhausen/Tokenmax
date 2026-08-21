@@ -120,8 +120,17 @@ final class ProviderUsageCoordinator: ObservableObject {
 
     func popoverOpened() { for p in enabledProviders { coordinator(for: p).popoverOpened() } }
     func popoverClosed() { for p in enabledProviders { coordinator(for: p).popoverClosed() } }
-    func refresh(reason: String, manual: Bool = false, provider: TokenmaxProvider? = nil) async {
-        await coordinator(for: provider ?? selectedProvider).refresh(reason: reason, manual: manual)
+    func refresh(
+        reason: String,
+        manual: Bool = false,
+        retryDeniedKeychainAccess: Bool = false,
+        provider: TokenmaxProvider? = nil
+    ) async {
+        await coordinator(for: provider ?? selectedProvider).refresh(
+            reason: reason,
+            manual: manual,
+            retryDeniedKeychainAccess: retryDeniedKeychainAccess
+        )
     }
 
     /// True while *any* enabled provider is in flight, so a control that acts on
@@ -133,14 +142,21 @@ final class ProviderUsageCoordinator: ObservableObject {
     /// Backs the popover's footer button, which sits below every provider
     /// section and so must refresh every one of them. Concurrently: they hit
     /// different endpoints and each enforces its own request floor.
-    func refreshAll(reason: String, manual: Bool = false) async {
-        await withTaskGroup(of: Void.self) { group in
-            for provider in enabledProviders {
-                group.addTask { @MainActor in
-                    await self.coordinator(for: provider).refresh(reason: reason, manual: manual)
-                }
+    func refreshAll(
+        reason: String,
+        manual: Bool = false,
+        retryDeniedKeychainAccess: Bool = false
+    ) async {
+        let tasks = enabledProviders.map { provider in
+            Task { @MainActor in
+                await self.coordinator(for: provider).refresh(
+                    reason: reason,
+                    manual: manual,
+                    retryDeniedKeychainAccess: retryDeniedKeychainAccess
+                )
             }
         }
+        for task in tasks { await task.value }
     }
     /// Previews on whichever meter is actually on screen — the glow is a
     /// menu-bar setting, and the menu bar may not be showing Claude.
