@@ -60,7 +60,7 @@ that read until a relaunch, local expiry or rejected cached token, which makes
 the resulting prompts look random even though the rule is simply one read.
 
 **The log records every read, so you can check rather than guess.** Run
-`make logs` (or read `~/Library/Application Support/Tokenmax/tokenmax.log`)
+`make logs` (or read `~/Library/Application Support/Tokenmax/logs/tokenmax.log`)
 and look for `keychain:` lines. Each read logs why it happened (`nothing
 cached yet`, `cached token expired`), what came back, how long it took —
 and duration is useful evidence: a read served from a grant normally answers
