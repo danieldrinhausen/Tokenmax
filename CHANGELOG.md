@@ -21,6 +21,16 @@ versions follow [semver](https://semver.org/).
   works. The model-catalog fetch pauses too — it uses the same keychain token,
   and fetching it would reintroduce the dialog the mode exists to remove.
 
+- **Every keychain read is logged, with a dialog detector built in.** macOS
+  gives no signal that it showed the consent prompt, but it cannot hide time:
+  a read served from a grant answers in milliseconds, one that raised the
+  dialog blocks until a human answers. The log now records each read's
+  trigger, outcome and duration — classified `silent` or `a consent dialog
+  was shown` — plus the item's last rotation time and, at launch, the
+  binary's cdhash that grants are keyed to. "The prompt keeps appearing" is
+  now answerable from `make logs` instead of from memory; the troubleshooting
+  guide has the full table of when a prompt is expected.
+
 ### Fixed
 
 - **Denying the keychain prompt no longer brings it back every five minutes.**

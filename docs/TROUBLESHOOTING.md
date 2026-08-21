@@ -37,6 +37,37 @@ xattr -dr com.apple.quarantine /Applications/Tokenmax.app
 
 ### The keychain prompt comes back every time
 
+**When the prompt is expected, and when it is not.** For someone who answers
+**Always Allow**, this is the complete list — anything outside it is worth
+reporting:
+
+| Moment | Prompt expected? | Why |
+|---|---|---|
+| First launch ever | **Yes, once** | macOS has never seen this app read the item |
+| After installing a new version | **Yes, once** | The grant is keyed to the binary's code hash; a new version is a new hash |
+| After rebuilding it yourself | **Yes, once per build** | Same reason — every compile produces a new hash |
+| Starting the app (same binary) | No | The grant is on the item and survives restarts |
+| Claude Code rotating its token (every few hours) | No | Rotation updates the item in place; the grant survives |
+| A new session window starting | No | Window resets never touch the keychain |
+| Idle, sleep/wake, lock/unlock | No | None of these are keychain reads; a locked keychain defers the read, it does not prompt |
+| After `claude logout` + login | **Possibly once** | If Claude Code recreates the item rather than updating it, the new item carries no grants |
+
+Answer with **Allow** instead and one row changes: every token rotation
+becomes a prompt, because *Allow* covered only the read it was asked for.
+That is the "randomly during the day" pattern.
+
+**The log records every read, so you can check rather than guess.** Run
+`make logs` (or read `~/Library/Application Support/Tokenmax/tokenmax.log`)
+and look for `keychain:` lines. Each read logs why it happened (`nothing
+cached yet`, `cached token expired`), what came back, how long it took —
+and the duration is the dialog detector: a read served from a grant answers
+in milliseconds and is logged `silent`, while a read that raised the dialog
+blocks until you answer it and is logged `a consent dialog was shown`. Each
+line also carries when Claude Code last rotated the item, and every launch
+logs the binary's `cdhash` — if the hash differs from the previous launch
+line, the next prompt is the expected once-per-build one. When reporting a
+prompt that seems wrong, these lines are exactly what to include.
+
 **First, check which button you pressed.** The macOS dialog offers *Deny*,
 *Allow* and *Always Allow*, and only **Always Allow** writes a grant. *Allow*
 authorises that one read — Tokenmax holds it in memory, but Claude Code rotates

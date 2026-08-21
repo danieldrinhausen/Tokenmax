@@ -42,16 +42,24 @@ import Foundation
 final class ClaudeCredentialCache: @unchecked Sendable {
     private let read: @Sendable () throws -> ClaudeKeychain.Credentials
     private let now: @Sendable () -> Date
+    /// Where the cache narrates itself — why it went to the keychain, what it
+    /// dropped and why. Injected so tests can assert the story and production
+    /// can point it at `Log.shared`. The lines exist because "when exactly
+    /// does the dialog appear" is unanswerable from memory; the log is the
+    /// instrument users can actually hand over.
+    private let log: @Sendable (String) -> Void
     private let lock = NSLock()
     private var stored: ClaudeKeychain.Credentials?
     private var denied = false
 
     init(
         read: @escaping @Sendable () throws -> ClaudeKeychain.Credentials,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        log: @escaping @Sendable (String) -> Void = { _ in }
     ) {
         self.read = read
         self.now = now
+        self.log = log
     }
 
     /// The cached credentials when they are still within their own expiry,
@@ -71,8 +79,12 @@ final class ClaudeCredentialCache: @unchecked Sendable {
             lock.unlock()
             return stored
         }
+        // Named before the read so every keychain line in the log has the line
+        // above it saying why the read happened at all.
+        let trigger = stored == nil ? "nothing cached yet" : "cached token expired"
         stored = nil
         lock.unlock()
+        log("keychain: reading (\(trigger))")
 
         // Read outside the lock: it can block on a consent dialog for as long
         // as the user takes to answer, and holding a lock across that would
@@ -98,9 +110,15 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// that Claude Code has rotated it since we looked.
     func invalidate() {
         lock.lock()
+        let droppedSomething = stored != nil || denied
         stored = nil
         denied = false
         lock.unlock()
+        // Logged only when there was something to drop — an invalidate of an
+        // already-empty cache explains no subsequent read.
+        if droppedSomething {
+            log("keychain: cached credentials dropped (endpoint rejected the token — Claude Code has likely rotated it)")
+        }
     }
 
     /// Forgets a remembered denial, so the next read may raise the dialog
@@ -111,7 +129,13 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// it — that would put the every-five-minutes dialog straight back.
     func retryAfterDenial() {
         lock.lock()
+        let wasDenied = denied
         denied = false
         lock.unlock()
+        // Every manual refresh calls this; only the one that actually forgives
+        // a denial is worth a line, or the log claims dialogs that never came.
+        if wasDenied {
+            log("keychain: denial forgotten after manual refresh — macOS may ask again on the next read")
+        }
     }
 }

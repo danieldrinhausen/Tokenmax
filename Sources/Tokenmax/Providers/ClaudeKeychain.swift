@@ -81,7 +81,10 @@ enum ClaudeKeychain {
     /// credential readers at launch — the usage provider and the model catalog
     /// among them — and a cache per object would mean a dialog per object,
     /// which is the bug in miniature.
-    private static let cache = ClaudeCredentialCache(read: readFromKeychain)
+    private static let cache = ClaudeCredentialCache(
+        read: readFromKeychain,
+        log: { Log.shared.write($0) }
+    )
 
     /// Serves the shared cache, reading the keychain only when it has nothing
     /// usable. See `ClaudeCredentialCache` for what that means.
@@ -116,6 +119,55 @@ enum ClaudeKeychain {
         // test run can never leave real credentials sitting in the cache.
         guard !RuntimeEnvironment.isTesting else { throw KeychainError.suppressedUnderTest }
 
+        // Timed so the log can say whether the consent dialog appeared: an
+        // ACL-served read answers in milliseconds, a read that raised the
+        // dialog blocks until the user answers. See `KeychainReadLog`.
+        let started = Date()
+        func log(_ outcome: KeychainReadLog.Outcome) {
+            Log.shared.write(KeychainReadLog.line(
+                outcome: outcome,
+                elapsed: Date().timeIntervalSince(started),
+                itemModified: itemModificationDate()
+            ))
+        }
+
+        do {
+            let credentials = try performRead()
+            log(.ok)
+            return credentials
+        } catch let error as KeychainError {
+            switch error {
+            case .notFound: log(.notFound)
+            case .accessDenied: log(.denied)
+            case .interactionNotAllowed: log(.interactionNotAllowed)
+            case .malformed: log(.malformed)
+            case let .unexpected(status): log(.unexpected(status))
+            case .suppressedUnderTest: break
+            }
+            throw error
+        }
+    }
+
+    /// When Claude Code last wrote the item — i.e. the last token rotation.
+    ///
+    /// Attribute reads are not gated by the item's ACL, only reads of the
+    /// secret data are, so this never raises a dialog. It is how each log
+    /// line can carry the rotation timestamp without costing a prompt.
+    private static func itemModificationDate() -> Date? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let attributes = result as? [String: Any]
+        else { return nil }
+        return attributes[kSecAttrModificationDate as String] as? Date
+    }
+
+    private static let performRead: @Sendable () throws -> Credentials = {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: ClaudeKeychain.service,

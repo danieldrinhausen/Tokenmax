@@ -208,6 +208,77 @@ struct CredentialCacheTests {
         #expect(reads.count == 1)
     }
 
+    private final class LogSpy: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: [String] = []
+
+        var lines: [String] {
+            lock.lock(); defer { lock.unlock() }
+            return stored
+        }
+
+        func write(_ line: String) {
+            lock.lock(); stored.append(line); lock.unlock()
+        }
+    }
+
+    /// The log is the instrument users hand over when the dialog surprises
+    /// them, so each read must be preceded by the reason it happened.
+    @Test("Each keychain read is logged with why it happened")
+    func logsReadTriggers() throws {
+        let spy = LogSpy()
+        let reads = ReadCounter()
+        let cache = ClaudeCredentialCache(
+            read: {
+                reads.increment()
+                return self.credentials(token: "token-\(reads.count)", expiresIn: -1)
+            },
+            log: { spy.write($0) }
+        )
+
+        _ = try cache.credentials()
+        _ = try cache.credentials()
+
+        #expect(spy.lines.count == 2)
+        #expect(spy.lines[0].contains("nothing cached yet"))
+        #expect(spy.lines[1].contains("cached token expired"))
+    }
+
+    /// A "denial forgotten" line for a refresh that forgave nothing would put
+    /// phantom dialogs in the log — it may only appear when a denial existed.
+    @Test("Forgetting a denial is logged only when there was one")
+    func logsDenialRetryOnlyWhenDenied() throws {
+        let spy = LogSpy()
+        let cache = ClaudeCredentialCache(
+            read: { throw ClaudeKeychain.KeychainError.accessDenied },
+            log: { spy.write($0) }
+        )
+
+        // No denial yet: a manual refresh must stay quiet about denials.
+        cache.retryAfterDenial()
+        #expect(!spy.lines.contains { $0.contains("denial forgotten") })
+
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+        cache.retryAfterDenial()
+        #expect(spy.lines.contains { $0.contains("denial forgotten") })
+    }
+
+    @Test("Dropping the cache after a rejected token is logged, an empty drop is not")
+    func logsInvalidateOnlyWhenSomethingDropped() throws {
+        let spy = LogSpy()
+        let cache = ClaudeCredentialCache(
+            read: { self.credentials() },
+            log: { spy.write($0) }
+        )
+
+        cache.invalidate()
+        #expect(!spy.lines.contains { $0.contains("dropped") })
+
+        _ = try cache.credentials()
+        cache.invalidate()
+        #expect(spy.lines.contains { $0.contains("dropped") })
+    }
+
     /// Expiry is checked against the cache's clock, not the wall clock, so the
     /// hand-out rule is testable at all.
     @Test("Expiry is judged by the injected clock")

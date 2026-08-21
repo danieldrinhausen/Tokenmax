@@ -22,6 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Menubar-only: no Dock icon, no ⌘-Tab entry.
         NSApp.setActivationPolicy(.accessory)
         Log.shared.write("launched Tokenmax \(AppInfo.version) (\(AppInfo.build))")
+        // Keychain grants are keyed to this hash. A different value than the
+        // previous launch line means macOS treats this as a new program and
+        // will ask consent again — the expected once-per-build prompt.
+        Log.shared.write("launch: cdhash \(CodeIdentity.cdhash ?? "unknown") — keychain consent is keyed to this; a changed hash means one new prompt")
 
         // Bar colour is `labelColor`, which resolves to white on a dark menu
         // bar and black on a light one. Cached images have to be thrown away
