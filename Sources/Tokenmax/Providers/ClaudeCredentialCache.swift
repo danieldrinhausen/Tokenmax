@@ -14,12 +14,22 @@ import Foundation
 /// `docs/TROUBLESHOOTING.md`). What it does fix is the *rate*: one read per app
 /// launch instead of one per tick.
 ///
-/// **What is deliberately not cached.** Failures, of any kind. A denial is not a
-/// decision to cache — the user may grant on the next ask, Claude Code may not
-/// have been logged in yet, the item may appear at any moment. Caching a
-/// `.notFound` would turn "not logged in when Tokenmax started" into a
-/// permanent state that only a relaunch clears. Same rule as everywhere else
-/// here: stale data postpones, it never cancels.
+/// **What is deliberately not cached.** Failures — with one exception. Caching
+/// a `.notFound` would turn "not logged in when Tokenmax started" into a
+/// permanent state that only a relaunch clears, so missing items, malformed
+/// payloads and everything transient are retried on the next call. Same rule as
+/// everywhere else here: stale data postpones, it never cancels.
+///
+/// **The exception is an explicit denial.** The user answered the dialog, and
+/// that answer *is* a decision — re-asking on the next tick turned one *Deny*
+/// into a dialog every five minutes for as long as the app ran, which is the
+/// app arguing with the user. A denial is remembered for the rest of the
+/// launch and replayed without touching the keychain. The way back is
+/// deliberate and visible, not a timer: the popover shows "Keychain access
+/// denied", and a *manual* refresh clears the memory so macOS may ask again
+/// (see `retryAfterDenial`). Only `KeychainError.accessDenied` gets this —
+/// `errSecInteractionNotAllowed` is environmental, not an answer, and is kept
+/// out of that case for exactly this reason.
 ///
 /// **Staleness.** Claude Code rotates the token in place, without telling
 /// anyone. A cached token stays usable until its own `expiresAt`, which is
@@ -34,6 +44,7 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     private let now: @Sendable () -> Date
     private let lock = NSLock()
     private var stored: ClaudeKeychain.Credentials?
+    private var denied = false
 
     init(
         read: @escaping @Sendable () throws -> ClaudeKeychain.Credentials,
@@ -52,6 +63,10 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// gets against the endpoint, since the clock is only a hint.
     func credentials() throws -> ClaudeKeychain.Credentials {
         lock.lock()
+        if denied {
+            lock.unlock()
+            throw ClaudeKeychain.KeychainError.accessDenied
+        }
         if let stored, !stored.isExpired(at: now()) {
             lock.unlock()
             return stored
@@ -62,21 +77,41 @@ final class ClaudeCredentialCache: @unchecked Sendable {
         // Read outside the lock: it can block on a consent dialog for as long
         // as the user takes to answer, and holding a lock across that would
         // stall every other caller behind the same dialog.
-        let fresh = try read()
-
-        lock.lock()
-        stored = fresh
-        lock.unlock()
-        return fresh
+        do {
+            let fresh = try read()
+            lock.lock()
+            stored = fresh
+            lock.unlock()
+            return fresh
+        } catch ClaudeKeychain.KeychainError.accessDenied {
+            lock.lock()
+            denied = true
+            lock.unlock()
+            throw ClaudeKeychain.KeychainError.accessDenied
+        }
     }
 
-    /// Drops the cache, so the next call reads the keychain again.
+    /// Drops everything remembered — credentials and denial alike — so the
+    /// next call reads the keychain again.
     ///
     /// Called when the endpoint rejects the token — the only reliable signal
     /// that Claude Code has rotated it since we looked.
     func invalidate() {
         lock.lock()
         stored = nil
+        denied = false
+        lock.unlock()
+    }
+
+    /// Forgets a remembered denial, so the next read may raise the dialog
+    /// again. Credentials, if any, are untouched.
+    ///
+    /// Reached only from a *manual* refresh: clicking Refresh is the explicit
+    /// "ask me again" the denial backoff waits for. A timer tick never clears
+    /// it — that would put the every-five-minutes dialog straight back.
+    func retryAfterDenial() {
+        lock.lock()
+        denied = false
         lock.unlock()
     }
 }

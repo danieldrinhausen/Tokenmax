@@ -85,8 +85,9 @@ notarized: **System Settings → Privacy & Security → Open Anyway**. Once per 
 
 **2. Allow the keychain prompt.** macOS asks for the `Claude Code-credentials` item. That
 prompt *is* Tokenmax reading your quota — choose **Always Allow**, not *Allow*. *Allow*
-covers a single read, so the dialog comes back on the next refresh; **Always Allow** is
-what makes it stop. Decline it and the meters stay empty.
+covers a single read, so the dialog comes back a few hours later when Claude Code rotates
+its token; **Always Allow** is what makes it stop. Decline it and the meters stay empty —
+and Tokenmax takes the no: it stops asking until you click Refresh yourself.
 
 **3. Look at the menu bar.** Out of the box that is two bars — Claude session over Claude
 week — and a countdown to the session reset. It is only a starting point; step 5 changes
@@ -154,8 +155,8 @@ Terminal equivalent, if you prefer: `xattr -dr com.apple.quarantine /Application
 
 macOS will then prompt once for access to the `Claude Code-credentials` keychain item — that is
 Tokenmax reading your quota. Choose **Always Allow**, which is the only button that records a
-grant: *Allow* covers one read and the dialog returns on the next refresh. If it is already
-returning, [The keychain prompt comes back every
+grant: *Allow* covers one read, and the dialog returns when Claude Code next rotates its token.
+If it is already returning, [The keychain prompt comes back every
 time](docs/TROUBLESHOOTING.md#the-keychain-prompt-comes-back-every-time) explains what to do. See
 also [Where the quota data comes from](#where-the-quota-data-comes-from).
 

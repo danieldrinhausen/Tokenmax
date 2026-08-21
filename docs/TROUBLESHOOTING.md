@@ -39,14 +39,19 @@ xattr -dr com.apple.quarantine /Applications/Tokenmax.app
 
 **First, check which button you pressed.** The macOS dialog offers *Deny*,
 *Allow* and *Always Allow*, and only **Always Allow** writes a grant. *Allow*
-authorises that one read — so the next time Tokenmax refreshes your quota, it
-has to ask again. If the prompt returns every few minutes rather than every few
-weeks, this is almost certainly why. Answer the next one with **Always Allow**.
+authorises that one read — Tokenmax holds it in memory, but Claude Code rotates
+its token every few hours and reading the new one means asking again. If the
+prompt returns a few times a day at seemingly random moments, this is almost
+certainly why: the moments are token rotations. Answer the next one with
+**Always Allow**.
 
-A wrong answer is merely annoying rather than unusable: Tokenmax holds the
-credentials in memory for as long as it runs, so it asks at most once per launch
-instead of once per refresh. Nothing is written to disk, and a token
-the endpoint rejects is dropped immediately.
+*Deny* is taken at its word. Tokenmax remembers the answer for as long as it
+runs and stops asking; the popover shows **Keychain access denied**, and
+clicking **Refresh** there is what re-opens the question. A denial never brings
+the dialog back on a timer.
+
+A wrong answer is merely annoying rather than unusable: nothing is written to
+disk, and a token the endpoint rejects is dropped immediately.
 
 **You build it yourself.** Expect one prompt per build. macOS records the grant
 against the app's **code hash**, which changes every time you compile, so each
@@ -101,9 +106,10 @@ Work through these in order:
 
 1. **Is Claude Code logged in?** Run `claude auth status`. Tokenmax reads the
    token that login stores; without it there is nothing to read.
-2. **Was the keychain prompt declined?** Open **Keychain Access**, find
-   `Claude Code-credentials`, and check Tokenmax under Access Control. Declining
-   is remembered as firmly as allowing.
+2. **Was the keychain prompt declined?** The popover says **Keychain access
+   denied** if so. Tokenmax takes a *Deny* at its word and stops asking — click
+   **Refresh** in the popover to be asked again. Open **Keychain Access** and
+   check Tokenmax under the item's Access Control if it still fails.
 3. **Run `make doctor`.** It tells you whether the keychain item still has the
    shape Tokenmax expects and whether the endpoint answers.
 4. **Check the log** for `usage:` lines. `usage: SCHEMA DRIFT` means the endpoint

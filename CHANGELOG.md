@@ -5,6 +5,18 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Denying the keychain prompt no longer brings it back every five minutes.**
+  A *Deny* used to be retried on the next refresh tick, indefinitely — the app
+  arguing with an answer the user had already given, and the substance of the
+  "prompt appears randomly several times a day" reports. A denial is now
+  remembered for the rest of the launch: the popover shows **Keychain access
+  denied**, and clicking **Refresh** there is the one thing that asks again.
+  Only an answered dialog is remembered — a keychain that was merely locked at
+  the moment of a background tick keeps being retried, so a locked screen can
+  never switch monitoring off.
+
 ## [0.1.8] - 2026-08-09
 
 ### Added

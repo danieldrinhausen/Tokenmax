@@ -217,7 +217,13 @@ final class UsageRefreshCoordinator: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
 
-        if manual { resetBackoff() }
+        if manual {
+            resetBackoff()
+            // A remembered keychain denial is cleared here and nowhere else:
+            // the denied state in the popover says "click Refresh", and that
+            // click — not a timer tick — is the "ask me again" it waits for.
+            (provider as? ClaudeCodeProvider)?.retryDeniedKeychainAccess()
+        }
 
         let startedAt = Date()
         do {

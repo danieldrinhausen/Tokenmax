@@ -17,6 +17,7 @@ final class ClaudeCodeProvider: UsageProvider {
     private let readStatusline: @Sendable () -> (StatuslinePayload, Date)?
     private let readCredentials: @Sendable () throws -> ClaudeKeychain.Credentials
     private let invalidateCredentials: @Sendable () -> Void
+    private let retryDeniedAccess: @Sendable () -> Void
     private let cliInstalled: @Sendable () -> Bool
     private let cliVersion: @Sendable () -> String
 
@@ -25,6 +26,7 @@ final class ClaudeCodeProvider: UsageProvider {
         readStatusline: @escaping @Sendable () -> (StatuslinePayload, Date)? = { StatuslineUsageReader.read() },
         readCredentials: @escaping @Sendable () throws -> ClaudeKeychain.Credentials = { try ClaudeKeychain.readCredentials() },
         invalidateCredentials: @escaping @Sendable () -> Void = { ClaudeKeychain.invalidateCache() },
+        retryDeniedAccess: @escaping @Sendable () -> Void = { ClaudeKeychain.retryDeniedAccess() },
         cliInstalled: @escaping @Sendable () -> Bool = { ClaudeCLIClient.isInstalled },
         cliVersion: @escaping @Sendable () -> String = { ClaudeCLIClient.version() }
     ) {
@@ -32,8 +34,17 @@ final class ClaudeCodeProvider: UsageProvider {
         self.readStatusline = readStatusline
         self.readCredentials = readCredentials
         self.invalidateCredentials = invalidateCredentials
+        self.retryDeniedAccess = retryDeniedAccess
         self.cliInstalled = cliInstalled
         self.cliVersion = cliVersion
+    }
+
+    /// Forgets a remembered keychain denial, so the next read may raise the
+    /// consent dialog again. Called by the refresh coordinator on a *manual*
+    /// refresh only — the popover's denied state says "click Refresh", and
+    /// that click has to be the thing that re-opens the question.
+    func retryDeniedKeychainAccess() {
+        retryDeniedAccess()
     }
 
     /// Forwards the OAuth client's rate-limit floor. See
@@ -142,7 +153,11 @@ final class ClaudeCodeProvider: UsageProvider {
             switch error {
             case .notFound: throw ProviderError.notAuthenticated(displayName)
             case .accessDenied: throw ProviderError.accessDenied
-            case .malformed, .unexpected, .suppressedUnderTest:
+            // Transient by definition — the dialog could not be shown, so
+            // nobody said no. Reported as an ordinary failure that keeps the
+            // last good reading, never as the denied state, which now carries
+            // a backoff the user would have to clear by hand.
+            case .interactionNotAllowed, .malformed, .unexpected, .suppressedUnderTest:
                 throw ProviderError.underlying(error.localizedDescription)
             }
         }

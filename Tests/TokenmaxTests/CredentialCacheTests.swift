@@ -98,11 +98,28 @@ struct CredentialCacheTests {
         #expect(after.accessToken == "token-2")
     }
 
-    /// A denial is not a decision to remember. The user may grant on the next
-    /// ask, and caching the refusal would make one mis-click permanent until
-    /// the app is relaunched.
-    @Test("A denied read is never cached")
-    func neverCachesFailure() throws {
+    /// A denial *is* a decision — the user answered the dialog. Re-asking on
+    /// the next tick turned one *Deny* into a dialog every five minutes for as
+    /// long as the app ran, which is the app arguing with the user.
+    @Test("An explicit denial is remembered, not re-asked every tick")
+    func remembersDenial() throws {
+        let reads = ReadCounter()
+        let cache = ClaudeCredentialCache(read: {
+            reads.increment()
+            throw ClaudeKeychain.KeychainError.accessDenied
+        })
+
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+
+        #expect(reads.count == 1)
+    }
+
+    /// The way back from a denial is the user's own click, not a relaunch: the
+    /// retry drops the memory so macOS may raise the dialog again.
+    @Test("Retrying after a denial asks the keychain again")
+    func retryAfterDenialRereads() throws {
         let reads = ReadCounter()
         let outcome = ReadCounter()
         let cache = ClaudeCredentialCache(read: {
@@ -112,11 +129,53 @@ struct CredentialCacheTests {
         })
 
         #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
-        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
         outcome.increment()
+        // Without the retry the denial would still be replayed.
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+
+        cache.retryAfterDenial()
 
         #expect(try cache.credentials().accessToken == "tok")
-        #expect(reads.count == 3)
+        #expect(reads.count == 2)
+    }
+
+    @Test("Invalidating clears a remembered denial too")
+    func invalidateClearsDenial() throws {
+        let reads = ReadCounter()
+        let outcome = ReadCounter()
+        let cache = ClaudeCredentialCache(read: {
+            reads.increment()
+            guard outcome.count > 0 else { throw ClaudeKeychain.KeychainError.accessDenied }
+            return self.credentials()
+        })
+
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+        outcome.increment()
+        cache.invalidate()
+
+        #expect(try cache.credentials().accessToken == "tok")
+        #expect(reads.count == 2)
+    }
+
+    /// Only an answered dialog is remembered. Everything else — a malformed
+    /// payload, an unexpected status, a keychain that could not raise the
+    /// dialog at all — stays transient and is retried on the next call.
+    @Test("A non-denial failure is never cached")
+    func nonDenialFailuresAreRetried() throws {
+        for failure: ClaudeKeychain.KeychainError in [
+            .malformed, .unexpected(-25293), .interactionNotAllowed,
+        ] {
+            let reads = ReadCounter()
+            let cache = ClaudeCredentialCache(read: {
+                reads.increment()
+                throw failure
+            })
+
+            #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+            #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+
+            #expect(reads.count == 2, "\(failure) must be retried, not remembered")
+        }
     }
 
     /// `notFound` is the state of a machine where Claude Code has not been

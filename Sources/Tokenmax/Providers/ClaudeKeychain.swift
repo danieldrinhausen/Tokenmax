@@ -14,7 +14,8 @@ import Security
 /// What *is* fixed here is how often it can be asked. Every read is served
 /// through `ClaudeCredentialCache`, so a user who answers the dialog with
 /// *Allow* rather than *Always Allow* meets it once per launch instead of once
-/// per refresh tick.
+/// per refresh tick — and a user who answers *Deny* is not asked again until
+/// they click Refresh themselves.
 enum ClaudeKeychain {
     static let service = "Claude Code-credentials"
 
@@ -36,7 +37,15 @@ enum ClaudeKeychain {
 
     enum KeychainError: Error, LocalizedError {
         case notFound
+        /// The user answered the consent dialog with *Deny* or dismissed it.
+        /// The cache remembers this one — see `ClaudeCredentialCache` — so it
+        /// must only ever mean "the user answered", never "no answer possible".
         case accessDenied
+        /// macOS could not raise the dialog at all — a locked keychain during a
+        /// background tick, typically. Environmental and transient, so it is
+        /// kept out of `accessDenied`: remembering it as a denial would switch
+        /// monitoring off because a screen was locked at the wrong moment.
+        case interactionNotAllowed
         case malformed
         case unexpected(OSStatus)
         /// Refused because this is a test run. See `RuntimeEnvironment`.
@@ -46,6 +55,7 @@ enum ClaudeKeychain {
             switch self {
             case .notFound: "Claude Code is installed but not authenticated."
             case .accessDenied: "Tokenmax was denied access to the Claude Code keychain item."
+            case .interactionNotAllowed: "The keychain could not ask for permission — it may be locked. Tokenmax will retry."
             case .malformed: "The Claude Code credentials could not be read."
             case let .unexpected(status): "Keychain error \(status)."
             case .suppressedUnderTest: "Keychain access is refused during tests."
@@ -88,6 +98,13 @@ enum ClaudeKeychain {
         cache.invalidate()
     }
 
+    /// Forgets a remembered denial, so the next read may ask macOS again.
+    /// See `ClaudeCredentialCache.retryAfterDenial` for who may call this and
+    /// why a timer never does.
+    static func retryDeniedAccess() {
+        cache.retryAfterDenial()
+    }
+
     private static let readFromKeychain: @Sendable () throws -> Credentials = {
         // Guarded here rather than at the call sites because the call sites are
         // not the point: anything constructed with default arguments reaches
@@ -114,8 +131,10 @@ enum ClaudeKeychain {
             break
         case errSecItemNotFound:
             throw KeychainError.notFound
-        case errSecUserCanceled, errSecAuthFailed, errSecInteractionNotAllowed:
+        case errSecUserCanceled, errSecAuthFailed:
             throw KeychainError.accessDenied
+        case errSecInteractionNotAllowed:
+            throw KeychainError.interactionNotAllowed
         default:
             throw KeychainError.unexpected(status)
         }
