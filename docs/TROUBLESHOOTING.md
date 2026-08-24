@@ -227,6 +227,13 @@ Tokenmax starts a fresh read-only server per refresh and lets it exit rather
 than keeping an agent process alive. If those spawns are failing, `make logs`
 records it. A Codex CLI mid-upgrade is the usual cause, and it resolves itself.
 
+A CLI update that renames or drops a flag value looks identical from the UI:
+the spawned process exits immediately instead of answering, and Tokenmax
+reports "Codex did not answer initialize in time" because nothing ever
+replies. `make doctor` checks the flags Tokenmax depends on against the
+installed CLI's own `--help` output and names the exact line to fix, so run
+it first rather than guessing.
+
 ---
 
 ## Reminders

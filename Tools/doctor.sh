@@ -270,8 +270,9 @@ else
         fi
     done
 
-    # CodexTaskRunner hardcodes `never`; the usage read uses `untrusted`.
-    for policy in never untrusted; do
+    # Both CodexTaskRunner and the usage read hardcode `never` — a read-only
+    # session that never executes anything has no approval decision to make.
+    for policy in never; do
         if printf '%s' "$codex_help" | grep -q -- "$policy"; then
             pass "--ask-for-approval still accepts $policy"
         else

@@ -79,7 +79,7 @@ final class CodexAppServerClient: @unchecked Sendable {
 
         let process = Process()
         process.executableURL = executable
-        process.arguments = ["-s", "read-only", "-a", "untrusted", "app-server"]
+        process.arguments = ["-s", "read-only", "-a", "never", "app-server"]
         process.environment = ProcessInfo.processInfo.environment
 
         let input = Pipe()
