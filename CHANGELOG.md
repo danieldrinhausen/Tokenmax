@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-08-26
+
 ### Fixed
 
 - **Claude's credential-rejection state now says what is actually happening.**
@@ -14,6 +16,16 @@ versions follow [semver](https://semver.org/).
   Code will fix it, retains any live status-line reading, and offers **Open
   Terminal + Copy Login** as a concrete recovery when Claude Code does not
   renew the saved credential on its own.
+
+- **Codex quota and model reads work with Codex CLI 0.149 and later.** The CLI
+  no longer accepts the old `-a untrusted` approval policy, which made its
+  read-only App Server exit before answering and left Tokenmax timing out.
+  Tokenmax now uses the valid `never` policy for its read-only query, which
+  executes no work and has no approval to request.
+
+- **The Keychain troubleshooting log path now points at the actual file.** The
+  direct path omitted the `logs` directory, sending a person investigating a
+  prompt to a file that did not exist.
 
 ## [0.1.9] - 2026-08-21
 
