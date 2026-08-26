@@ -5,6 +5,16 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Claude's credential-rejection state now says what is actually happening.**
+  A Claude Code conversation can continue on its existing connection while the
+  older credential in the keychain is rejected by the quota endpoint. The
+  popover now names that split instead of claiming that simply running Claude
+  Code will fix it, retains any live status-line reading, and offers **Open
+  Terminal + Copy Login** as a concrete recovery when Claude Code does not
+  renew the saved credential on its own.
+
 ## [0.1.9] - 2026-08-21
 
 ### Added

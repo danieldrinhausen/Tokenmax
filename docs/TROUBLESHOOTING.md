@@ -171,9 +171,13 @@ labels it. Causes, in order of likelihood:
 - **Rate limiting.** The client floors network calls at one per 180 seconds; the
   UI ticks more often than that and those ticks are served from cache. This is
   normal and resolves itself.
-- **The token expired.** Claude Code refreshes it; Tokenmax deliberately never
-  does, because that would race Claude Code's own refresh. Use Claude Code once
-  and the token renews.
+- **Tokenmax's saved credential was rejected.** An active Claude Code
+  conversation can still work on an existing connection, while the keychain
+  credential Tokenmax reads remains old. Tokenmax deliberately never refreshes
+  it, because that would race Claude Code's own refresh. It keeps checking and
+  uses a status-line reading if one is available. Continue working and refresh;
+  if Claude Code does not write a replacement, choose **Open Terminal + Copy
+  Login** and paste `claude login`.
 - **No network.**
 
 Stale data is deliberately conservative: it suppresses pace projection and
@@ -190,6 +194,20 @@ working as described, not drift.
 
 A gap of a few percent between them is normal. A gap of tens of percent is worth
 an issue.
+
+### Claude Code works, but Tokenmax says its saved credential was rejected
+
+This does not mean your active Claude Code conversation has stopped working.
+That conversation can retain a live connection, while Tokenmax independently
+reads the last access credential Claude Code wrote to the keychain. The two only
+converge when Claude Code renews and writes its login state. Tokenmax never
+performs that renewal itself: two programs refreshing the same OAuth login can
+invalidate each other's credentials.
+
+Keep working and click **Refresh**; Tokenmax also checks automatically and will
+use the status-line quota reading while one is available. If the saved
+credential remains rejected, choose **Open Terminal + Copy Login** in the
+popover, paste the copied `claude login` command, and complete the sign-in.
 
 ### There is no Codex section at all
 

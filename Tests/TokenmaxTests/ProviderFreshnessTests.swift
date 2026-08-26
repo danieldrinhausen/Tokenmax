@@ -256,8 +256,8 @@ struct ProviderFreshnessTests {
         #expect(newer.fetchedAt > previous.fetchedAt)
     }
 
-    @Test("Falls back to the statusline when the network call fails")
-    func fallsBackToStatusline() async throws {
+    @Test("A live statusline reading is used when the saved OAuth credential is rejected")
+    func rejectedCredentialFallsBackToStatusline() async throws {
         let payload = try JSONDecoder().decode(
             StatuslinePayload.self,
             from: Data(#"{"rate_limits":{"five_hour":{"used_percentage":30,"resets_at":1785500000}}}"#.utf8)
@@ -265,7 +265,7 @@ struct ProviderFreshnessTests {
         let observedAt = Date().addingTimeInterval(-120)
 
         let provider = makeProvider(
-            session: stubbedSession(body: "{}", status: 500),
+            session: stubbedSession(body: "{}", status: 401),
             statusline: { (payload, observedAt) },
             credentials: { self.credentials() }
         )

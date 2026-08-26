@@ -24,9 +24,11 @@ enum ProviderError: Error, LocalizedError, Equatable {
     case notInstalled(String)
     case notAuthenticated(String)
     case accessDenied
-    /// The access token was rejected but a refresh token is still on file, so
-    /// Claude Code will rotate it on its own the next time it runs. Transient,
-    /// self-healing, and explicitly *not* a reason to make the user sign in.
+    /// The saved access token was rejected but a refresh token is still on
+    /// file. A running Claude Code session may still have its own live
+    /// connection; it writes a replacement here only when it renews its login.
+    /// Transient, self-healing, and explicitly *not* a reason to make the user
+    /// sign in.
     case tokenExpired
     /// The access token was rejected and there is nothing left to refresh it
     /// with. This one really does need a sign-in.
@@ -50,7 +52,8 @@ enum ProviderError: Error, LocalizedError, Equatable {
         case let .notInstalled(name): "\(name) is not installed."
         case let .notAuthenticated(name): "\(name) is installed but not authenticated."
         case .accessDenied: "Tokenmax needs keychain access to read Claude usage."
-        case .tokenExpired: "Claude Code's access token expired; it refreshes on next use."
+        case .tokenExpired:
+            "Claude Code's saved credential was rejected; it normally renews when Claude Code needs a new connection."
         case .needsReauthentication: "Claude Code needs to be re-authenticated."
         case .noWindowsReturned: "No quota windows were returned."
         case .statuslineNoData:

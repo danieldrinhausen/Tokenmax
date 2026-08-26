@@ -25,6 +25,13 @@ struct ProviderErrorCopyTests {
         )
     }
 
+    @Test("A rejected saved credential does not claim an active Claude session is broken")
+    func rejectedCredentialExplainsTheSplit() {
+        let copy = ProviderError.tokenExpired.errorDescription ?? ""
+        #expect(copy.contains("saved credential was rejected"))
+        #expect(!copy.contains("expired"))
+    }
+
     /// The specific regression: `codex` absent produced a log line blaming a
     /// Claude CLI that was installed and working, which is a long way to walk
     /// before finding out nothing was wrong with it.

@@ -166,10 +166,11 @@ enum UsageState: Sendable {
     case claudeCodeNotInstalled
     case notAuthenticated
     case keychainAccessDenied
-    /// Transient: Claude Code will rotate the token on its own. The last good
+    /// Transient: the saved credential was rejected, though a Claude Code
+    /// session can still hold a working connection of its own. The last good
     /// reading is carried through because it is still the best information
-    /// available — blanking the popover to "Never updated" over a token that
-    /// heals itself within minutes throws away data for nothing.
+    /// available — blanking the popover to "Never updated" over a credential
+    /// that normally heals itself within minutes throws away data for nothing.
     case tokenExpired(lastGood: UsageSnapshot?)
     case needsReauthentication
     case unavailable(lastGood: UsageSnapshot?, message: String)

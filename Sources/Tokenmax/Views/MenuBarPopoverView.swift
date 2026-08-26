@@ -178,8 +178,10 @@ struct MenuBarPopoverView: View {
             VStack(alignment: .leading, spacing: 10) {
                 statusBlock(
                     icon: "arrow.clockwise.circle",
-                    title: "Waiting for \(provider.displayName) to refresh its token",
-                    message: "The access token expired. Run \(provider.commandName) once, then refresh."
+                    title: "Tokenmax needs Claude Code to renew its saved credential",
+                    message: "Your active Claude Code session may still work. Tokenmax's saved credential was rejected; it updates when Claude Code renews its login. Keep working, then refresh. If it does not recover, open Terminal and run `claude login`.",
+                    recovery: [.refresh, .openTerminalForLogin],
+                    provider: provider
                 )
                 if let lastGood {
                     windows(for: lastGood, provider: provider, forceStale: true)
@@ -374,6 +376,7 @@ struct MenuBarPopoverView: View {
         case refresh
         case retry
         case openTerminal
+        case openTerminalForLogin
 
         var id: String { rawValue }
 
@@ -382,6 +385,7 @@ struct MenuBarPopoverView: View {
             case .refresh: "Refresh"
             case .retry: "Retry"
             case .openTerminal: "Open Terminal"
+            case .openTerminalForLogin: "Open Terminal + Copy Login"
             }
         }
     }
@@ -402,6 +406,11 @@ struct MenuBarPopoverView: View {
             // somewhere, and somewhere is home.
             ManualRunService.openTerminalForRecovery(
                 application: settingsStore.settings.terminalApplication
+            )
+        case .openTerminalForLogin:
+            ManualRunService.openTerminalForRecovery(
+                application: settingsStore.settings.terminalApplication,
+                commandToPaste: "claude login"
             )
         }
     }

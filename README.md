@@ -224,6 +224,13 @@ control during credential maintenance, which can discard even an *Always Allow* 
 Tokenmax never writes credentials to disk, never refreshes the token itself (that would race
 Claude Code's own refresh), and sends nothing anywhere except Anthropic.
 
+An active Claude Code conversation can keep working while Tokenmax reports that its saved
+credential was rejected. The conversation may be using an existing connection, whereas Tokenmax
+can only use the credential Claude Code last wrote to the keychain. Tokenmax keeps checking and
+uses the status-line reading when one is available; it recovers automatically when Claude Code
+writes a replacement. If it does not, the popover's **Open Terminal + Copy Login** puts `claude
+login` on the pasteboard for a deliberate re-authentication.
+
 Requests are floored at **one every 180 seconds** inside the client regardless of what the UI asks
 for — the endpoint throttles hard without the exact `User-Agent: claude-code/<version>` header, and
 this keeps well inside safe limits. The popover still ticks every 60s; those ticks are served from
