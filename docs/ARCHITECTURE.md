@@ -127,6 +127,12 @@ cases fall back rather than throw) a newer file open in an older build.
 rather than failing. `PersistenceCompatibilityTests` guards this; if you add a
 field, add a case there.
 
+Codex's App Server may additionally report banked rate-limit resets. Tokenmax
+carries only their available count and nearest expiry to the read-only popover;
+the App Server, not Tokenmax, remains the authority that redeems one. An absent
+field means an older CLI did not report reset credits, never that the account
+has none.
+
 **Nothing grows without bound.** Run transcripts are deleted when their run falls
 out of the last-40 history; `tokenmax.log` rotates at 1 MB keeping one previous
 generation. Both hold user content — prompt text, directory paths, CLI output —

@@ -5,6 +5,14 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Codex banked reset availability now appears in the popover.** When Codex
+  reports promotional rate-limit resets, Tokenmax shows the available count and
+  nearest expiry below the Codex meters. It remains read-only: redeeming a reset
+  changes account allowance and stays in Codex, where the offer can be reviewed
+  and confirmed.
+
 ## [0.1.10] - 2026-08-26
 
 ### Fixed

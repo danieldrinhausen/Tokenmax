@@ -103,7 +103,7 @@ so that menu is where Tokenmax quits from.
 
 **4. Add Codex, if you use it.** Nothing to configure: if the `codex` CLI is installed and
 signed in, Tokenmax picks it up and adds its section to the popover. A ChatGPT-managed
-login reports quota; an API-key login is unmetered and is labelled as billed instead.
+login reports quota and, when Codex reports one, a banked reset count and expiry. An API-key login is unmetered and is labelled as billed instead.
 Don't use Codex? **Settings → Data Source** switches it off and it disappears.
 
 **5. Make the icon yours.** **Settings → General** — two or three bars, which of the four
@@ -261,6 +261,10 @@ A **ChatGPT-managed** login reports quota windows. An **API-key** login is bille
 there is no window to report: Tokenmax labels it as billed rather than drawing an empty meter, and
 will not start quota-gated automatic Codex tasks against it. Where an account reports no session
 window, you get *"Not reported for this account"* — deliberately distinct from a meter reading zero.
+
+If Codex reports banked promotional resets, Tokenmax shows their available count and nearest expiry
+below the Codex meters. It never redeems one: a reset changes your account allowance, so Codex keeps
+the confirmation and offer details on the surface where you can review them.
 
 Codex tasks run through that same App Server protocol, under a per-task **read-only** or
 **workspace-write** sandbox. Codex offers Tokenmax no equivalent of Claude's per-run USD cap or its

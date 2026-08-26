@@ -166,6 +166,12 @@ than a meter reading zero, because those are different facts. Its quotas can be
 drawn in the menu bar like any other — **Settings → General**, drag *Codex week*
 onto a bar.
 
+**Banked resets.** If Codex has granted you a promotional reset, Tokenmax shows
+its count and nearest expiry below the Codex meters. Treat it as a one-time
+refresh of the eligible quota windows, not money or a larger subscription
+allowance. Tokenmax deliberately does not redeem it; open Codex's usage summary
+to review the offer and confirm it there.
+
 **Reminders.** Codex's weekly window has its own lead time and its own minimum
 remaining quota under **Settings → Notifications**. Turning on Claude's weekly
 reminder does not turn on Codex's, and the thresholds are not shared.

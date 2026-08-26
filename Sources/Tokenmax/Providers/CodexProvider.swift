@@ -12,14 +12,14 @@ final class CodexProvider: UsageProvider {
     func checkAuthentication() async -> AuthenticationState {
         guard CodexCLIClient.isInstalled else { return .notInstalled }
         do {
-            let (account, _) = try await client.readAccountAndLimits()
+            let (account, _, _) = try await client.readAccountAndLimits()
             return account.authMode == nil ? .notAuthenticated : .authenticated
         } catch { return .notAuthenticated }
     }
 
     func fetchUsage() async throws -> ProviderUsage {
         guard CodexCLIClient.isInstalled else { throw ProviderError.notInstalled(displayName) }
-        let (account, limits) = try await client.readAccountAndLimits()
+        let (account, limits, resetCredits) = try await client.readAccountAndLimits()
         guard account.authMode != nil else { throw ProviderError.notAuthenticated(displayName) }
         guard account.isChatGPTManaged else {
             throw ProviderError.apiKeyConfigured(displayName)
@@ -52,6 +52,13 @@ final class CodexProvider: UsageProvider {
             append(item.3, id: "codex.\(item.0).weekly", kind: .modelSpecificWeekly, label: "\(label) weekly")
         }
         guard !windows.isEmpty else { throw ProviderError.noWindowsReturned }
-        return ProviderUsage(providerID: identifier, planName: account.planName?.capitalized, windows: windows, fetchedAt: now)
+        return ProviderUsage(
+            providerID: identifier,
+            planName: account.planName?.capitalized,
+            windows: windows,
+            fetchedAt: now,
+            availableResetCount: resetCredits?.availableCount,
+            availableResetExpiresAt: resetCredits?.nearestExpiry
+        )
     }
 }

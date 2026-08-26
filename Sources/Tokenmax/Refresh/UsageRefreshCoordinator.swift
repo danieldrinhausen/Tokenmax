@@ -246,7 +246,9 @@ final class UsageRefreshCoordinator: ObservableObject {
                 fetchedAt: usage.fetchedAt,
                 fetchDuration: Date().timeIntervalSince(startedAt),
                 errorMessage: nil,
-                extraUsageEnabled: usage.extraUsageEnabled
+                extraUsageEnabled: usage.extraUsageEnabled,
+                availableResetCount: usage.availableResetCount,
+                availableResetExpiresAt: usage.availableResetExpiresAt
             )
 
             // `ClaudeOAuthUsageClient` correctly replays its response while

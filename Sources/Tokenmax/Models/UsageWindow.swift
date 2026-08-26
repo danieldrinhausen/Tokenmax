@@ -97,19 +97,27 @@ struct ProviderUsage: Codable, Sendable {
     /// `nil` means the source did not say — which is *not* the same as "off",
     /// and anything that decides whether to spend must treat it as unknown.
     let extraUsageEnabled: Bool?
+    /// Promotional, banked Codex resets. `nil` means the source is too old to
+    /// report them; zero is an authoritative "none available".
+    let availableResetCount: Int?
+    let availableResetExpiresAt: Date?
 
     init(
         providerID: String,
         planName: String?,
         windows: [UsageWindow],
         fetchedAt: Date,
-        extraUsageEnabled: Bool? = nil
+        extraUsageEnabled: Bool? = nil,
+        availableResetCount: Int? = nil,
+        availableResetExpiresAt: Date? = nil
     ) {
         self.providerID = providerID
         self.planName = planName
         self.windows = windows
         self.fetchedAt = fetchedAt
         self.extraUsageEnabled = extraUsageEnabled
+        self.availableResetCount = availableResetCount
+        self.availableResetExpiresAt = availableResetExpiresAt
     }
 }
 
@@ -128,6 +136,10 @@ struct UsageSnapshot: Codable, Sendable {
     /// decode — synthesized `Codable` only tolerates an absent key when the
     /// property is optional.
     let extraUsageEnabled: Bool?
+    /// Optional for the same compatibility reason as `extraUsageEnabled`:
+    /// snapshots written before Codex reported reset credits still load.
+    let availableResetCount: Int?
+    let availableResetExpiresAt: Date?
 
     init(
         providerID: String,
@@ -136,7 +148,9 @@ struct UsageSnapshot: Codable, Sendable {
         fetchedAt: Date,
         fetchDuration: TimeInterval,
         errorMessage: String?,
-        extraUsageEnabled: Bool? = nil
+        extraUsageEnabled: Bool? = nil,
+        availableResetCount: Int? = nil,
+        availableResetExpiresAt: Date? = nil
     ) {
         self.providerID = providerID
         self.planName = planName
@@ -145,6 +159,8 @@ struct UsageSnapshot: Codable, Sendable {
         self.fetchDuration = fetchDuration
         self.errorMessage = errorMessage
         self.extraUsageEnabled = extraUsageEnabled
+        self.availableResetCount = availableResetCount
+        self.availableResetExpiresAt = availableResetExpiresAt
     }
 
     func window(_ kind: UsageWindowKind) -> UsageWindow? {

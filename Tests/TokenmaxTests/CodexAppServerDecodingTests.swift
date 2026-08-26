@@ -27,6 +27,28 @@ struct CodexAppServerDecodingTests {
         #expect(limits.additional.first?.id == "codex-spark")
     }
 
+    @Test("Preserves the available reset count and the earliest credit expiry")
+    func decodesResetCredits() {
+        let credits = CodexAppServerClient.decodeResetCredits([
+            "rateLimitResetCredits": [
+                "availableCount": 2,
+                "credits": [
+                    ["status": "available", "expiresAt": 1_786_000_000],
+                    ["status": "used", "expiresAt": 1_785_000_000],
+                    ["status": "available", "expiresAt": 1_784_000_000],
+                ],
+            ],
+        ])
+
+        #expect(credits?.availableCount == 2)
+        #expect(credits?.nearestExpiry == Date(timeIntervalSince1970: 1_784_000_000))
+    }
+
+    @Test("An older App Server leaves reset-credit availability unknown")
+    func ignoresMissingResetCredits() {
+        #expect(CodexAppServerClient.decodeResetCredits([:]) == nil)
+    }
+
     @Test("Recognizes ChatGPT managed authentication")
     func decodesAccount() {
         let account = CodexAppServerClient.decodeAccount([

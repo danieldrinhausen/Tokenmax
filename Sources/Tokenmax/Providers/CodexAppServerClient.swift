@@ -41,14 +41,26 @@ final class CodexAppServerClient: @unchecked Sendable {
         var additional: [(id: String, name: String?, primary: Window?, secondary: Window?)]
     }
 
+    /// A promotional reset is separate from purchased credits and rate-limit
+    /// windows. Tokenmax only reports it: redeeming one changes the account and
+    /// belongs in Codex, where the user can review the offer before spending it.
+    struct RateLimitResetCredits: Sendable, Equatable {
+        var availableCount: Int
+        var nearestExpiry: Date?
+    }
+
     static let timeout: TimeInterval = 12
 
-    func readAccountAndLimits() async throws -> (Account, RateLimits) {
+    func readAccountAndLimits() async throws -> (Account, RateLimits, RateLimitResetCredits?) {
         try await Task.detached(priority: .utility) {
             try self.withSession { request in
                 let accountResult = try request(2, "account/read", ["refreshToken": false])
                 let limitsResult = try request(3, "account/rateLimits/read", [:])
-                return (Self.decodeAccount(accountResult), try Self.decodeLimits(limitsResult))
+                return (
+                    Self.decodeAccount(accountResult),
+                    try Self.decodeLimits(limitsResult),
+                    Self.decodeResetCredits(limitsResult)
+                )
             }
         }.value
     }
@@ -185,6 +197,23 @@ final class CodexAppServerClient: @unchecked Sendable {
             return (key, bucket["limitName"] as? String, window(bucket["primary"]), window(bucket["secondary"]))
         }
         return RateLimits(primary: window(root["primary"]), secondary: window(root["secondary"]), additional: additional)
+    }
+
+    /// `rateLimitResetCredits` arrived after the original window response. Its
+    /// absence means an older CLI did not report the feature, not that an
+    /// account has no resets, so it remains optional all the way to the UI.
+    static func decodeResetCredits(_ result: [String: Any]) -> RateLimitResetCredits? {
+        guard let value = result["rateLimitResetCredits"] as? [String: Any],
+              let availableCount = (value["availableCount"] as? NSNumber)?.intValue
+        else { return nil }
+
+        let expiries = (value["credits"] as? [[String: Any]] ?? []).compactMap { credit -> Date? in
+            guard credit["status"] as? String == "available",
+                  let seconds = (credit["expiresAt"] as? NSNumber)?.doubleValue
+            else { return nil }
+            return Date(timeIntervalSince1970: seconds)
+        }
+        return RateLimitResetCredits(availableCount: availableCount, nearestExpiry: expiries.min())
     }
 
     private static func window(_ value: Any?) -> RateLimits.Window? {

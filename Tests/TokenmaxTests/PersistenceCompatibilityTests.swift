@@ -764,6 +764,8 @@ struct PersistenceCompatibilityTests {
         #expect(snapshot.providerID == "claude-code")
         // Unknown, not "disabled" — the opener refuses on this.
         #expect(snapshot.extraUsageEnabled == nil)
+        #expect(snapshot.availableResetCount == nil)
+        #expect(snapshot.availableResetExpiresAt == nil)
     }
 
     @Test("Opener state written by an older version still loads")
