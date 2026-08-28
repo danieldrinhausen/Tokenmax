@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-08-28
+
 ### Fixed
 
 - **A rejected token no longer costs a keychain read every five minutes.** When
