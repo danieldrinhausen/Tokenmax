@@ -81,6 +81,8 @@ struct PersistenceCompatibilityTests {
         // automation on is a decision about one agent, not a retune of both.
         #expect(settings.codexAutoRun == CodexAutoRunOverrides())
         #expect(settings.codexAutoRun.maximumTasksPerWindow == 1)
+        // A screen-wide effect must never become enabled by an upgrade.
+        #expect(!settings.resetCelebration.enabled)
     }
 
     /// The Codex overrides must not be re-defaulted by a partial write: a file

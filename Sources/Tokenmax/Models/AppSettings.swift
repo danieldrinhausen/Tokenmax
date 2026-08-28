@@ -142,6 +142,72 @@ struct QuietHours: Codable, Sendable, Equatable {
     }
 }
 
+/// A reset can be good news without being worth interrupting someone for. The
+/// selection stays independent of reminders: one is a warning before quota
+/// expires, the other marks a new window only after a fresh reading proves it.
+enum QuotaResetCelebrationMode: String, Codable, Sendable, CaseIterable, Identifiable {
+    case everyReset
+    case selectedResets
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .everyReset: "Always"
+        case .selectedResets: "Specific events"
+        }
+    }
+}
+
+enum QuotaResetEvent: String, Codable, Sendable, CaseIterable, Identifiable {
+    case claudeSession
+    case claudeWeekly
+    case codexSession
+    case codexWeekly
+
+    var id: String { rawValue }
+
+    init?(provider: TokenmaxProvider, kind: UsageWindowKind) {
+        switch (provider, kind) {
+        case (.claudeCode, .session): self = .claudeSession
+        case (.claudeCode, .weekly): self = .claudeWeekly
+        case (.codex, .session): self = .codexSession
+        case (.codex, .weekly): self = .codexWeekly
+        default: return nil
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .claudeSession: "Claude Code session"
+        case .claudeWeekly: "Claude Code weekly window"
+        case .codexSession: "Codex session"
+        case .codexWeekly: "Codex weekly window"
+        }
+    }
+}
+
+struct QuotaResetCelebrationSettings: Codable, Sendable, Equatable {
+    var enabled = false
+    var mode: QuotaResetCelebrationMode = .everyReset
+    var selectedEvents: Set<QuotaResetEvent> = Set(QuotaResetEvent.allCases)
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let d = QuotaResetCelebrationSettings()
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
+        mode = (try? container.decodeIfPresent(QuotaResetCelebrationMode.self, forKey: .mode)) ?? d.mode
+        selectedEvents = (try? container.decodeIfPresent(Set<QuotaResetEvent>.self, forKey: .selectedEvents))
+            ?? d.selectedEvents
+    }
+
+    func includes(_ event: QuotaResetEvent) -> Bool {
+        mode == .everyReset || selectedEvents.contains(event)
+    }
+}
+
 /// The opt-in session opener: after the five-hour window expires, send one
 /// minimal non-interactive prompt so a fresh window becomes active.
 ///
@@ -249,6 +315,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var quietHours: QuietHours = .init()
     var playSound: Bool = false
     var showBadge: Bool = true
+    /// A visual celebration is deliberately off until asked for: unlike a
+    /// banner, it crosses the screen and should never appear on upgrade.
+    var resetCelebration: QuotaResetCelebrationSettings = .init()
 
     /// Light the menubar icon while the session window is in its "spend it now"
     /// stretch. Independent of `remindersEnabled` so the visual cue works even
@@ -440,6 +509,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         quietHours = try container.decodeIfPresent(QuietHours.self, forKey: .quietHours) ?? d.quietHours
         playSound = try container.decodeIfPresent(Bool.self, forKey: .playSound) ?? d.playSound
         showBadge = try container.decodeIfPresent(Bool.self, forKey: .showBadge) ?? d.showBadge
+        resetCelebration = try container.decodeIfPresent(QuotaResetCelebrationSettings.self, forKey: .resetCelebration)
+            ?? d.resetCelebration
         menuBarHighlightWhenReady = try container.decodeIfPresent(Bool.self, forKey: .menuBarHighlightWhenReady)
             ?? d.menuBarHighlightWhenReady
         // `try?` for the same reason as `menuBarDisplayMode` above: a colour

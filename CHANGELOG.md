@@ -5,6 +5,10 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Celebrate confirmed quota resets.** An optional, click-through fireworks overlay can mark new
+  quota windows. Choose every reset or individual Claude Code/Codex session and weekly events;
+  stale data, reset-time jitter, and quiet hours stay silent.
+
 ## [0.1.12] - 2026-08-28
 
 ### Fixed

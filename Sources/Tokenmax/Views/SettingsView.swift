@@ -407,6 +407,29 @@ struct NotificationSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Quota reset fireworks") {
+                Toggle("Celebrate new quota", isOn: $settingsStore.settings.resetCelebration.enabled)
+
+                if settingsStore.settings.resetCelebration.enabled {
+                    Picker("Celebrate", selection: $settingsStore.settings.resetCelebration.mode) {
+                        ForEach(QuotaResetCelebrationMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.radioGroup)
+
+                    if settingsStore.settings.resetCelebration.mode == .selectedResets {
+                        ForEach(QuotaResetEvent.allCases) { event in
+                            Toggle(event.displayName, isOn: eventBinding(event))
+                        }
+                    }
+
+                    Text("Fireworks appear only after a fresh quota reading confirms a window has reset. They respect quiet hours.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .task { await notificationManager.refreshAuthState() }
@@ -471,6 +494,19 @@ struct NotificationSettingsView: View {
         if minutes >= 1440 { return "\(minutes / 1440) day before reset" }
         if minutes >= 60 { return "\(minutes / 60) hours before reset" }
         return "\(minutes) minutes before reset"
+    }
+
+    private func eventBinding(_ event: QuotaResetEvent) -> Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.resetCelebration.selectedEvents.contains(event) },
+            set: { selected in
+                if selected {
+                    settingsStore.settings.resetCelebration.selectedEvents.insert(event)
+                } else {
+                    settingsStore.settings.resetCelebration.selectedEvents.remove(event)
+                }
+            }
+        )
     }
 
     private func timePicker(_ label: String, minutes: Binding<Int>) -> some View {

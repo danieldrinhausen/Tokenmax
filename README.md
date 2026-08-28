@@ -358,6 +358,12 @@ Switch it off in **Settings → General → Show projected pace**.
 Permission is requested only when you enable reminders — never at launch. Session and weekly
 windows are configured independently.
 
+You can also opt into a brief **quota reset fireworks** overlay. Choose **Always** to celebrate
+every confirmed new window, or **Specific events** to choose Claude Code and Codex session and
+weekly resets independently. It waits for a fresh reading to prove the old window ended and its
+successor is active, so a stale meter or a jittering reset time cannot set it off; quiet hours
+keep it silent too.
+
 <p align="center">
   <img src="docs/images/settings-notifications.png" width="700" alt="Settings → Notifications: independent lead time, minimum quota and repeat rules per window">
 </p>

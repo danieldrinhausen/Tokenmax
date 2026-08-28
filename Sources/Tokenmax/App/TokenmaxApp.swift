@@ -14,6 +14,7 @@ struct TokenmaxApp: App {
     @StateObject private var usage: ProviderUsageCoordinator
     @StateObject private var notificationManager: NotificationManager
     @StateObject private var notificationCoordinator: NotificationCoordinator
+    private let resetCelebration: QuotaResetCelebrationCoordinator
     @StateObject private var sessionOpener: SessionOpenerCoordinator
     @StateObject private var autoRun: QueueAutoRunCoordinator
     @StateObject private var modelCatalog = ModelCatalogStore()
@@ -31,6 +32,7 @@ struct TokenmaxApp: App {
             taskStore: taskStore,
             settingsStore: settingsStore
         )
+        let resetCelebration = QuotaResetCelebrationCoordinator(usage: usage, settingsStore: settingsStore)
         let sessionOpener = SessionOpenerCoordinator(usage: usage.claude, settingsStore: settingsStore)
         let autoRun = QueueAutoRunCoordinator(
             usage: usage,
@@ -44,6 +46,7 @@ struct TokenmaxApp: App {
         _usage = StateObject(wrappedValue: usage)
         _notificationManager = StateObject(wrappedValue: notificationManager)
         _notificationCoordinator = StateObject(wrappedValue: notificationCoordinator)
+        self.resetCelebration = resetCelebration
         _sessionOpener = StateObject(wrappedValue: sessionOpener)
         _autoRun = StateObject(wrappedValue: autoRun)
         _updates = StateObject(wrappedValue: updates)
@@ -78,6 +81,7 @@ struct TokenmaxApp: App {
             .onAppear {
                 usage.start()
                 notificationCoordinator.start()
+                resetCelebration.start()
                 sessionOpener.start()
                 autoRun.start()
                 updates.start()

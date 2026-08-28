@@ -20,6 +20,7 @@ Everything follows the same split:
   │  SessionOpenerDecision   │◄─────│  SessionOpenerCoordinator   │
   │  NotificationScheduler   │◄─────│  NotificationCoordinator    │
   │  QueueAutoRunDecision    │◄─────│  QueueAutoRunCoordinator    │
+  │  QuotaResetCelebrationDecision │◄─│ QuotaResetCelebrationCoordinator │
   └──────────────────────────┘      └─────────────────────────────┘
    enum / struct                     @MainActor
    decides *what* from data in       owns the clock, processes, files
