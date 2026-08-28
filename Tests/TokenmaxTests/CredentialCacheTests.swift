@@ -167,6 +167,130 @@ struct CredentialCacheTests {
         #expect(after.accessToken == "token-2")
     }
 
+    /// The loop this closes, measured over a fortnight of real use: 64 of 176
+    /// keychain reads were a rejected token being re-read every five minutes,
+    /// stacking consent dialogs minutes apart. Until Claude Code writes the
+    /// item, the keychain holds the same token the endpoint just refused, so
+    /// the read can only cost a dialog and return nothing new.
+    @Test("A rejected token is not re-read until Claude Code rewrites the item")
+    func waitsForRotationBeforeRereading() throws {
+        let reads = ReadCounter()
+        let written = Date(timeIntervalSince1970: 1_000)
+        let cache = ClaudeCredentialCache(
+            read: {
+                reads.increment()
+                return self.credentials(token: "token-\(reads.count)")
+            },
+            itemModified: { written }
+        )
+
+        _ = try cache.credentials()
+        cache.invalidate()
+
+        for _ in 0 ..< 10 {
+            #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+        }
+        #expect(reads.count == 1, "the item never changed, so nothing new could be read")
+    }
+
+    /// The other half: once the timestamp moves, the wait is over immediately.
+    @Test("A rewritten item ends the wait and is read once")
+    func rereadsOnceTheItemChanges() throws {
+        let reads = ReadCounter()
+        let rotations = ReadCounter()
+        let cache = ClaudeCredentialCache(
+            read: {
+                reads.increment()
+                return self.credentials(token: "token-\(reads.count)")
+            },
+            itemModified: { Date(timeIntervalSince1970: rotations.count > 0 ? 2_000 : 1_000) }
+        )
+
+        _ = try cache.credentials()
+        cache.invalidate()
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+
+        rotations.increment()
+        #expect(try cache.credentials().accessToken == "token-2")
+        // And the fresh token is then served from memory, not re-read.
+        #expect(try cache.credentials().accessToken == "token-2")
+        #expect(reads.count == 2)
+    }
+
+    /// The distinction the caller needs while waiting: a token with a refresh
+    /// token is one Claude Code renews by itself, and telling the user to sign
+    /// in again would send them through an OAuth flow they did not need.
+    @Test("The wait reports whether the rejected token could renew itself")
+    func reportsSelfRenewalWhileWaiting() throws {
+        for canSelfRenew in [true, false] {
+            let cache = ClaudeCredentialCache(
+                read: {
+                    ClaudeKeychain.Credentials(
+                        accessToken: "tok",
+                        refreshToken: canSelfRenew ? "refresh" : nil,
+                        expiresAt: Date().addingTimeInterval(3600),
+                        subscriptionType: "pro"
+                    )
+                },
+                itemModified: { Date(timeIntervalSince1970: 1_000) }
+            )
+
+            _ = try cache.credentials()
+            cache.invalidate()
+
+            do {
+                _ = try cache.credentials()
+                Issue.record("expected the read to be held back")
+            } catch let ClaudeKeychain.KeychainError.awaitingRotation(reported) {
+                #expect(reported == canSelfRenew)
+            }
+        }
+    }
+
+    /// The gate fails open. A machine whose item cannot be stat'd must keep
+    /// monitoring — a redundant read costs a dialog, a gate stuck shut costs
+    /// the reading entirely, and stale data postpones rather than cancels.
+    @Test("Without a timestamp the rejected token is re-read as before")
+    func rereadsWhenTheTimestampIsUnknown() throws {
+        let reads = ReadCounter()
+        let cache = ClaudeCredentialCache(
+            read: {
+                reads.increment()
+                return self.credentials(token: "token-\(reads.count)")
+            },
+            itemModified: { nil }
+        )
+
+        _ = try cache.credentials()
+        cache.invalidate()
+
+        #expect(try cache.credentials().accessToken == "token-2")
+        #expect(reads.count == 2)
+    }
+
+    /// The gate must never be a trap: the popover shows the waiting state, and
+    /// Refresh is the gesture that leaves it without relaunching the app.
+    @Test("A manual refresh ends the rotation wait")
+    func manualRefreshClearsTheRotationWait() throws {
+        let reads = ReadCounter()
+        let cache = ClaudeCredentialCache(
+            read: {
+                reads.increment()
+                return self.credentials(token: "token-\(reads.count)")
+            },
+            itemModified: { Date(timeIntervalSince1970: 1_000) }
+        )
+
+        _ = try cache.credentials()
+        cache.invalidate()
+        #expect(throws: ClaudeKeychain.KeychainError.self) { _ = try cache.credentials() }
+
+        cache.retryAfterDenial()
+
+        #expect(try cache.credentials().accessToken == "token-2")
+        #expect(reads.count == 2)
+    }
+
     /// A denial *is* a decision — the user answered the dialog. Re-asking on
     /// the next tick turned one *Deny* into a dialog every five minutes for as
     /// long as the app ran, which is the app arguing with the user.

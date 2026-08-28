@@ -217,9 +217,11 @@ state. Tokenmax uses two real sources instead, and **Settings → Data Source** 
 is bound to the app's code hash, so it asks again for each new binary: once per release you install,
 and once per rebuild if you are compiling it yourself. A code-signing certificate does not change
 this — see [Building a release](#building-a-release). Answer with *Allow* instead and only that read
-is authorised; the in-memory cache delays the next question until a relaunch, expiry or rejected
-token. Some Claude Code/macOS versions have also been reported to recreate the item or its access
-control during credential maintenance, which can discard even an *Always Allow* grant.
+is authorised; the in-memory cache delays the next question until a relaunch or expiry. A token the
+endpoint rejects no longer counts: Tokenmax waits for Claude Code to actually write a new one before
+reading again, since until then the keychain holds the same rejected token and the read could only
+cost a dialog. Some Claude Code/macOS versions have also been reported to recreate the item or its
+access control during credential maintenance, which can discard even an *Always Allow* grant.
 
 Tokenmax never writes credentials to disk, never refreshes the token itself (that would race
 Claude Code's own refresh), and sends nothing anywhere except Anthropic.

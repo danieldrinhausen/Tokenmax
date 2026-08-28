@@ -52,12 +52,26 @@ is worth reporting with the log evidence below, not declaring impossible:
 | Claude Code recreating the item or its ACL | **Possibly once** | A replacement can discard third-party grants; this has varied across Claude Code/macOS versions |
 | A new session window starting | No | Window resets never touch the keychain |
 | Idle, sleep/wake, lock/unlock | No | None of these are keychain reads; a locked keychain defers the read, it does not prompt |
+| The endpoint rejecting the saved token | **At most once per renewal** | Tokenmax reads again only after Claude Code writes a new token, not on every tick while it waits |
 | After `claude logout` + login | **Possibly once** | If Claude Code recreates the item rather than updating it, the new item carries no grants |
 
 Answer with **Allow** instead and the next keychain read asks again, because
 *Allow* covered only the read it was asked for. Tokenmax's memory cache delays
-that read until a relaunch, local expiry or rejected cached token, which makes
-the resulting prompts look random even though the rule is simply one read.
+that read until a relaunch, local expiry or a rejected token that Claude Code
+has since replaced, which makes the resulting prompts look random even though
+the rule is simply one read.
+
+**Why a rejected token no longer means a prompt every five minutes.** A refused
+credential used to send Tokenmax straight back to the keychain on the next
+tick, which could only return the same refused credential — Claude Code had not
+written a new one yet — while costing a dialog each time for anyone who
+answered *Allow*. Tokenmax now records when Claude Code last wrote the item and
+waits for that timestamp to move before reading again. The item's modification
+date is an attribute rather than the secret, so watching it needs no consent.
+In the log the wait opens with `waiting for Claude Code to rewrite the item
+before reading again` and closes with a read triggered by `Claude Code rewrote
+the item after the token was rejected`. If you would rather not wait,
+**Refresh** in the popover reads immediately.
 
 **The log records every read, so you can check rather than guess.** Run
 `make logs` (or read `~/Library/Application Support/Tokenmax/logs/tokenmax.log`)

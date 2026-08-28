@@ -134,6 +134,78 @@ makes *Always Allow* survive Tokenmax updates, but it does nothing for an
 *Allow*-only answer or an upstream replacement of Claude's item — the earlier docs implied signing would end the
 prompts, which was a confident wrong sentence, and those are worse than gaps.
 
+## Decision 5 — after a rejection, wait for the rotation instead of re-reading
+
+Added later, from log evidence the earlier decisions did not have.
+
+**The measurement.** Over a fortnight of one user's logs: 176 keychain reads,
+**64 of them within ten minutes of a `cached credentials dropped (endpoint
+rejected the token)` line**, and consent dialogs landing five minutes apart
+while the app looked idle. The loop is `read → 401 → invalidate → next tick
+reads again`, running every five minutes for hours. Every one of those reads
+returned the *same* token, because Claude Code had not written a new one yet.
+
+**Why mechanism 1 hid this.** The original analysis reduced the *Allow*-only
+case to "a relaunch, local expiry or rejected token sends it back to the item"
+and treated all three as equally unavoidable. The third is not: a rejected
+token is the one case where the app can *know in advance* that the read is
+pointless, because the thing that would make it worthwhile — Claude Code
+writing the item — is observable.
+
+**Shipped:** `invalidate()` records the item's modification date; the next call
+throws `KeychainError.awaitingRotation` without touching the keychain until
+that date moves.
+
+**Why the modification date and not a timer.** A timer picks an interval that
+is either too short (dialogs continue, just fewer) or too long (a renewed token
+is ignored for minutes). The date is the actual event — Claude Code writing the
+item is precisely the thing worth waiting for — so the wait is exactly as long
+as it needs to be, and no polling schedule has to be guessed. Crucially, item
+*attributes* are not gated by the item's ACL; only the secret data is. That is
+what makes this legal at all: the app can watch for the rotation without ever
+raising the dialog it is trying to avoid.
+
+**Why it fails open.** No timestamp — an item that cannot be stat'd, a test
+with no probe injected — means read as before. A redundant read costs one
+dialog; a gate stuck shut costs the reading entirely, and this is the same
+"stale data postpones, never cancels" rule applied to a read rather than a
+refresh.
+
+**Why Refresh clears it.** Same reason it clears a denial: the wait is visible
+in the popover, and a state the user can see but cannot leave without
+relaunching is a trap. The read it permits will usually return the same
+rejected token — a fair price for the gate never being one.
+
+**Why the error maps to the 401's own states.** `awaitingRotation` becomes
+`tokenExpired` or `needsReauthentication`, chosen by whether the rejected token
+had a refresh token — exactly what `mapped(_:credentials:)` does for the 401
+that armed the gate. A generic failure would have cost the session opener the
+"awaiting renewal" tolerance that stops it treating a mid-rotation blip as a
+dead provider, which is a spending-path regression hiding inside a dialog fix.
+
+**Rejected: caching the rejection as a denial.** It is not one. Nobody answered
+a dialog, and `retryAfterDenial` semantics ("the user said no") would have made
+the popover claim a refusal that never happened.
+
+## A correction to mechanism 1, from the same measurement
+
+Mechanism 1 above says Claude Code "may also replace or rewrite the item's
+access control while maintaining its credentials". On the machine that produced
+these logs that is **not** what happens: the item's creation date is unchanged
+since it was first written, and its decrypt ACL has accumulated 87 Tokenmax
+build paths plus two other apps without ever being reset. Claude Code updates
+the item in place and the trusted-app list survives.
+
+What is *not* stable is the **partition list**, which is keyed independently.
+It held one Tokenmax entry — `cdhash:` of a build, not the installed one —
+because a bundle with no Team Identifier gives macOS nothing steadier to key
+to. Across the same login keychain, 74 partition entries use `teamid:` and
+every one belongs to a Developer-ID-signed app; 803 use `cdhash:`. So the
+per-build re-ask is a partition-list effect, and mechanism 3's conclusion
+(only Developer ID fixes it) is right for a reason the docs had not identified.
+The lesson worth keeping: the trusted-app list looking healthy says nothing
+about whether reads will prompt, because the two are keyed separately.
+
 ## What was deliberately not done
 
 - **No persistence of the denial** — see Decision 1.
@@ -141,7 +213,9 @@ prompts, which was a confident wrong sentence, and those are worse than gaps.
   is a user decision; inferring it from behaviour hides a setting change
   behind an error path.
 - **No keychain polling to pre-detect rotation** — any scheme that reads the
-  item more often to prompt less often has the arithmetic backwards.
+  *secret* more often to prompt less often has the arithmetic backwards.
+  (Decision 5 watches the item's modification *attribute*, which costs no
+  consent and is the opposite trade: fewer reads, not more.)
 - **No third data source** (e.g. parsing transcripts) — transcripts carry no
   rate-limit state; a source that guesses is worse than a gap, which the UI
   already renders honestly as unknown.

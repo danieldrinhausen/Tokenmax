@@ -5,6 +5,23 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **A rejected token no longer costs a keychain read every five minutes.** When
+  the quota endpoint refused the saved credential, Tokenmax dropped it and read
+  the keychain again on the next tick — but until Claude Code writes a new
+  token, the item still holds the one that was just refused, so the read could
+  only return the same credential and, for anyone who answered the consent
+  dialog with *Allow*, raise another dialog. Measured across a fortnight of one
+  user's logs, 64 of 176 reads were this loop, stacking dialogs minutes apart
+  while the app appeared to be idle. Tokenmax now notes when Claude Code last
+  wrote the item and waits for that timestamp to move before reading again —
+  the item's modification date is an attribute, not the secret, so watching it
+  needs no consent and raises no dialog. The wait ends by itself the moment
+  Claude Code renews the token; **Refresh** ends it early, and a relaunch
+  clears it. While it holds, the popover reports the same "awaiting renewal"
+  state the rejection already produced and keeps showing the last good reading.
+
 ## [0.1.11] - 2026-08-28
 
 ### Added

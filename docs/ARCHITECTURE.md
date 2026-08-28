@@ -97,7 +97,20 @@ replayed without touching the keychain again, while
 stays transient and is retried. A manual Refresh clears the remembered
 denial; nothing else does. The distinction is load-bearing: caching the
 transient case would switch monitoring off because a screen was locked at the
-wrong moment. Codex is a parallel path through
+wrong moment.
+
+The same cache also gates the read that follows a *rejected* token. Dropping
+the credential on a 401 is right; going straight back to the keychain is not,
+because until Claude Code writes a replacement the item still holds the token
+that was just refused. So `invalidate()` records the item's modification date
+and `awaitingRotation` is thrown — no read, no dialog — until that date moves.
+The probe is an attribute read, which the item's ACL does not gate, so the
+cache can watch for the rotation without consent. It fails open: no timestamp
+means read as before, because a redundant read costs a dialog while a gate
+stuck shut costs the reading itself. `ClaudeCodeProvider` maps the case to the
+same `tokenExpired`/`needsReauthentication` pair the original 401 produced, so
+the opener keeps its "awaiting renewal" tolerance instead of seeing a generic
+failure. Codex is a parallel path through
 `CodexAppServerClient` and does not share these sources: one short-lived
 read-only `codex app-server` per read, spoken to over JSON-RPC and allowed to
 exit, so no agent process lingers and Codex stays responsible for its own

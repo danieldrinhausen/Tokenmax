@@ -46,6 +46,13 @@ enum ClaudeKeychain {
         /// kept out of `accessDenied`: remembering it as a denial would switch
         /// monitoring off because a screen was locked at the wrong moment.
         case interactionNotAllowed
+        /// The endpoint rejected the token we hold and the item has not been
+        /// written since, so the keychain still holds that same token. Not a
+        /// failure to read — a refusal to ask a question whose answer we
+        /// already have. `canSelfRenew` carries whether the rejected token had
+        /// a refresh token, which is what decides between "Claude Code will fix
+        /// this" and "sign in again".
+        case awaitingRotation(canSelfRenew: Bool)
         case malformed
         case unexpected(OSStatus)
         /// Refused because this is a test run. See `RuntimeEnvironment`.
@@ -56,6 +63,7 @@ enum ClaudeKeychain {
             case .notFound: "Claude Code is installed but not authenticated."
             case .accessDenied: "Tokenmax was denied access to the Claude Code keychain item."
             case .interactionNotAllowed: "The keychain could not ask for permission — it may be locked. Tokenmax will retry."
+            case .awaitingRotation: "Claude Code's saved credential was rejected; Tokenmax is waiting for Claude Code to renew it."
             case .malformed: "The Claude Code credentials could not be read."
             case let .unexpected(status): "Keychain error \(status)."
             case .suppressedUnderTest: "Keychain access is refused during tests."
@@ -83,6 +91,11 @@ enum ClaudeKeychain {
     /// which is the bug in miniature.
     private static let cache = ClaudeCredentialCache(
         read: readFromKeychain,
+        // Lets the cache wait for Claude Code to rewrite the item instead of
+        // re-reading a token the endpoint already rejected. Suppressed under
+        // test for the same reason the read is: the suite must not reach the
+        // real item, even for an attribute nobody needs consent to see.
+        itemModified: { RuntimeEnvironment.isTesting ? nil : itemModificationDate() },
         log: { Log.shared.write($0) }
     )
 
@@ -142,7 +155,9 @@ enum ClaudeKeychain {
             case .interactionNotAllowed: log(.interactionNotAllowed)
             case .malformed: log(.malformed)
             case let .unexpected(status): log(.unexpected(status))
-            case .suppressedUnderTest: break
+            // Neither can reach here: the cache throws them *instead of*
+            // calling this read, so there is no read for the log to describe.
+            case .awaitingRotation, .suppressedUnderTest: break
             }
             throw error
         }

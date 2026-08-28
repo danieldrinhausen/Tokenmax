@@ -78,6 +78,10 @@ final class ClaudeCodeProvider: UsageProvider {
             return .notAuthenticated
         } catch ClaudeKeychain.KeychainError.accessDenied {
             return .accessDenied
+        } catch ClaudeKeychain.KeychainError.awaitingRotation {
+            // Signed in, holding a credential that needs renewing — the same
+            // state an expired token reports above, reached without a read.
+            return .needsReauthentication
         } catch {
             return .notAuthenticated
         }
@@ -200,6 +204,16 @@ final class ClaudeCodeProvider: UsageProvider {
             switch error {
             case .notFound: throw ProviderError.notAuthenticated(displayName)
             case .accessDenied: throw ProviderError.accessDenied
+            // The cache is holding off a read because the item still contains
+            // the token the endpoint just rejected. Mapped exactly as the 401
+            // that armed it would have been by `mapped(_:credentials:)` — the
+            // situation is identical, and reporting it as a generic failure
+            // would cost the opener the "awaiting renewal" tolerance that
+            // keeps it from treating a mid-rotation blip as a dead provider.
+            case let .awaitingRotation(canSelfRenew):
+                throw canSelfRenew
+                    ? ProviderError.tokenExpired
+                    : ProviderError.needsReauthentication
             // Transient by definition — the dialog could not be shown, so
             // nobody said no. Reported as an ordinary failure that keeps the
             // last good reading, never as the denied state, which now carries
