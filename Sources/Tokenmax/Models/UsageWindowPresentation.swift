@@ -30,7 +30,25 @@ enum UsageWindowPresentation {
 
         let interval = resetAt.timeIntervalSince(now)
         guard interval > 0 else { return "Resetting…" }
-        return "Resets in \(RelativeTime.countdown(interval))"
+        return "Resets in \(RelativeTime.countdown(interval)) (\(localResetTimeText(for: window, resetAt: resetAt)))"
+    }
+
+    /// The clock time a reset lands at, in the user's local timezone.
+    ///
+    /// A session window resets within the same day often enough that the day
+    /// would be noise; a weekly window resets 5-7 days out, where the day is
+    /// the first thing worth knowing. Both use the locale's own hour format
+    /// (12- or 24-hour) rather than hardcoding one.
+    private static func localResetTimeText(for window: UsageWindow, resetAt: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        switch window.kind {
+        case .weekly, .modelSpecificWeekly:
+            formatter.setLocalizedDateFormatFromTemplate("EEE j:mm")
+        case .session:
+            formatter.setLocalizedDateFormatFromTemplate("j:mm")
+        }
+        return formatter.string(from: resetAt)
     }
 
     /// The compact form for the queue header, where the row already carries the

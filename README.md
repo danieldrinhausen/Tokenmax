@@ -317,7 +317,7 @@ Under each meter Tokenmax compares your spending against an **even burn** of the
 ```
 Session
 ▓▓▓▓▓▓▓▓▓▓▓▓░░░│░░░░░░░░░░░░
-59% left                    Resets in 3h 34m
+59% left                    Resets in 3h 34m (5:16 PM)
 12% in deficit          Projected empty in 2h 4m
 ```
 
@@ -325,6 +325,10 @@ The reference point is what a constant rate would have left at this exact moment
 5-hour window still to run means 71% "should" still be there. That is the marker on the bar. Ahead
 of the line is a **reserve**, behind it is a **deficit**. The countdown divides the quota left by
 the average rate since the window opened (`used ÷ elapsed`).
+
+Next to the countdown is the reset's clock time, in your Mac's timezone and hour format — just the
+time for the session window, and weekday plus time for the weekly window since that one lands
+several days out.
 
 Everything comes from the reset time and the window length, so it is correct on the first reading
 and after a relaunch — no history to accumulate. The lengths come from the endpoint's own field
