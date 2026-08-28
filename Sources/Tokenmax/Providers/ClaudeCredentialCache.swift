@@ -31,22 +31,34 @@ import Foundation
 /// `errSecInteractionNotAllowed` is environmental, not an answer, and is kept
 /// out of that case for exactly this reason.
 ///
-/// **Staleness.** Claude Code changes the token without telling anyone. A
-/// cached token stays usable until its own `expiresAt`, which is
-/// checked on every hand-out, and a token the endpoint rejects is dropped by
-/// the caller through `invalidate()`. Those two together are what keep a
-/// rotation from being noticed only at relaunch.
+/// **Staleness, and the one question worth asking the keychain.** Claude Code
+/// changes the token without telling anyone, so the cache has to notice. Both
+/// of its clues — the token's own `expiresAt` and a rejection from the
+/// endpoint — say something about the token we *hold*, and nothing about
+/// whether the keychain holds anything better. Only one thing answers that:
+/// the item's modification date. Attribute reads are not gated by the item's
+/// ACL — only reads of the secret data are — so the cache can ask it as often
+/// as it likes without ever raising a dialog. Every rule below is that one
+/// idea: **go back to the keychain when, and only when, Claude Code has
+/// written to it.**
 ///
-/// **Why a drop does not immediately mean another read.** `invalidate()` says
-/// "the endpoint rejected this token", and the obvious next move — go back to
-/// the keychain — is wrong whenever Claude Code has not rotated yet: the item
-/// still holds the *same* rejected token, so the read costs a dialog and
-/// returns nothing new. Measured over a fortnight of real use, 64 of 176 reads
-/// were this loop, re-reading every five minutes for hours and stacking
-/// consent dialogs minutes apart. So a drop records *when the item was last
-/// written*, and the next read waits for that timestamp to move. Attribute
-/// reads are not gated by the item's ACL — only reads of the secret data are —
-/// so the app can watch for the rotation without ever raising a dialog.
+/// *After a rejection.* `invalidate()` says "the endpoint refused this token",
+/// and the obvious next move — read again — is wrong until Claude Code has
+/// rotated: the item still holds the *same* refused token. Measured on a week
+/// of real logs, that loop ran every five minutes for hours and stacked
+/// consent dialogs minutes apart. So a drop records when the item was last
+/// written, and the next read waits for that to move.
+///
+/// *Past the expiry.* Same argument, arrived at from the other side. A token
+/// past its `expiresAt` used to be dropped on sight, on the theory that the
+/// keychain very likely held a newer one — but when the item has not been
+/// written since, it demonstrably does not, and the read could only return the
+/// same value. So an expired token whose item is unchanged keeps being served,
+/// and the endpoint gets to be the judge. That is this codebase's existing
+/// doctrine about the clock (see `ClaudeCodeProvider.loadCredentials`): local
+/// expiry is a hint, never grounds for refusing to try. If the endpoint does
+/// refuse it, the 401 arms the rule above and the two settle into waiting
+/// rather than asking.
 ///
 /// The gate fails open. No timestamp (an item we could not stat, a test with
 /// no probe injected) means read as before: a redundant read costs a dialog,
@@ -85,6 +97,9 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// would hold a fresh token back.
     private var storedModification: Date?
     private var rejected: RejectedRead?
+    /// The item state a "serving past expiry" line was last written for, so the
+    /// log says it once per rotation rather than once per tick for hours.
+    private var announcedPastExpiryFor: Date?
     private var denied = false
     private var isReading = false
 
@@ -100,13 +115,13 @@ final class ClaudeCredentialCache: @unchecked Sendable {
         self.log = log
     }
 
-    /// The cached credentials when they are still within their own expiry,
-    /// otherwise a fresh read.
+    /// The cached credentials, or a fresh read when the keychain plausibly has
+    /// something better.
     ///
-    /// A locally-expired token is dropped rather than handed out, because the
-    /// keychain very likely holds a newer one by now. That is not the same as
-    /// refusing to *use* an expired token: the provider still tries whatever it
-    /// gets against the endpoint, since the clock is only a hint.
+    /// "Plausibly" is the whole design: a locally-expired token is re-read only
+    /// when Claude Code has written the item since, because otherwise the read
+    /// returns the same token and costs a dialog for it. The clock alone never
+    /// forces a read — it is a hint, and the endpoint is the judge.
     func credentials() throws -> ClaudeKeychain.Credentials {
         condition.lock()
         while isReading {
@@ -134,9 +149,28 @@ final class ClaudeCredentialCache: @unchecked Sendable {
             self.rejected = nil
             rotationSeen = true
         }
-        if let stored, !stored.isExpired(at: now()) {
-            condition.unlock()
-            return stored
+        var pastExpiryToAnnounce: Date?
+        if let stored {
+            if !stored.isExpired(at: now()) {
+                condition.unlock()
+                return stored
+            }
+            // Past its expiry by our clock — which says nothing about what the
+            // keychain holds. If Claude Code has not written since we read it,
+            // the item still holds this very token, so re-reading can only
+            // return the same value at the price of a dialog. Serve it and let
+            // the endpoint decide; a refusal arms the rotation gate above.
+            if let storedModification, let current = itemModified(), current == storedModification {
+                if announcedPastExpiryFor != current {
+                    announcedPastExpiryFor = current
+                    pastExpiryToAnnounce = current
+                }
+                condition.unlock()
+                if pastExpiryToAnnounce != nil {
+                    log("keychain: cached token is past its expiry, but Claude Code has not written the item since — serving it rather than re-reading the same value")
+                }
+                return stored
+            }
         }
         // Named before the read so every keychain line in the log has the line
         // above it saying why the read happened at all.
@@ -163,6 +197,9 @@ final class ClaudeCredentialCache: @unchecked Sendable {
             condition.lock()
             stored = fresh
             storedModification = sampled
+            // A fresh token earns a fresh "serving past expiry" line if it ever
+            // reaches that state itself.
+            announcedPastExpiryFor = nil
             isReading = false
             condition.broadcast()
             condition.unlock()
@@ -187,10 +224,11 @@ final class ClaudeCredentialCache: @unchecked Sendable {
     /// gate so the next call waits for Claude Code to write the item rather
     /// than re-reading a token already known to be rejected.
     ///
-    /// Called when the endpoint rejects the token — the only reliable signal
-    /// that Claude Code has rotated it since we looked. "Rotated" is the
-    /// optimistic reading, though: until the item's timestamp actually moves,
-    /// the honest state is that we asked and were told no.
+    /// Called when the endpoint rejects the token. That proves only that the
+    /// credential we hold was refused — it is *not* evidence that Claude Code
+    /// has written a new one, which is a separate fact with its own separate
+    /// evidence: the item's modification date moving. Conflating the two is
+    /// what produced the re-read loop this gate exists to stop.
     func invalidate() {
         condition.lock()
         let droppedSomething = stored != nil || denied
@@ -205,6 +243,7 @@ final class ClaudeCredentialCache: @unchecked Sendable {
         let armed = rejected != nil
         stored = nil
         storedModification = nil
+        announcedPastExpiryFor = nil
         denied = false
         condition.unlock()
         // Logged only when there was something to drop — an invalidate of an

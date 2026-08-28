@@ -149,8 +149,10 @@ struct CredentialCacheTests {
         #expect(second.accessToken == "token-2")
     }
 
-    /// Claude Code rotates the token in place. A 401 is the only reliable
-    /// evidence of it, and the provider answers by dropping the cache.
+    /// A 401 is evidence that the token we hold was refused — not that Claude
+    /// Code has written a replacement. The provider answers by dropping the
+    /// cache; what happens next is decided by the item's timestamp, which the
+    /// rotation tests below cover.
     @Test("Invalidating sends the next caller back to the keychain")
     func invalidateForcesReread() throws {
         let reads = ReadCounter()
@@ -165,6 +167,67 @@ struct CredentialCacheTests {
 
         #expect(reads.count == 2)
         #expect(after.accessToken == "token-2")
+    }
+
+    /// The same argument as the rotation gate, reached from the other side. An
+    /// expired token used to be dropped on sight, on the theory that the
+    /// keychain probably held a newer one — but when the item has not been
+    /// written since, it demonstrably does not, and the read could only return
+    /// the same value at the price of a dialog.
+    @Test("An expired token is served, not re-read, while the item is unchanged")
+    func servesExpiredTokenWhileItemIsUnchanged() throws {
+        let reads = ReadCounter()
+        let cache = ClaudeCredentialCache(
+            read: {
+                reads.increment()
+                return self.credentials(token: "token-\(reads.count)", expiresIn: -1)
+            },
+            itemModified: { Date(timeIntervalSince1970: 1_000) }
+        )
+
+        for _ in 0 ..< 10 {
+            #expect(try cache.credentials().accessToken == "token-1")
+        }
+        #expect(reads.count == 1, "the item never changed, so nothing newer could be read")
+    }
+
+    /// And the moment Claude Code does write, the expired token is replaced —
+    /// the gate defers the read, it does not cancel it.
+    @Test("An expired token is re-read once the item changes")
+    func rereadsExpiredTokenAfterTheItemChanges() throws {
+        let reads = ReadCounter()
+        let rotations = ReadCounter()
+        let cache = ClaudeCredentialCache(
+            read: {
+                reads.increment()
+                return self.credentials(token: "token-\(reads.count)", expiresIn: -1)
+            },
+            itemModified: { Date(timeIntervalSince1970: rotations.count > 0 ? 2_000 : 1_000) }
+        )
+
+        #expect(try cache.credentials().accessToken == "token-1")
+        #expect(try cache.credentials().accessToken == "token-1")
+
+        rotations.increment()
+        #expect(try cache.credentials().accessToken == "token-2")
+        #expect(reads.count == 2)
+    }
+
+    /// Serving a token past its expiry is worth exactly one log line per
+    /// rotation. Once per tick would bury the log for hours, which is how the
+    /// original loop stayed invisible for so long.
+    @Test("Serving past the expiry is logged once, not once per tick")
+    func logsPastExpiryServiceOnce() throws {
+        let spy = LogSpy()
+        let cache = ClaudeCredentialCache(
+            read: { self.credentials(expiresIn: -1) },
+            itemModified: { Date(timeIntervalSince1970: 1_000) },
+            log: { spy.write($0) }
+        )
+
+        for _ in 0 ..< 5 { _ = try cache.credentials() }
+
+        #expect(spy.lines.filter { $0.contains("past its expiry") }.count == 1)
     }
 
     /// The loop this closes, measured over a fortnight of real use: 64 of 176

@@ -187,6 +187,83 @@ dead provider, which is a spending-path regression hiding inside a dialog fix.
 a dialog, and `retryAfterDenial` semantics ("the user said no") would have made
 the popover claim a refusal that never happened.
 
+## Decision 6 — an expired token is not a reason to read either
+
+The same rule as Decision 5, arrived at from the other side and shipped right
+after it, once the log analysis below showed how much of the prompting happened
+on reads the rotation gate did not cover.
+
+`credentials()` used to drop any token past its own `expiresAt` and go back to
+the keychain, on the theory that the item very likely held a newer one. When
+Claude Code has not written since, it demonstrably does not: the read returns
+the identical token and pays a consent dialog for it. So an expired token whose
+item is unchanged is now served, and the endpoint is left to judge it — which
+is what `ClaudeCodeProvider.loadCredentials` already said the clock was for
+("a locally-computed expiry is **not** grounds for refusing to try"). If the
+endpoint does refuse it, the 401 arms Decision 5 and the two settle into
+waiting rather than asking.
+
+Both decisions are the same sentence: **go back to the keychain when, and only
+when, Claude Code has written to it.** Nothing else is evidence about what the
+item contains.
+
+## What the logs actually show about mid-run prompts
+
+Recorded because the earlier framing here was wrong in a way that would have
+sent the next reader down the wrong path — and because it changes what the
+money question is.
+
+Group every successful secret read by `(binary cdhash, item modification
+date)`. Each group is an "era": one binary, one version of the stored token.
+
+```
+d0c782f4  mdat=2026-08-24T11:34   D..............
+d0c782f4  mdat=2026-08-24T21:39   DDD..............
+```
+
+`D` = read slow enough to have waited on a dialog, `.` = served silently. Over
+the measured week, across 15 eras: **every era opens with a dialog, none opens
+silently, and none returns to dialogs after going silent.**
+
+The pair above is the whole finding. Same binary, no rebuild in between:
+fourteen consecutive silent reads — which only a recorded *Always Allow* grant
+can produce — then Claude Code writes the item, and the dialogs come back. The
+grant existed and stopped working at the moment of the write.
+
+So the mid-run prompt is **not** an *Allow*-vs-*Always Allow* problem, which
+was the standing explanation and is what mechanism 1 above implies. It is
+Claude Code's write to the item evicting Tokenmax's partition entry, at roughly
+the rate Claude Code rotates (~2/day on the measured machine — which is the
+reported symptom, near enough exactly). Answering *Allow* is real, but it only
+explains the `DD`/`DDD` prefixes: extra dialogs before an *Always Allow* sticks.
+
+Two traps this analysis had to avoid, both of which produce the wrong answer:
+
+- **Wall-clock proximity is the wrong instrument.** "Dialogs within 30s of a
+  write" undercounts badly, because the cache often defers the read for hours.
+  The right question is whether the *first secret read after a new modification
+  date* prompted. It did, 15 times out of 15.
+- **`OSStatus -25320` is `errSecInDarkWake` — "no UI possible".** 82 of 176
+  reads in the window were dark-wake failures that could not have prompted
+  whatever the ACL said. Any read-count used as a proxy for prompt exposure has
+  to exclude them, or it overstates the problem by roughly a factor of three.
+
+**What this does *not* settle, and it is the expensive part.** A Team
+Identifier is what macOS keys a partition to when the bundle has one, and 74 of
+74 `teamid:` entries on the measured machine belong to Apple-signed apps. But
+every one of those was written by an app updating *its own* item. Nothing here
+shows a `teamid:` entry surviving a rewrite by a *different* app, which is
+exactly what Claude Code does to this one. If Claude Code's write rebuilds the
+partition list around its own identity, a Team ID is evicted like any cdhash
+and buys nothing for the mid-run prompt.
+
+That is testable and it does not need a paid membership: an `Apple Development`
+certificate carries a Team Identifier too. Sign a build with one, confirm the
+partition entry becomes `teamid:`, wait for one Claude Code rewrite, and
+re-check. Until someone runs it, "only Developer ID fixes this" is an
+extrapolation, not a measurement — and Developer ID's real job here is
+Gatekeeper for other people's installs, not this prompt.
+
 ## A correction to mechanism 1, from the same measurement
 
 Mechanism 1 above says Claude Code "may also replace or rewrite the item's

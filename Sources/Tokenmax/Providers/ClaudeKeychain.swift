@@ -108,8 +108,11 @@ enum ClaudeKeychain {
     /// Drops the cached credentials, so the next read goes back to the keychain.
     ///
     /// The one caller that should reach for this is a 401 from the usage
-    /// endpoint: a rejected token is the only reliable evidence that Claude
-    /// Code rotated the item since we read it.
+    /// endpoint. Note what that does and does not establish: the token we hold
+    /// was refused, which is not the same as Claude Code having written a new
+    /// one. The cache keeps the two apart — see its rotation gate — because
+    /// treating the 401 as proof of a rotation is what made the app re-read a
+    /// dead token every five minutes.
     static func invalidateCache() {
         cache.invalidate()
     }

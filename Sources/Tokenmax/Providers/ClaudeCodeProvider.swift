@@ -194,9 +194,12 @@ final class ClaudeCodeProvider: UsageProvider {
     /// error.
     ///
     /// This used to read twice when the first read looked expired, to pick up a
-    /// rotation. `ClaudeCredentialCache` now does that where it belongs — it
-    /// never hands out a token past its own expiry — and the second read here
-    /// only ever bought a second consent dialog in the same tick.
+    /// rotation. `ClaudeCredentialCache` now decides that where it belongs, by
+    /// asking whether Claude Code has actually written the item — the second
+    /// read here only ever bought a second consent dialog in the same tick.
+    /// Which is why an expired token can still arrive: the cache hands one over
+    /// rather than re-reading a keychain it knows has not changed, and the rule
+    /// above is what makes that safe.
     private func loadCredentials() throws -> ClaudeKeychain.Credentials {
         do {
             return try readCredentials()

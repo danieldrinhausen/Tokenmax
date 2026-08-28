@@ -110,7 +110,14 @@ means read as before, because a redundant read costs a dialog while a gate
 stuck shut costs the reading itself. `ClaudeCodeProvider` maps the case to the
 same `tokenExpired`/`needsReauthentication` pair the original 401 produced, so
 the opener keeps its "awaiting renewal" tolerance instead of seeing a generic
-failure. Codex is a parallel path through
+failure.
+
+Local expiry follows the same rule: a token past its `expiresAt` is re-read
+only when the item has been written since, and otherwise handed over for the
+endpoint to judge. Both are one sentence — *go back to the keychain when, and
+only when, Claude Code has written to it* — because neither the clock nor a 401
+says anything about what the item currently holds, and the modification date is
+the only thing that does. Codex is a parallel path through
 `CodexAppServerClient` and does not share these sources: one short-lived
 read-only `codex app-server` per read, spoken to over JSON-RPC and allowed to
 exit, so no agent process lingers and Codex stays responsible for its own

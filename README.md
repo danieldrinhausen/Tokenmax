@@ -691,8 +691,10 @@ Developer account:
 
 **File-access grants then survive every rebuild. The keychain prompt does not.** Measured on the
 live item on a cert-signed build: 89 trusted-application entries for `Claude Code-credentials`, 87
-of them Tokenmax build paths, and a partition list holding exactly `apple-tool:` plus the CDHash of
-the installed build. A self-signed certificate carries **no Team Identifier**, so macOS has nothing
+of them Tokenmax build paths, and a partition list holding exactly `apple-tool:` plus a *single*
+`cdhash:` — one build, which on the measured machine was not even the installed one, since the most
+recent prompt there had been answered with *Allow*. A self-signed certificate carries **no Team
+Identifier**, so macOS has nothing
 but the per-build hash to key a grant to; a Developer ID-signed app in the same ACL, which does have
 one, kept a single entry across its updates. So expect one keychain prompt per build you compile.
 It is the file-access half that the certificate is really buying, and that is the half an unattended

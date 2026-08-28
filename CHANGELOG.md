@@ -22,6 +22,17 @@ versions follow [semver](https://semver.org/).
   clears it. While it holds, the popover reports the same "awaiting renewal"
   state the rejection already produced and keeps showing the last good reading.
 
+- **A token past its expiry no longer forces a keychain read either.** Tokenmax
+  used to drop any credential past its own expiry timestamp and go back to the
+  keychain, assuming a newer one had been stored by then. When Claude Code has
+  not written the item since, it has not — so the read returned the identical
+  token and could cost a consent dialog for it. Tokenmax now serves the token
+  it already has and lets the endpoint be the judge, which is what the expiry
+  timestamp was always treated as: a hint, never a reason to refuse to try. If
+  the endpoint does reject it, the wait above takes over. Both rules are the
+  same one: go back to the keychain when, and only when, Claude Code has
+  written to it.
+
 ## [0.1.11] - 2026-08-28
 
 ### Added

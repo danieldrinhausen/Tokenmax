@@ -111,10 +111,13 @@ A self-signed certificate does *not* avoid this, despite giving the bundle a
 stable designated requirement. Measured on the live item on a cert-signed build:
 the decrypt ACL for `Claude Code-credentials` held 89 trusted-application
 entries, 87 of them Tokenmax build paths, and the item's partition list held
-exactly `apple-tool:` plus `cdhash:<the installed build>` — the CDHash of
-`/Applications/Tokenmax.app` and nothing else. The reason is visible in
-`codesign`: a self-signed certificate carries **no Team Identifier**, so the
-only stable-looking thing macOS has to key a grant to is the per-build hash. A
+exactly `apple-tool:` plus a *single* `cdhash:` — one Tokenmax build and
+nothing else. Note *single*, and note that it need not be the build you are
+running: on the measured machine it named the previously granted binary while a
+newer one was installed, which is precisely why that newer one prompted. The
+reason is visible in `codesign`: a self-signed certificate carries **no Team
+Identifier**, so the only stable-looking thing macOS has to key a grant to is
+the per-build hash. A
 Developer ID-signed app in the same ACL, which does have a Team Identifier, got
 a single entry that has survived its updates.
 
