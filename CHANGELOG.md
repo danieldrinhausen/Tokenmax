@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-08-28
+
 ### Added
 
 - **Codex banked reset availability now appears in the popover.** When Codex
@@ -12,6 +14,12 @@ versions follow [semver](https://semver.org/).
   nearest expiry below the Codex meters. It remains read-only: redeeming a reset
   changes account allowance and stays in Codex, where the offer can be reviewed
   and confirmed.
+
+- **Reset countdowns now show the local clock time too.** Next to "Resets in
+  1h 56m" the popover names the actual time that lands at, in your Mac's
+  timezone and hour format. The session window shows just the time; the
+  weekly window shows weekday plus time, since that reset is days out rather
+  than hours.
 
 ## [0.1.10] - 2026-08-26
 
