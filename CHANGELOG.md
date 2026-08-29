@@ -5,9 +5,9 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
-- **Celebrate confirmed quota resets.** An optional, click-through fireworks overlay can mark new
+- **Celebrate confirmed quota resets.** An optional, click-through confetti shower can mark new
   quota windows. Choose every reset or individual Claude Code/Codex session and weekly events;
-  stale data, reset-time jitter, and quiet hours stay silent. A **Preview Fireworks** button in
+  stale data, reset-time jitter, and quiet hours stay silent. A **Preview Confetti** button in
   Settings exercises the real overlay without waiting for a reset, and the animation now keeps
   advancing while another app is active.
 

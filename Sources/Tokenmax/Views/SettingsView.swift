@@ -409,7 +409,7 @@ struct NotificationSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Quota reset fireworks") {
+            Section("Quota reset confetti") {
                 Toggle("Celebrate new quota", isOn: $settingsStore.settings.resetCelebration.enabled)
 
                 HStack {
@@ -417,7 +417,7 @@ struct NotificationSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Button("Preview Fireworks") { resetCelebration.preview() }
+                    Button("Preview Confetti") { resetCelebration.preview() }
                         .font(.caption)
                 }
 
@@ -435,7 +435,7 @@ struct NotificationSettingsView: View {
                         }
                     }
 
-                    Text("Fireworks appear only after a fresh quota reading confirms a window has reset. They respect quiet hours.")
+                    Text("Confetti appears only after a fresh quota reading confirms a window has reset. It respects quiet hours.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

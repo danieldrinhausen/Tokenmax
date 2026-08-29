@@ -70,7 +70,7 @@ struct QuotaResetCelebrationDecisionTests {
     func previewAlwaysPresents() {
         let settingsStore = SettingsStore()
         let usage = ProviderUsageCoordinator(settingsStore: settingsStore)
-        let presenter = FireworksPresenterSpy()
+        let presenter = ConfettiPresenterSpy()
         let coordinator = QuotaResetCelebrationCoordinator(
             usage: usage, settingsStore: settingsStore, presenter: presenter
         )
@@ -82,7 +82,7 @@ struct QuotaResetCelebrationDecisionTests {
 }
 
 @MainActor
-private final class FireworksPresenterSpy: FireworksPresenting {
+private final class ConfettiPresenterSpy: ConfettiPresenting {
     var showCount = 0
     func show() { showCount += 1 }
 }

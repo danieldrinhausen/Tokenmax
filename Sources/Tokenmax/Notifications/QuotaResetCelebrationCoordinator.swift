@@ -7,14 +7,14 @@ import Foundation
 final class QuotaResetCelebrationCoordinator: ObservableObject {
     private let usage: ProviderUsageCoordinator
     private let settingsStore: SettingsStore
-    private let presenter: any FireworksPresenting
+    private let presenter: any ConfettiPresenting
     private var previous: [TokenmaxProvider: UsageSnapshot] = [:]
     private var observer: NSObjectProtocol?
 
     init(
         usage: ProviderUsageCoordinator,
         settingsStore: SettingsStore,
-        presenter: any FireworksPresenting = FireworksPresenter()
+        presenter: any ConfettiPresenting = ConfettiPresenter()
     ) {
         self.usage = usage
         self.settingsStore = settingsStore

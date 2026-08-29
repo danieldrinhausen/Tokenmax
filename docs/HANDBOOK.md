@@ -214,11 +214,11 @@ on disk and come back exactly as they were.
 
 **Settings → Notifications.** Permission is requested here, never at launch.
 
-**Quota reset fireworks** is separate from reminders: reminders ask you to use quota before it
-expires, while fireworks mark quota that has already returned. Turn it on, then choose **Always**
+**Quota reset confetti** is separate from reminders: reminders ask you to use quota before it
+expires, while confetti marks quota that has already returned. Turn it on, then choose **Always**
 or **Specific events** and select the provider/window combinations worth celebrating. Tokenmax
 waits for a fresh reading that proves a successor window is active, and does not show the overlay
-during quiet hours. Click **Preview Fireworks** to exercise the same overlay immediately. Preview is
+during quiet hours. Click **Preview Confetti** to exercise the same overlay immediately. Preview is
 an explicit action, so it works before you enable automatic celebrations and during quiet hours.
 
 The single decision that matters is **lead time**: how long before a reset you
