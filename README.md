@@ -362,7 +362,9 @@ You can also opt into a brief **quota reset fireworks** overlay. Choose **Always
 every confirmed new window, or **Specific events** to choose Claude Code and Codex session and
 weekly resets independently. It waits for a fresh reading to prove the old window ended and its
 successor is active, so a stale meter or a jittering reset time cannot set it off; quiet hours
-keep it silent too.
+keep it silent too. **Preview Fireworks** in Settings runs the real full-screen overlay immediately,
+even while the feature is off or quiet hours are active, so you can check it without waiting for a
+reset.
 
 <p align="center">
   <img src="docs/images/settings-notifications.png" width="700" alt="Settings → Notifications: independent lead time, minimum quota and repeat rules per window">

@@ -14,7 +14,7 @@ struct TokenmaxApp: App {
     @StateObject private var usage: ProviderUsageCoordinator
     @StateObject private var notificationManager: NotificationManager
     @StateObject private var notificationCoordinator: NotificationCoordinator
-    private let resetCelebration: QuotaResetCelebrationCoordinator
+    @StateObject private var resetCelebration: QuotaResetCelebrationCoordinator
     @StateObject private var sessionOpener: SessionOpenerCoordinator
     @StateObject private var autoRun: QueueAutoRunCoordinator
     @StateObject private var modelCatalog = ModelCatalogStore()
@@ -46,7 +46,7 @@ struct TokenmaxApp: App {
         _usage = StateObject(wrappedValue: usage)
         _notificationManager = StateObject(wrappedValue: notificationManager)
         _notificationCoordinator = StateObject(wrappedValue: notificationCoordinator)
-        self.resetCelebration = resetCelebration
+        _resetCelebration = StateObject(wrappedValue: resetCelebration)
         _sessionOpener = StateObject(wrappedValue: sessionOpener)
         _autoRun = StateObject(wrappedValue: autoRun)
         _updates = StateObject(wrappedValue: updates)
@@ -125,6 +125,7 @@ struct TokenmaxApp: App {
             usage: usage,
             notificationManager: notificationManager,
             notificationCoordinator: notificationCoordinator,
+            resetCelebration: resetCelebration,
             sessionOpener: sessionOpener,
             autoRun: autoRun,
             modelCatalog: modelCatalog,
@@ -141,6 +142,7 @@ struct SharedEnvironment: ViewModifier {
     let usage: ProviderUsageCoordinator
     let notificationManager: NotificationManager
     let notificationCoordinator: NotificationCoordinator
+    let resetCelebration: QuotaResetCelebrationCoordinator
     let sessionOpener: SessionOpenerCoordinator
     let autoRun: QueueAutoRunCoordinator
     let modelCatalog: ModelCatalogStore
@@ -157,6 +159,7 @@ struct SharedEnvironment: ViewModifier {
             .environmentObject(usage.claude)
             .environmentObject(notificationManager)
             .environmentObject(notificationCoordinator)
+            .environmentObject(resetCelebration)
             .environmentObject(sessionOpener)
             .environmentObject(autoRun)
             .environmentObject(modelCatalog)

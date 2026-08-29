@@ -330,6 +330,7 @@ struct NotificationSettingsView: View {
     @EnvironmentObject private var usage: ProviderUsageCoordinator
     @EnvironmentObject private var notificationManager: NotificationManager
     @EnvironmentObject private var notifications: NotificationCoordinator
+    @EnvironmentObject private var resetCelebration: QuotaResetCelebrationCoordinator
 
     var body: some View {
         Form {
@@ -410,6 +411,15 @@ struct NotificationSettingsView: View {
 
             Section("Quota reset fireworks") {
                 Toggle("Celebrate new quota", isOn: $settingsStore.settings.resetCelebration.enabled)
+
+                HStack {
+                    Text("Preview uses the real full-screen effect, even during quiet hours.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Preview Fireworks") { resetCelebration.preview() }
+                        .font(.caption)
+                }
 
                 if settingsStore.settings.resetCelebration.enabled {
                     Picker("Celebrate", selection: $settingsStore.settings.resetCelebration.mode) {

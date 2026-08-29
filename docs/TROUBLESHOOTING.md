@@ -303,6 +303,18 @@ Permission is requested when you enable reminders, not at launch. If you dismiss
 that prompt, macOS will not ask again — grant it in **System Settings →
 Notifications → Tokenmax**.
 
+### The quota reset fireworks did not appear
+
+Open **Settings → Notifications** and click **Preview Fireworks**. Preview uses the same
+full-screen presenter as a real reset, but deliberately ignores the enable switch and quiet hours;
+if it appears, presentation is working and the real event was suppressed by one of its guards.
+
+Automatic fireworks require all of the following: **Celebrate new quota** is on, the event is
+selected, the reading is fresh, quiet hours are inactive, and two successive readings prove that
+the old reset passed and a later successor window became active. A countdown merely reaching zero
+is not enough evidence. Search the Tokenmax log for `celebration:`: a `reset confirmed` line means
+the overlay was actually requested, while no line means no qualifying transition was observed.
+
 ---
 
 ## Queued runs

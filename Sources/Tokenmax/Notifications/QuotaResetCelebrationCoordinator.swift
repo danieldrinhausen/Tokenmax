@@ -4,14 +4,18 @@ import Foundation
 /// Watches successive successful snapshots and presents the visual only once a
 /// fresh response has proved that a window actually rolled over.
 @MainActor
-final class QuotaResetCelebrationCoordinator {
+final class QuotaResetCelebrationCoordinator: ObservableObject {
     private let usage: ProviderUsageCoordinator
     private let settingsStore: SettingsStore
-    private let presenter: FireworksPresenter
+    private let presenter: any FireworksPresenting
     private var previous: [TokenmaxProvider: UsageSnapshot] = [:]
     private var observer: NSObjectProtocol?
 
-    init(usage: ProviderUsageCoordinator, settingsStore: SettingsStore, presenter: FireworksPresenter = FireworksPresenter()) {
+    init(
+        usage: ProviderUsageCoordinator,
+        settingsStore: SettingsStore,
+        presenter: any FireworksPresenting = FireworksPresenter()
+    ) {
         self.usage = usage
         self.settingsStore = settingsStore
         self.presenter = presenter
@@ -27,6 +31,14 @@ final class QuotaResetCelebrationCoordinator {
         observer = NotificationCenter.default.addObserver(forName: .tokenmaxUsageUpdated, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.evaluate() }
         }
+    }
+
+    /// An explicit preview tests the real presentation boundary but none of the
+    /// automatic trigger guards. The click itself is consent, including during
+    /// quiet hours and before the feature is enabled.
+    func preview() {
+        Log.shared.write("celebration: preview")
+        presenter.show()
     }
 
     private func evaluate() {

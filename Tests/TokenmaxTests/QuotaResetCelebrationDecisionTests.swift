@@ -64,4 +64,25 @@ struct QuotaResetCelebrationDecisionTests {
         settings.enabled = true
         #expect(decision(settings: settings, quietHours: true) == .suppress(.quietHours))
     }
+
+    @Test("Preview presents even when automatic celebrations are disabled")
+    @MainActor
+    func previewAlwaysPresents() {
+        let settingsStore = SettingsStore()
+        let usage = ProviderUsageCoordinator(settingsStore: settingsStore)
+        let presenter = FireworksPresenterSpy()
+        let coordinator = QuotaResetCelebrationCoordinator(
+            usage: usage, settingsStore: settingsStore, presenter: presenter
+        )
+
+        coordinator.preview()
+
+        #expect(presenter.showCount == 1)
+    }
+}
+
+@MainActor
+private final class FireworksPresenterSpy: FireworksPresenting {
+    var showCount = 0
+    func show() { showCount += 1 }
 }

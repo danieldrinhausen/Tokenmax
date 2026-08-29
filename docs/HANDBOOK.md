@@ -218,7 +218,8 @@ on disk and come back exactly as they were.
 expires, while fireworks mark quota that has already returned. Turn it on, then choose **Always**
 or **Specific events** and select the provider/window combinations worth celebrating. Tokenmax
 waits for a fresh reading that proves a successor window is active, and does not show the overlay
-during quiet hours.
+during quiet hours. Click **Preview Fireworks** to exercise the same overlay immediately. Preview is
+an explicit action, so it works before you enable automatic celebrations and during quiet hours.
 
 The single decision that matters is **lead time**: how long before a reset you
 want to hear about leftover quota. Too short and there is no time to use it; too
