@@ -234,7 +234,7 @@ struct MenuBarIconModelTests {
         let codex = snapshot(provider: .codex, weekly: 90)
 
         let model = MenuBarIconModel.make(
-            layout: MenuBarBars([.codexWeekly, .claudeSession, .claudeWeekly]),
+            layout: .bars(MenuBarBars([.codexWeekly, .claudeSession, .claudeWeekly])),
             countdownSource: .claudeSession,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { _ in false },
@@ -253,7 +253,7 @@ struct MenuBarIconModelTests {
         let codex = snapshot(provider: .codex, weekly: 90)
 
         let model = MenuBarIconModel.make(
-            layout: MenuBarBars([.claudeSession, .codexWeekly]),
+            layout: .bars(MenuBarBars([.claudeSession, .codexWeekly])),
             countdownSource: .claudeSession,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { $0 == .codex },
@@ -269,7 +269,7 @@ struct MenuBarIconModelTests {
     @Test("The icon mutes only when every shown provider is stale")
     func wholeIconStale() {
         let model = MenuBarIconModel.make(
-            layout: MenuBarBars([.claudeSession, .claudeWeekly]),
+            layout: .bars(MenuBarBars([.claudeSession, .claudeWeekly])),
             countdownSource: .claudeSession,
             snapshot: { _ in nil },
             isStale: { _ in true },
@@ -285,7 +285,7 @@ struct MenuBarIconModelTests {
         let claude = snapshot(provider: .claudeCode, session: 40, weekly: 70)
 
         let model = MenuBarIconModel.make(
-            layout: MenuBarBars([.claudeSession, .claudeWeekly]),
+            layout: .bars(MenuBarBars([.claudeSession, .claudeWeekly])),
             countdownSource: .claudeSession,
             snapshot: { _ in claude },
             isStale: { _ in false },
@@ -305,7 +305,7 @@ struct MenuBarIconModelTests {
         let codex = snapshot(provider: .codex, weekly: 90)
 
         let followingSession = MenuBarIconModel.make(
-            layout: MenuBarBars([.codexWeekly, .claudeWeekly]),
+            layout: .bars(MenuBarBars([.codexWeekly, .claudeWeekly])),
             countdownSource: .claudeSession,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { _ in false },
@@ -317,7 +317,7 @@ struct MenuBarIconModelTests {
 
         // Codex's weekly carries no reset time here, so the label collapses.
         let followingCodex = MenuBarIconModel.make(
-            layout: MenuBarBars([.claudeSession, .claudeWeekly]),
+            layout: .bars(MenuBarBars([.claudeSession, .claudeWeekly])),
             countdownSource: .codexWeekly,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { _ in false },
@@ -336,7 +336,7 @@ struct MenuBarIconModelTests {
         )
 
         let model = MenuBarIconModel.make(
-            layout: MenuBarBars([.claudeSession, .codexWeekly]),
+            layout: .bars(MenuBarBars([.claudeSession, .codexWeekly])),
             countdownSource: .claudeSession,
             snapshot: { _ in claude },
             isStale: { $0 == .claudeCode },
@@ -379,7 +379,7 @@ struct MenuBarIconModelTests {
         let codex = snapshot(provider: .codex, weekly: 85)
 
         let model = MenuBarIconModel.make(
-            layout: MenuBarBars([.claudeSession, .codexWeekly]),
+            layout: .bars(MenuBarBars([.claudeSession, .codexWeekly])),
             countdownSource: .claudeSession,
             snapshot: { $0 == .codex ? codex : claude },
             isStale: { _ in false },
@@ -397,7 +397,7 @@ struct MenuBarIconModelTests {
         let claude = snapshot(provider: .claudeCode, session: 80, weekly: 56)
 
         let model = MenuBarIconModel.make(
-            layout: MenuBarBars([.claudeSession, .claudeWeekly]),
+            layout: .bars(MenuBarBars([.claudeSession, .claudeWeekly])),
             countdownSource: .claudeSession,
             snapshot: { _ in claude },
             isStale: { _ in true },
@@ -513,11 +513,11 @@ struct MenuBarAlertColourTests {
             meters: [.init(fraction: 40), .init(fraction: 70), .init(fraction: 90)], isStale: false
         )
 
-        #expect(two.size == MenuBarIconRenderer.size)
-        #expect(three.size == MenuBarIconRenderer.size)
+        #expect(two.size == MenuBarIconRenderer.barsSize)
+        #expect(three.size == MenuBarIconRenderer.barsSize)
 
         let (barHeight, gap) = MenuBarIconRenderer.geometry(meterCount: 3)
-        #expect(barHeight * 3 + gap * 2 <= MenuBarIconRenderer.size.height)
+        #expect(barHeight * 3 + gap * 2 <= MenuBarIconRenderer.barsSize.height)
     }
 }
 

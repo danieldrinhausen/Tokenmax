@@ -288,9 +288,26 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// The old percentage readout duplicated the bars and was dropped.
     var menuBarDisplayMode: MenuBarDisplayMode = .iconAndText
 
+    /// Which shape the icon is drawn in. See `MenuBarIconStyle` for what each
+    /// one is good at.
+    ///
+    /// Bars by default, including for someone upgrading: switching an existing
+    /// install to a different icon unasked is exactly the change nobody wants,
+    /// and the menu bar is the one surface where people navigate by shape.
+    var menuBarIconStyle: MenuBarIconStyle = .bars
+
     /// Which quota each bar of the icon draws, top to bottom. Two or three bars;
     /// see `MenuBarBars`.
     var menuBarBars: MenuBarBars = .default
+
+    /// Which quota each ring arc draws, outer then inner per ring; see
+    /// `MenuBarRings`.
+    ///
+    /// Stored beside `menuBarBars` rather than replacing it, because the two
+    /// layouts are not translatable into each other — three bars have no fourth
+    /// slot and two rings have no third. Keeping both means switching styles
+    /// back and forth never quietly destroys either arrangement.
+    var menuBarRings: MenuBarRings = .default
 
     /// Which window the "time remaining" text counts down to.
     ///
@@ -447,6 +464,20 @@ struct AppSettings: Codable, Sendable, Equatable {
         MenuBarBars(menuBarBars.sources, allowed: allowedMenuBarSources)
     }
 
+    /// The ring half of the same read-time normalization.
+    var effectiveMenuBarRings: MenuBarRings {
+        MenuBarRings(menuBarRings.sources, allowed: allowedMenuBarSources)
+    }
+
+    /// What the icon actually draws. The single value the menubar label needs,
+    /// so no call site has to pair a style with the matching layout itself.
+    var effectiveMenuBarLayout: MenuBarIconLayout {
+        switch menuBarIconStyle {
+        case .bars: .bars(effectiveMenuBarBars)
+        case .rings: .rings(effectiveMenuBarRings)
+        }
+    }
+
     /// nil is unreachable in practice — `allowedMenuBarSources` is non-empty
     /// whenever a provider is enabled — but the countdown is optional anyway,
     /// so there is nothing to force here.
@@ -503,6 +534,9 @@ struct AppSettings: Codable, Sendable, Equatable {
         // `try?` as above: `MenuBarBars` normalizes what it can, but a value of
         // the wrong shape entirely still has to fall back rather than throw.
         menuBarBars = (try? container.decodeIfPresent(MenuBarBars.self, forKey: .menuBarBars)) ?? d.menuBarBars
+        menuBarRings = (try? container.decodeIfPresent(MenuBarRings.self, forKey: .menuBarRings)) ?? d.menuBarRings
+        menuBarIconStyle = (try? container.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIconStyle))
+            ?? d.menuBarIconStyle
         menuBarCountdownSource = (try? container.decodeIfPresent(
             MenuBarQuotaSource.self, forKey: .menuBarCountdownSource
         )) ?? d.menuBarCountdownSource

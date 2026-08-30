@@ -64,7 +64,7 @@ struct TokenmaxApp: App {
                 model: MenuBarIconModel.make(
                     // The *effective* layout: a disabled provider keeps its slot
                     // in the stored settings but must not be drawn.
-                    layout: settingsStore.settings.effectiveMenuBarBars,
+                    layout: settingsStore.settings.effectiveMenuBarLayout,
                     countdownSource: settingsStore.settings.effectiveCountdownSource,
                     snapshot: { usage.snapshot(for: $0) },
                     isStale: { usage.isStale(for: $0) },
@@ -222,6 +222,7 @@ private struct MenuBarLabel: View {
     /// good moment to spend quota. Redraws only when the reading itself changes.
     private var animatedIcon: some View {
         Image(nsImage: MenuBarIconRenderer.cachedImage(
+            style: model.style,
             meters: model.meters,
             isStale: model.isStale,
             highlight: highlight,

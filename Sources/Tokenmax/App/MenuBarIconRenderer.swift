@@ -16,7 +16,52 @@ import AppKit
 /// to a single tint and the colour would be lost. That is also why the glow only
 /// exists in the ready state: there is nothing for it to survive in otherwise.
 enum MenuBarIconRenderer {
-    static let size = NSSize(width: 20, height: 16)
+    /// The canvas the stacked bars are drawn into. Unchanged since the first
+    /// build: 16pt is the menu bar's height budget, and 20pt of width is what
+    /// makes a 1% fill still legible as a fraction of the whole.
+    static let barsSize = NSSize(width: 20, height: 16)
+
+    /// Ring metrics, in points.
+    ///
+    /// An arc has to close to read as a meter, so a ring costs its own diameter
+    /// instead of sharing the icon's full width the way a bar does. Two rings
+    /// therefore spend 35pt where two bars spend 20 — the trade that buys four
+    /// quotas in one icon.
+    enum Ring {
+        /// Height is still the hard constraint: `outerRadius + strokeWidth / 2`
+        /// must stay inside `barsSize.height / 2`, or the icon grows and shoves
+        /// its neighbours along the menu bar.
+        static let strokeWidth: CGFloat = 2.2
+        static let outerRadius: CGFloat = 6.6
+        /// Leaves 1pt of ground between the two arcs — any less and they read
+        /// as one thick band at menu bar size — and a 4.6pt hole at the centre.
+        /// The hole is what the stroke width is really spent on: at 2.4pt of
+        /// stroke the inner arc closed up into a dot at 100%, which is the one
+        /// reading it most needs to distinguish from a nearly full one.
+        static let innerRadius: CGFloat = 3.4
+        /// One ring's square cell, so a lone ring sits centred rather than
+        /// hugging the left edge.
+        static let cell: CGFloat = 16
+        static let gap: CGFloat = 3
+        /// The outer arc carries the longer window, which is context rather
+        /// than the thing being spent right now. Dimming it is what makes the
+        /// pair read as nested instead of as two equal circles — and alpha is
+        /// the one channel that survives templating, which a second colour
+        /// would not.
+        static let outerAlpha: CGFloat = 0.55
+    }
+
+    /// The canvas for `meterCount` meters in the given style.
+    static func size(style: MenuBarIconStyle, meterCount: Int) -> NSSize {
+        switch style {
+        case .bars:
+            return barsSize
+        case .rings:
+            let rings = max(1, meterCount / 2)
+            let width = CGFloat(rings) * Ring.cell + CGFloat(rings - 1) * Ring.gap
+            return NSSize(width: width, height: barsSize.height)
+        }
+    }
 
     /// The default "spend it now" colour, kept as a name because the icon tests
     /// and the neutral/ready comparison both want one fixed reference.
@@ -83,6 +128,10 @@ enum MenuBarIconRenderer {
     static let glowRadius: CGFloat = 2.5
 
     private struct CacheKey: Hashable {
+        /// Two styles draw the same reading differently, so the style is part
+        /// of the identity. Without it, switching styles in Settings leaves the
+        /// old icon on screen until something else happens to change.
+        let style: MenuBarIconStyle
         /// Percentages rounded to whole numbers, paired with each meter's
         /// alert state — the whole reading, in order.
         let meters: [Meter]
@@ -97,7 +146,8 @@ enum MenuBarIconRenderer {
     /// each distinct reading is drawn once and reused.
     @MainActor private static var imageCache: [CacheKey: NSImage] = [:]
 
-    /// Bar thickness and spacing for a given meter count.
+    /// Bar thickness and spacing for a given meter count. Bars only; the ring
+    /// metrics are fixed and live in `Ring`.
     ///
     /// Three bars have to fit the same 16pt as two — the icon may not grow, or
     /// it shoves its neighbours along the menu bar and misaligns against every
@@ -108,24 +158,47 @@ enum MenuBarIconRenderer {
     }
 
     static func image(
+        style: MenuBarIconStyle = .bars,
         meters: [Meter],
         isStale: Bool,
         highlight: HighlightColor = .default,
         glow: Bool = false
     ) -> NSImage {
+        let canvas = size(style: style, meterCount: meters.count)
+
         // Eager, bitmap-backed. `NSImage(size:flipped:drawingHandler:)` would
         // re-run the closure on every rasterization instead of once.
-        let image = NSImage(size: size)
+        let image = NSImage(size: canvas)
         image.lockFocus()
 
-        let (barHeight, gap) = geometry(meterCount: meters.count)
-        let totalHeight = barHeight * CGFloat(meters.count) + gap * CGFloat(max(0, meters.count - 1))
-        let originY = (size.height - totalHeight) / 2
-
-        // A coloured bar cannot survive templating, and a template is the only
-        // way the neutral bars can match the menu bar. When both are on screen
+        // A coloured meter cannot survive templating, and a template is the only
+        // way the neutral meters can match the menu bar. When both are on screen
         // the colour has to win, so the neutrals fall back to grey.
         let templated = !meters.contains { $0.isReady || $0.isAlerting }
+
+        switch style {
+        case .bars:
+            drawBars(meters, in: canvas, isStale: isStale, templated: templated, highlight: highlight, glow: glow)
+        case .rings:
+            drawRings(meters, in: canvas, isStale: isStale, templated: templated, highlight: highlight, glow: glow)
+        }
+
+        image.unlockFocus()
+        image.isTemplate = templated
+        return image
+    }
+
+    private static func drawBars(
+        _ meters: [Meter],
+        in canvas: NSSize,
+        isStale: Bool,
+        templated: Bool,
+        highlight: HighlightColor,
+        glow: Bool
+    ) {
+        let (barHeight, gap) = geometry(meterCount: meters.count)
+        let totalHeight = barHeight * CGFloat(meters.count) + gap * CGFloat(max(0, meters.count - 1))
+        let originY = (canvas.height - totalHeight) / 2
 
         for (index, meter) in meters.enumerated() {
             // Drawn top-down: the first source is the top bar, matching the
@@ -136,7 +209,7 @@ enum MenuBarIconRenderer {
                 rect: NSRect(
                     x: 0,
                     y: originY + rowFromBottom * (barHeight + gap),
-                    width: size.width,
+                    width: canvas.width,
                     height: barHeight
                 ),
                 isStale: isStale,
@@ -145,10 +218,42 @@ enum MenuBarIconRenderer {
                 glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow)
             )
         }
+    }
 
-        image.unlockFocus()
-        image.isTemplate = templated
-        return image
+    /// Meters in pairs, outer arc then inner, ring by ring from the left. An
+    /// odd trailing meter cannot happen — `MenuBarRings` guarantees an even
+    /// count — but it is drawn as a lone outer arc rather than dropped, because
+    /// silently rendering nothing is the worse failure in a menu bar item.
+    private static func drawRings(
+        _ meters: [Meter],
+        in canvas: NSSize,
+        isStale: Bool,
+        templated: Bool,
+        highlight: HighlightColor,
+        glow: Bool
+    ) {
+        for (index, meter) in meters.enumerated() {
+            let ring = index / 2
+            let isOuter = index % 2 == 0
+            let centre = NSPoint(
+                x: CGFloat(ring) * (Ring.cell + Ring.gap) + Ring.cell / 2,
+                y: canvas.height / 2
+            )
+            draw(
+                meter: meter,
+                centre: centre,
+                radius: isOuter ? Ring.outerRadius : Ring.innerRadius,
+                // The dim is hierarchy, not a state, so it applies only while
+                // the arc has nothing to announce. A ring that is lit or
+                // alerting draws at full strength: muting a signal that exists
+                // precisely to be noticed would be the wrong way round.
+                dimmed: isOuter && !meter.isReady && !meter.isAlerting,
+                isStale: isStale,
+                templated: templated,
+                highlight: highlight,
+                glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow)
+            )
+        }
     }
 
     /// A glow is only ever drawn on a lit, trusted icon. Templating would
@@ -160,6 +265,7 @@ enum MenuBarIconRenderer {
 
     @MainActor
     static func cachedImage(
+        style: MenuBarIconStyle = .bars,
         meters: [Meter],
         isStale: Bool,
         highlight: HighlightColor = .default,
@@ -170,6 +276,7 @@ enum MenuBarIconRenderer {
         // Round to whole percent: the icon cannot show more resolution than
         // that, and it stops the cache growing on every tiny fluctuation.
         let key = CacheKey(
+            style: style,
             meters: meters.map {
                 Meter(
                     fraction: $0.fraction.map { Double(Int($0.rounded())) },
@@ -185,14 +292,16 @@ enum MenuBarIconRenderer {
         if let cached = imageCache[key] { return cached }
 
         let rendered = image(
+            style: style,
             meters: meters,
             isStale: isStale,
             highlight: highlight,
             glow: glow
         )
-        // Three bars and three alert states multiply the reachable states, so
-        // the cap is above the old 16 to keep the common rotation resident.
-        if imageCache.count > 48 { imageCache.removeAll() }
+        // Three bars, three alert states and now two styles multiply the
+        // reachable states, so the cap is well above the old 16 to keep the
+        // common rotation resident.
+        if imageCache.count > 64 { imageCache.removeAll() }
         imageCache[key] = rendered
         return rendered
     }
@@ -263,6 +372,95 @@ enum MenuBarIconRenderer {
         // The crisp core goes down last, unshadowed, so the bloom never softens
         // the edge that carries the actual reading.
         fill.fill()
+    }
+
+    /// One arc. The ring counterpart of `draw(meter:rect:…)`, and deliberately
+    /// the same decisions in polar form: a track at the same low alpha, a
+    /// minimum stub so 1% is not 0%, the same stale fallback, the same
+    /// two-pass bloom under an unshadowed core.
+    private static func draw(
+        meter: Meter,
+        centre: NSPoint,
+        radius: CGFloat,
+        dimmed: Bool,
+        isStale: Bool,
+        templated: Bool,
+        highlight: HighlightColor,
+        glow: Bool
+    ) {
+        let base = meterColor(
+            isStale: isStale,
+            isReady: meter.isReady,
+            isAlerting: meter.isAlerting,
+            templated: templated,
+            highlight: highlight
+        )
+        // Multiplied into whatever alpha the colour already carries, never
+        // assigned over it: `meterColor` mutes a stale reading to 0.45, and
+        // replacing that would draw unreadable data at full strength.
+        let color = base.withAlphaComponent(base.alphaComponent * (dimmed ? Ring.outerAlpha : 1))
+
+        // Empty track: the meter colour at low alpha, so it reads as "unfilled"
+        // rather than as a second colour.
+        color.withAlphaComponent(color.alphaComponent * 0.25).setStroke()
+        arc(centre: centre, radius: radius, sweep: 1).stroke()
+
+        // The stroke is round-capped, so the shortest arc that still draws is
+        // one cap's worth. Below that a fill would vanish entirely, which is
+        // the same reason the bar keeps a nub.
+        let circumference = 2 * .pi * radius
+        let minimumSweep = Ring.strokeWidth / circumference
+
+        guard let fraction = meter.fraction, !isStale else {
+            // Stale or unknown: leave the track and add a muted stub so the
+            // icon still reads as a set of meters rather than blank slots.
+            (templated ? templateColor : untemplatedNeutralColor).withAlphaComponent(0.4).setStroke()
+            arc(centre: centre, radius: radius, sweep: minimumSweep).stroke()
+            return
+        }
+
+        let clamped = max(0, min(1, fraction / 100))
+        guard clamped > 0 else { return }
+
+        let fill = arc(centre: centre, radius: radius, sweep: max(minimumSweep, clamped))
+        color.setStroke()
+
+        if glow {
+            NSGraphicsContext.saveGraphicsState()
+            let bloom = NSShadow()
+            bloom.shadowColor = color.withAlphaComponent(0.85)
+            bloom.shadowBlurRadius = glowRadius
+            bloom.shadowOffset = .zero
+            bloom.set()
+            // Twice, for the reason given on the bar: one pass is barely there
+            // at this stroke width, and the second compounds because it casts
+            // its own shadow over the first's.
+            fill.stroke()
+            fill.stroke()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+
+        // The crisp core goes down last, unshadowed, so the bloom never softens
+        // the edge that carries the actual reading.
+        fill.stroke()
+    }
+
+    /// A round-capped arc of `sweep` (0...1) starting at twelve o'clock and
+    /// running clockwise — the direction a meter is read, and the same "starts
+    /// full, empties as you spend" reading the bar gives by filling from the
+    /// left.
+    private static func arc(centre: NSPoint, radius: CGFloat, sweep: CGFloat) -> NSBezierPath {
+        let path = NSBezierPath()
+        path.lineWidth = Ring.strokeWidth
+        path.lineCapStyle = .round
+        path.appendArc(
+            withCenter: centre,
+            radius: radius,
+            startAngle: 90,
+            endAngle: 90 - 360 * min(1, sweep),
+            clockwise: true
+        )
+        return path
     }
 
     /// In the templated state this is only a mask — alpha is what survives

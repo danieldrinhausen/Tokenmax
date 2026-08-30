@@ -137,8 +137,8 @@ struct MenuBarIconRendererTests {
             meters: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)], isStale: false, glow: true
         )
 
-        #expect(plain.size == MenuBarIconRenderer.size)
-        #expect(glowing.size == MenuBarIconRenderer.size)
+        #expect(plain.size == MenuBarIconRenderer.barsSize)
+        #expect(glowing.size == MenuBarIconRenderer.barsSize)
     }
 
     /// The bloom is drawn behind the fill, so the reading itself has to come out
@@ -149,7 +149,7 @@ struct MenuBarIconRendererTests {
             meters: [.init(fraction: 100, isReady: true), .init(fraction: 100, isReady: true)],
             isStale: false, glow: true
         )
-        #expect(full.size == MenuBarIconRenderer.size)
+        #expect(full.size == MenuBarIconRenderer.barsSize)
     }
 
     /// Regression: the icon used to be re-drawn on every render, which

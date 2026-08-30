@@ -109,8 +109,8 @@ struct IconSnapshotDump {
 
         let pad: CGFloat = 12 * scale
         let iconSize = NSSize(
-            width: MenuBarIconRenderer.size.width * scale,
-            height: MenuBarIconRenderer.size.height * scale
+            width: MenuBarIconRenderer.barsSize.width * scale,
+            height: MenuBarIconRenderer.barsSize.height * scale
         )
         let total = NSSize(
             width: pad * CGFloat(rendered.count + 1) + iconSize.width * CGFloat(rendered.count),
@@ -133,6 +133,90 @@ struct IconSnapshotDump {
         }
         output.unlockFocus()
         return output
+    }
+
+    /// The ring style at the sizes it is actually judged at. Every state that
+    /// has its own geometry rule: one ring and two, the dimmed outer arc, a
+    /// nearly-spent window against an empty one, and an unreadable stub.
+    private func rings(scale: CGFloat, background: NSColor) -> NSImage {
+        let brightness = background.usingColorSpace(.deviceRGB)?.brightnessComponent ?? 0.5
+        let appearance = NSAppearance(named: brightness < 0.5 ? .darkAqua : .aqua)!
+
+        var rendered: [NSImage] = []
+        appearance.performAsCurrentDrawingAppearance {
+            rendered = [
+                // One ring: outer week, inner session.
+                MenuBarIconRenderer.image(
+                    style: .rings, meters: [.init(fraction: 39), .init(fraction: 100)], isStale: false
+                ),
+                // Two rings — the reading from the mockup: Claude week 39 and
+                // session 100, Codex week 74 and session 39.
+                MenuBarIconRenderer.image(
+                    style: .rings,
+                    meters: [
+                        .init(fraction: 39), .init(fraction: 100),
+                        .init(fraction: 74), .init(fraction: 39),
+                    ],
+                    isStale: false
+                ),
+                // 1% against 0%: the arc that has to survive the round cap.
+                MenuBarIconRenderer.image(
+                    style: .rings, meters: [.init(fraction: 1), .init(fraction: 0)], isStale: false
+                ),
+                // Lit: the outer arc drops its dim, which is the rule worth
+                // seeing rather than reading.
+                MenuBarIconRenderer.image(
+                    style: .rings,
+                    meters: [.init(fraction: 62, isReady: true), .init(fraction: 78, isReady: true)],
+                    isStale: false
+                ),
+                // Alerting inner arc beside a neutral outer one.
+                MenuBarIconRenderer.image(
+                    style: .rings,
+                    meters: [.init(fraction: 62), .init(fraction: 12, isAlerting: true)],
+                    isStale: false
+                ),
+                // Unreadable: track plus stub, in both arcs.
+                MenuBarIconRenderer.image(
+                    style: .rings, meters: [.init(fraction: nil), .init(fraction: nil)], isStale: true
+                ),
+            ]
+        }
+
+        let pad: CGFloat = 12 * scale
+        let height = MenuBarIconRenderer.barsSize.height * scale
+        let widths = rendered.map { $0.size.width * scale }
+        let total = NSSize(
+            width: pad * CGFloat(rendered.count + 1) + widths.reduce(0, +),
+            height: height + pad * 2
+        )
+
+        let output = NSImage(size: total)
+        output.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = scale > 3 ? .none : .high
+        background.setFill()
+        NSRect(origin: .zero, size: total).fill()
+
+        var x = pad
+        for (index, image) in rendered.enumerated() {
+            image.draw(in: NSRect(x: x, y: pad, width: widths[index], height: height))
+            x += widths[index] + pad
+        }
+        output.unlockFocus()
+        return output
+    }
+
+    @Test("Dump ring layouts and states")
+    func dumpRings() throws {
+        let dark = NSColor(calibratedWhite: 0.13, alpha: 1)
+        let light = NSColor(calibratedWhite: 0.93, alpha: 1)
+
+        try write(rings(scale: 2, background: dark), to: "rings-dark-2x.png")
+        try write(rings(scale: 8, background: dark), to: "rings-dark-8x.png")
+        try write(rings(scale: 2, background: light), to: "rings-light-2x.png")
+        try write(rings(scale: 8, background: light), to: "rings-light-8x.png")
+
+        #expect(FileManager.default.fileExists(atPath: "/tmp/tokenmax-icons/rings-dark-8x.png"))
     }
 
     @Test("Dump bar layouts and alert states")

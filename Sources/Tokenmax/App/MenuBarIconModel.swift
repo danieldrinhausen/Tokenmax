@@ -9,6 +9,10 @@ import Foundation
 /// while the others keep reading live, and the countdown must disappear when the
 /// window it follows goes stale even if the rest of the icon is fine.
 struct MenuBarIconModel: Equatable {
+    /// The shape the meters are drawn in. Carried on the model rather than read
+    /// separately by the view, so a reading and the style it was resolved for
+    /// can never arrive out of step.
+    var style: MenuBarIconStyle
     var meters: [MenuBarIconRenderer.Meter]
     /// Every shown provider is stale, so the whole icon mutes. One stale
     /// provider among several only stubs its own meter.
@@ -20,14 +24,14 @@ struct MenuBarIconModel: Equatable {
     var countdownIsStale: Bool
 
     /// `layout` and `countdownSource` are expected to be the *effective* ones —
-    /// see `AppSettings.effectiveMenuBarBars`. A disabled provider is filtered
+    /// see `AppSettings.effectiveMenuBarLayout`. A disabled provider is filtered
     /// out before it reaches here rather than being special-cased inside, so
     /// this stays a pure function of what is on screen.
     ///
     /// `countdownSource` is optional because the countdown is: there may be no
     /// enabled source whose window is worth counting down to.
     static func make(
-        layout: MenuBarBars,
+        layout: MenuBarIconLayout,
         countdownSource: MenuBarQuotaSource?,
         snapshot: (TokenmaxProvider) -> UsageSnapshot?,
         isStale: (TokenmaxProvider) -> Bool,
@@ -54,6 +58,7 @@ struct MenuBarIconModel: Equatable {
         let shownProviders = Set(sources.map(\.provider))
 
         return MenuBarIconModel(
+            style: layout.style,
             meters: meters,
             isStale: !shownProviders.isEmpty && shownProviders.allSatisfy { isStale($0) },
             countdownResetAt: countdownSource.flatMap {
