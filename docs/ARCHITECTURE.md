@@ -32,6 +32,13 @@ They never read a file, spawn a process, or call `Date()`. That is what makes
 every rule in this app unit-testable without a running app, and it is the single
 property most worth preserving.
 
+`MenuBarEscalationDecision` is the same split without a coordinator: the
+renderer calls it directly, because the side effect here is one drawing rather
+than a process or a timer. It earns its own type anyway. What it holds is a
+*precedence* — which of several simultaneous signals a meter should be painted
+in — and precedence is the kind of rule that is invisible in a rendered image
+and obvious in a test.
+
 **Corollary:** when something decides *not* to act, the reason is a case in an
 enum with human-readable copy — never a bare `return`. The user sees it in
 Settings, it appears in the log, and it is assertable in a test. A new guard
@@ -361,6 +368,25 @@ height, minus two stroke widths and the ground between the arcs, is what is
 left for the hole at the centre, and the hole is what stops a full inner arc
 reading as a solid dot. A system change to stroke rendering or menu bar height
 spends that budget somewhere else.
+
+Colour is configurable independently of shape. `MenuBarColorScheme` chooses
+between the monochrome template and an escalating ladder; `MenuBarEscalation`
+holds the rungs and normalizes them on every write (at most three, at most one
+reminder rung, thresholds clamped and deduplicated, sorted most severe first) so
+that "the level reached" is just the first match. `AppSettings.effectiveEscalation`
+is nil while the scheme is monochrome, which keeps that path bit-identical to
+the one that shipped before escalation existed — `monochromeIsUnchanged` asserts
+exactly that.
+
+A rung persists through a private wire type with every field optional. That is
+what lets one rung whose trigger no longer decodes drop on its own while the
+rest of the ladder survives, the same tolerance `MenuBarBars` gives a retired
+quota source — and it is why the domain type needs no optionals of its own.
+
+`needsRealColor` is the single question that decides templating, replacing a
+predicate that had to grow a term for every new colour source. It is reused for
+the ring dim, so an escalated outer arc goes to full strength without a second
+rule.
 
 The icon has two shapes, and which one is drawn is a setting:
 `MenuBarIconStyle` (bars or rings) picks between `MenuBarBars` and

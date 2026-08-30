@@ -5,6 +5,14 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Escalation colours for the menu bar meters.** Settings → General → Colour can switch the icon
+  from **Monochrome** to **Escalating**: up to three levels, each with a colour and a trigger that
+  is either a percentage or that window's own reminder firing. Applies to bars and rings alike.
+  Monochrome stays the default and draws exactly what it drew before — a template image macOS tints
+  to the menu bar — and the base colour defaults to Neutral so the icon stays a template until a
+  level is actually reached. A percentage level outranks the "good time to spend" highlight; a
+  reminder level yields to it; stale readings are never coloured.
+
 - **A double-ring menu bar icon.** Settings → General → Menu bar icon now offers a second shape
   beside the bars: nested arcs, an outer one enclosing an inner one, two per ring. A session runs
   inside a week, so putting the week on the outer arc draws that relationship instead of flattening

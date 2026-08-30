@@ -92,6 +92,33 @@ struct GeneralSettingsView: View {
         return sample.prefix(count).map { .init(fraction: $0) }
     }
 
+    /// Readings chosen to land on the configured rungs, one per level plus a
+    /// healthy one, so the ladder is visible instead of theoretical. A fixed
+    /// sample would show a single colour and leave the user guessing what the
+    /// others look like — which is the whole question they are here to answer.
+    private var escalationPreviewMeters: [MenuBarIconRenderer.Meter] {
+        let ladder = settingsStore.settings.menuBarEscalation
+        // Just under each threshold, so the rung it belongs to is the one that
+        // wins. Reminder rungs have no number, so they come as an alerting
+        // meter instead.
+        var meters: [MenuBarIconRenderer.Meter] = [.init(fraction: 95)]
+        for level in ladder.levels.reversed() {
+            switch level.trigger {
+            case let .remainingAtOrBelow(percent):
+                meters.append(.init(fraction: max(1, percent - 1)))
+            case .reminderFired:
+                meters.append(.init(fraction: 60, isAlerting: true))
+            }
+        }
+        // Trimmed to what the chosen shape can draw: a ring layout needs an
+        // even count, and neither shape wants a fifth meter.
+        let limit = settingsStore.settings.menuBarIconStyle == .rings ? 4 : 3
+        let trimmed = Array(meters.prefix(limit))
+        return settingsStore.settings.menuBarIconStyle == .rings && trimmed.count % 2 == 1
+            ? Array(trimmed.dropLast())
+            : trimmed
+    }
+
     var body: some View {
         Form {
             Section {
@@ -181,6 +208,37 @@ struct GeneralSettingsView: View {
 
             }
 
+            Section("Colour") {
+                Picker("Colour", selection: $settingsStore.settings.menuBarColorScheme) {
+                    ForEach(MenuBarColorScheme.allCases) { scheme in
+                        Text(scheme.displayName).tag(scheme)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+
+                switch settingsStore.settings.menuBarColorScheme {
+                case .monochrome:
+                    Text("The meters are drawn as a template image, which macOS tints to match the menu bar exactly like its own icons. How much is left is carried by length alone. This is the icon Tokenmax has always drawn.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                case .escalating:
+                    MenuBarEscalationSettingsView(escalation: $settingsStore.settings.menuBarEscalation)
+
+                    MenuBarIconSwatch(
+                        style: settingsStore.settings.menuBarIconStyle,
+                        meters: escalationPreviewMeters,
+                        escalation: settingsStore.settings.menuBarEscalation
+                    )
+
+                    Text("A level trips when a window falls to its percentage, or when that window's own reminder fires. The most severe one reached wins. A percentage level outranks the \"good time to spend\" highlight — a window with 15% left is not an opportunity however close its reset is — while a reminder level yields to it, because having been announced says nothing about how much is left. Stale readings are never coloured. The preview above steps through the levels you have set.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             Section("Highlight") {
                 Toggle(
                     "Highlight when it's a good time to spend quota",
@@ -268,60 +326,6 @@ struct GeneralSettingsView: View {
     }
 }
 
-/// Preset swatches plus a system colour well.
-///
-/// The presets are there because they are all known to survive both a light and
-/// a dark menu bar; the well is there because a fixed palette cannot match
-/// someone's existing menu bar, and refusing the choice would be the wrong kind
-/// of protection. The legibility warning next to it covers the gap.
-private struct HighlightColorPicker: View {
-    @Binding var color: HighlightColor
-
-    var body: some View {
-        LabeledContent("Colour") {
-            HStack(spacing: 7) {
-                ForEach(HighlightColor.presets) { preset in
-                    swatch(preset)
-                }
-
-                ColorPicker(
-                    "Custom highlight colour",
-                    selection: Binding(
-                        get: { color.color },
-                        set: { color = HighlightColor($0) }
-                    ),
-                    // Alpha is not stored; offering it would silently discard
-                    // half of what the user picked.
-                    supportsOpacity: false
-                )
-                .labelsHidden()
-            }
-        }
-    }
-
-    private func swatch(_ preset: HighlightPreset) -> some View {
-        let isSelected = preset.color == color
-
-        return Button {
-            color = preset.color
-        } label: {
-            Circle()
-                .fill(preset.color.color)
-                .frame(width: 16, height: 16)
-                .overlay(
-                    Circle().strokeBorder(
-                        Color.primary.opacity(isSelected ? 0.85 : 0.15),
-                        lineWidth: isSelected ? 2 : 1
-                    )
-                )
-        }
-        .buttonStyle(.plain)
-        .help(preset.name)
-        .accessibilityLabel(preset.name)
-        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-    }
-}
-
 /// One reading, drawn by the real renderer, on both extremes of menu bar.
 ///
 /// Two chips rather than one because the judgement being made is about
@@ -332,6 +336,7 @@ struct MenuBarIconSwatch: View {
     let meters: [MenuBarIconRenderer.Meter]
     var highlight: HighlightColor = .default
     var glow: Bool = false
+    var escalation: MenuBarEscalation?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -349,7 +354,8 @@ struct MenuBarIconSwatch: View {
             meters: meters,
             isStale: false,
             highlight: highlight,
-            glow: glow
+            glow: glow,
+            escalation: escalation
         ))
         .padding(.horizontal, 9)
         .padding(.vertical, 5)

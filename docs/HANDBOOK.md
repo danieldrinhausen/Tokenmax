@@ -96,6 +96,26 @@ session limit, drag both weeks onto the outer arcs and both sessions inside, and
 the left ring becomes Claude-versus-Codex at a glance rather than two views of
 one provider.
 
+**Making it go red before it hurts.** Out of the box the icon is monochrome:
+how much is left is carried by length, and colour only ever means "spend this
+now" or "your reminder fired". If you would rather see a window getting low,
+**Settings → General → Colour → Escalating** turns on a ladder of up to three
+levels, each with a colour and a trigger.
+
+A trigger is either a percentage or *that window's own reminder firing*, and the
+difference matters more than it looks. A percentage is a fact about the quota,
+so a level set that way outranks the "good time to spend" highlight — a window
+with 15% left will not be painted green just because its reset is close. A
+reminder is a fact about what you have already been told, so a level set that
+way yields to the highlight: a window with 80% left that happens to have been
+announced is still worth spending.
+
+Two rungs is usually enough — one at the point you would start being careful,
+one at the point you would stop starting new work. Leave **Base** on Neutral
+unless you specifically want the healthy state to be coloured too: neutral is
+what keeps the icon a template image that macOS tints to your menu bar, and a
+colour there gives that up permanently.
+
 **4. Add Codex, if you use it.**
 
 There is nothing to configure. If the `codex` CLI is installed and signed in,

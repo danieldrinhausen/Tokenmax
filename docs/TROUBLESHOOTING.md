@@ -173,6 +173,49 @@ On a MacBook with a notch this is not cosmetic: items that do not fit are hidden
 outright rather than wrapped, so the extra width can cost you a different app's
 icon entirely.
 
+### The icon is suddenly coloured and no longer matches my other menu bar icons
+
+Normally the icon is a *template image*: it carries only a shape, and macOS
+paints it in whatever colour the menu bar is currently using, exactly as it does
+for its own icons. Two settings give that up, both under **Settings → General →
+Colour**:
+
+- **Escalating** with a **Base** colour set. A base colour is always on, so the
+  icon is never a template. Set **Base** back to **Neutral** — the first swatch,
+  the crossed-out circle — and the icon goes back to matching until a level is
+  actually reached.
+- **Escalating** with a level currently reached. This one is working as
+  intended: colour appears because a window is low, and it goes away when the
+  window resets.
+
+**Monochrome** switches the whole thing off and restores the original icon.
+
+Note that the "good time to spend" highlight has always had this effect too, for
+the same reason — a colour cannot survive being flattened into a template. That
+is why the un-lit meters turn grey rather than staying black or white while any
+one of them is coloured: menu bar contrast follows your wallpaper, so there is
+no correct neutral available, and grey is the one value legible against both
+ends.
+
+### A level I set never seems to fire
+
+Three things to check, in order:
+
+1. **Is the reading stale?** Stale meters are never coloured. Unconfirmed data
+   dressed up as a measurement is worse than an obviously absent one, so a
+   window whose data could not be refreshed shows its muted stub instead.
+2. **Is a more severe level winning?** Only the most severe level reached is
+   drawn. A level at 50% is invisible whenever a level at 25% also applies.
+3. **Is the window also a burn opportunity?** A level triggered by *reminder
+   fired* yields to the "good time to spend" highlight, by design — being
+   announced says nothing about how much is left. If you want that window
+   coloured regardless, give the level a percentage trigger instead;
+   percentage-triggered levels outrank the highlight.
+
+Also worth knowing: with a ladder configured, the fixed orange that used to mark
+a fired reminder steps aside. If you want that signal back, add a level with the
+**reminder fired** trigger and give it the colour you want.
+
 ### The rings are hard to read at a glance
 
 Two things are worth knowing before giving up on them. The outer arc is drawn

@@ -13,8 +13,9 @@ evaporating.
 
 - **Two providers in one meter.** Claude Code and Codex quota side by side — session and weekly
   windows, each with the time left before it resets.
-- **A menu bar icon you configure.** Two or three bars, each drawing a quota you choose, plus a
-  countdown that can track a different window entirely.
+- **A menu bar icon you configure.** Two or three stacked bars, or nested rings that fit all four
+  quotas at once — each position drawing a quota you choose, plus a countdown that can track a
+  different window entirely, and optional colour levels as a window runs low.
 - **Pace, not just remaining.** A marker showing where an even burn would have left you, whether
   you are ahead or in deficit, and when the window empties if you carry on at this rate.
 - **Reminders before quota evaporates.** Per-window lead times and thresholds, quiet hours, and
@@ -61,6 +62,28 @@ text. The icon can show **the icon only, the countdown only, or both**. The same
 
 A quota belonging to a provider you have switched off is never drawn, but its slot is remembered —
 turn the provider back on and your arrangement returns rather than a rebuilt one.
+
+**Settings → General → Colour** decides whether the meters carry colour from their own reading.
+**Monochrome** is the default and is the icon Tokenmax has always drawn: a template image that macOS
+tints to match the menu bar exactly like its own icons, with how much is left carried by length
+alone. That default is not only about not surprising anyone on upgrade — a deliberately colourless
+menu bar is a common and reasonable thing to keep, and the icon is built to live in one.
+
+**Escalating** adds up to three levels. Each has a colour and something that trips it: a percentage,
+or *that window's own reminder firing*. The most severe level reached wins. The base colour — what a
+meter shows while it has reached nothing — is **Neutral** by default, which is what keeps the icon a
+template until colour actually means something; setting a real base colour is offered for anyone who
+reads a gauge as green-when-healthy, but it ends the template permanently, and an untemplated icon
+has no correct neutral available because menu bar contrast follows your wallpaper.
+
+The precedence is worth knowing because the pane cannot show it. A **percentage** level outranks the
+"good time to spend" highlight: a window with 15% left is not an opportunity however close its reset
+is, and painting it green would have the icon contradict the popover. A **reminder** level yields to
+the highlight instead, because having been announced says nothing about how much is left — a window
+with 80% left that happens to have been announced is still worth spending. Stale readings are never
+coloured at all: unconfirmed data dressed as a measurement is worse than no reading. With a ladder
+configured the fixed alert orange steps aside, since the reminder case now has its own rung and two
+competing warm colours on a 2.2pt arc are worse than one.
 
 When the session window is inside your reminder lead time and still holds usable quota, the meters
 light up: "now is a good moment to spend this". Settings → General → **Highlight** picks the
