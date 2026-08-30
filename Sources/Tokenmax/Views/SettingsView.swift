@@ -83,6 +83,15 @@ struct GeneralSettingsView: View {
 
     @StateObject private var loginItem = LoginItemService()
 
+    /// A plausible reading rather than the live one: the preview is there to
+    /// show the *shape*, and a real snapshot can sit at four near-identical
+    /// numbers, or at none at all before the first refresh lands.
+    private var previewMeters: [MenuBarIconRenderer.Meter] {
+        let sample: [Double] = [39, 100, 74, 39]
+        let count = settingsStore.settings.effectiveMenuBarLayout.sources.count
+        return sample.prefix(count).map { .init(fraction: $0) }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -113,15 +122,41 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Section("Bars") {
-                MenuBarBarsSettingsView(
-                    bars: $settingsStore.settings.menuBarBars,
-                    allowed: settingsStore.settings.allowedMenuBarSources
+            Section("Menu bar icon") {
+                Picker("Style", selection: $settingsStore.settings.menuBarIconStyle) {
+                    ForEach(MenuBarIconStyle.allCases) { style in
+                        Text(style.displayName).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+
+                switch settingsStore.settings.menuBarIconStyle {
+                case .bars:
+                    MenuBarBarsSettingsView(
+                        bars: $settingsStore.settings.menuBarBars,
+                        allowed: settingsStore.settings.allowedMenuBarSources
+                    )
+                    Text("Which quota each bar shows, top to bottom. Drag a quota onto a bar to put it there; dragging one that is already placed swaps the two.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                case .rings:
+                    MenuBarRingsSettingsView(
+                        rings: $settingsStore.settings.menuBarRings,
+                        allowed: settingsStore.settings.allowedMenuBarSources
+                    )
+                    Text("Each ring is two quotas: the outer arc encloses the inner one, so putting a week outside its own session draws the nesting the numbers actually have. Two rings fit all four quotas, which three bars cannot — at the cost of about 15pt more menu bar. The outer arc is drawn dimmer so the pair reads as nested rather than as two equal circles.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                MenuBarIconPreview(
+                    style: settingsStore.settings.menuBarIconStyle,
+                    meters: previewMeters,
+                    highlight: settingsStore.settings.menuBarHighlightColor
                 )
-                Text("Which quota each bar shows, top to bottom. Drag a quota onto a bar to put it there; dragging one that is already placed swaps the two.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section("Time remaining") {
@@ -287,32 +322,33 @@ private struct HighlightColorPicker: View {
     }
 }
 
-/// The lit icon, drawn by the real renderer, on both extremes of menu bar.
+/// One reading, drawn by the real renderer, on both extremes of menu bar.
 ///
-/// Two chips rather than one because the choice being made is a contrast
-/// judgement and the user cannot make it against a settings window background —
+/// Two chips rather than one because the judgement being made is about
+/// contrast, and the user cannot make it against a settings window background —
 /// menu bar contrast follows the wallpaper, not the system appearance.
-private struct HighlightPreview: View {
-    let color: HighlightColor
-    let glow: Bool
+struct MenuBarIconSwatch: View {
+    var style: MenuBarIconStyle = .bars
+    let meters: [MenuBarIconRenderer.Meter]
+    var highlight: HighlightColor = .default
+    var glow: Bool = false
 
     var body: some View {
-        LabeledContent("Preview") {
-            HStack(spacing: 8) {
-                chip(background: Color(white: 0.93))
-                chip(background: Color(white: 0.14))
-            }
+        HStack(spacing: 8) {
+            chip(background: Color(white: 0.93))
+            chip(background: Color(white: 0.14))
         }
     }
 
     private func chip(background: Color) -> some View {
+        // The uncached renderer on purpose: the swatch asks for readings the
+        // menu bar itself never shows, and seeding those into the shared cache
+        // would evict entries the live icon is about to want back.
         Image(nsImage: MenuBarIconRenderer.image(
-            // Two bars regardless of the user's layout: this swatch is about
-            // whether the *colour* survives a light and a dark menu bar, and a
-            // third bar would only make the sample thinner to judge.
-            meters: [.init(fraction: 62, isReady: true), .init(fraction: 78, isReady: true)],
+            style: style,
+            meters: meters,
             isStale: false,
-            highlight: color,
+            highlight: highlight,
             glow: glow
         ))
         .padding(.horizontal, 9)
@@ -322,6 +358,42 @@ private struct HighlightPreview: View {
             RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
         )
+    }
+}
+
+/// The configured icon at the shape and layout the user has actually chosen.
+///
+/// Rings are new and nobody adopts a menu bar shape they have not seen, so this
+/// sits directly under the style picker rather than behind a button.
+private struct MenuBarIconPreview: View {
+    let style: MenuBarIconStyle
+    let meters: [MenuBarIconRenderer.Meter]
+    let highlight: HighlightColor
+
+    var body: some View {
+        LabeledContent("Preview") {
+            MenuBarIconSwatch(style: style, meters: meters, highlight: highlight)
+        }
+    }
+}
+
+/// The lit icon on both extremes of menu bar, for judging the highlight colour.
+private struct HighlightPreview: View {
+    let color: HighlightColor
+    let glow: Bool
+
+    var body: some View {
+        LabeledContent("Preview") {
+            // Two bars regardless of the user's layout: this swatch is about
+            // whether the *colour* survives a light and a dark menu bar, and a
+            // third bar — or a pair of rings — would only make the sample
+            // thinner to judge.
+            MenuBarIconSwatch(
+                meters: [.init(fraction: 62, isReady: true), .init(fraction: 78, isReady: true)],
+                highlight: color,
+                glow: glow
+            )
+        }
     }
 }
 

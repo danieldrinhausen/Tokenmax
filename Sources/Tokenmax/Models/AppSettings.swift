@@ -9,9 +9,9 @@ enum MenuBarDisplayMode: String, Codable, Sendable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .iconOnly: "Bars only"
+        case .iconOnly: "Icon only"
         case .textOnly: "Time remaining only"
-        case .iconAndText: "Bars + time remaining"
+        case .iconAndText: "Icon + time remaining"
         }
     }
 }

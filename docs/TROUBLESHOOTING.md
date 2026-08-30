@@ -155,6 +155,34 @@ Tokenmax is a menu bar app with no dock icon by default. Look in the menu bar,
 not the Dock. If the bar is crowded, macOS may have hidden it — try widening the
 bar by quitting another menu bar app, or check with a menu bar manager.
 
+### The icon got wider and pushed my other menu bar items along
+
+You switched the icon to **Rings**. Two rings need about 35pt where two bars
+need 20, because an arc has to close a whole circle to read as a meter, while a
+bar can share the icon's full width. That is what buys the fourth quota bars
+have no room for.
+
+Three ways out, in **Settings → General → Menu bar icon**:
+
+- Go back to **Bars**, which is the narrower shape for two or three quotas.
+- Stay on rings but choose **1 ring** — 16pt, *less* than the bars use.
+- Switch the countdown off under **Time remaining**, which is usually the wider
+  half of the item anyway.
+
+On a MacBook with a notch this is not cosmetic: items that do not fit are hidden
+outright rather than wrapped, so the extra width can cost you a different app's
+icon entirely.
+
+### The rings are hard to read at a glance
+
+Two things are worth knowing before giving up on them. The outer arc is drawn
+dimmer on purpose — that is what makes the pair read as one nested object rather
+than two circles, and it goes to full strength as soon as that arc is lit or
+alerting. And a percentage is genuinely harder to judge from an arc than from a
+bar; rings win on *how many* numbers fit and on showing that a session sits
+inside a week, not on precision. If what you do with the icon is compare two
+numbers closely, bars are the better instrument and switching back is one click.
+
 ---
 
 ## Quota and meters

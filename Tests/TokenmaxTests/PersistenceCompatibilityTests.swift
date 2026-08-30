@@ -61,6 +61,12 @@ struct PersistenceCompatibilityTests {
         #expect(!settings.queueAutoRun.enabled)
         #expect(settings.queueAutoRun.mode == .previewOnly)
         #expect(settings.menuBarProviderID == TokenmaxProvider.claudeCode.rawValue)
+        // Bars, not rings: an upgrade must not repaint anyone's menu bar, and
+        // the menu bar is the one surface people navigate by shape. The ring
+        // layout is still seeded so switching to it lands on something drawable
+        // rather than an empty editor.
+        #expect(settings.menuBarIconStyle == .bars)
+        #expect(settings.menuBarRings == .default)
         #expect(!settings.codexAutoRunEnabled)
         // Both data sources default to on: an upgrade must not silently stop
         // monitoring a provider the user was already watching.
@@ -597,6 +603,60 @@ struct PersistenceCompatibilityTests {
         """)
 
         #expect(settings.menuBarHighlightColor == .default)
+        #expect(settings.remindersEnabled)
+    }
+
+    @Test("A configured icon style and ring layout survive a round trip")
+    func iconStyleRoundTrips() throws {
+        var written = AppSettings()
+        written.menuBarIconStyle = .rings
+        written.menuBarRings = MenuBarRings([.codexSession, .codexWeekly, .claudeSession, .claudeWeekly])
+
+        let data = try JSONStore.makeEncoder().encode(written)
+        let read = try JSONStore.makeDecoder().decode(AppSettings.self, from: data)
+
+        #expect(read.menuBarIconStyle == .rings)
+        #expect(read.menuBarRings == written.menuBarRings)
+    }
+
+    /// A retired shape must not take the whole settings file with it, for the
+    /// same reason a retired display mode must not.
+    @Test("An unrecognised icon style falls back instead of throwing")
+    func unknownIconStyleFallsBack() throws {
+        let settings = try decode(AppSettings.self, """
+        { "menuBarIconStyle": "someRetiredShape", "remindersEnabled": true }
+        """)
+
+        #expect(settings.menuBarIconStyle == .bars)
+        // The rest of the file survives rather than resetting to defaults.
+        #expect(settings.remindersEnabled)
+    }
+
+    /// The ring layout normalizes rather than rejects, so even a hand-edited
+    /// list of the wrong length costs nothing.
+    @Test("A malformed ring layout is normalized, not thrown away")
+    func malformedRingsAreNormalized() throws {
+        let settings = try decode(AppSettings.self, """
+        { "menuBarRings": ["claude.weekly", "claude.weekly", "codex.weekly"], "remindersEnabled": true }
+        """)
+
+        // The repeat collapses, which leaves two distinct quotas — exactly one
+        // ring, with nothing to pad. A repeated source would otherwise have
+        // drawn the same number on both arcs.
+        #expect(settings.menuBarRings.ringCount == 1)
+        #expect(settings.menuBarRings.sources == [.claudeWeekly, .codexWeekly])
+        #expect(settings.remindersEnabled)
+    }
+
+    /// A value of the wrong *shape* entirely still has to fall back rather than
+    /// throw — this is the case `try?` in `AppSettings.init(from:)` catches.
+    @Test("A ring layout of the wrong type costs only that one setting")
+    func ringsOfTheWrongTypeFallBack() throws {
+        let settings = try decode(AppSettings.self, """
+        { "menuBarRings": 17, "remindersEnabled": true }
+        """)
+
+        #expect(settings.menuBarRings == .default)
         #expect(settings.remindersEnabled)
     }
 

@@ -353,8 +353,24 @@ names to the App Server, and no `--help` would ever mention those.
 Annual releases. `MenuBarIconRenderer` does hand-rolled `NSImage` drawing and
 SwiftUI layout behaviour shifts between versions.
 
-`MenuBarIconRendererTests` and `IconSnapshotDump` are the tripwire — run them
-each September.
+`MenuBarIconRendererTests`, `MenuBarRingsTests` and `IconSnapshotDump` are the
+tripwire — run them each September, and *look at* what the dump writes to
+`/tmp/tokenmax-icons/`. The ring metrics in `MenuBarIconRenderer.Ring` are the
+part no assertion can defend: they are a budget, not a rule. 16pt of menu bar
+height, minus two stroke widths and the ground between the arcs, is what is
+left for the hole at the centre, and the hole is what stops a full inner arc
+reading as a solid dot. A system change to stroke rendering or menu bar height
+spends that budget somewhere else.
+
+The icon has two shapes, and which one is drawn is a setting:
+`MenuBarIconStyle` (bars or rings) picks between `MenuBarBars` and
+`MenuBarRings`, and `AppSettings.effectiveMenuBarLayout` resolves the pair into
+one `MenuBarIconLayout` so no call site can hold a style and a mismatched
+layout. Both layout types normalize through the same `normalizedQuotaSlots` —
+dedupe, drop disabled providers, pad from the canonical order, truncate — with
+a `step` that keeps a ring layout even, since half a ring has no drawing. The
+canvas size is therefore style-dependent (`size(style:meterCount:)`), which is
+the one thing about the icon that used to be a constant.
 
 Window *activation* is the part that has already moved once. macOS 14 made it
 cooperative, which quietly broke `AppDelegate.raise` — see the comment there

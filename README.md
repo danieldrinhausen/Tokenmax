@@ -29,20 +29,40 @@ evaporating.
   only request not about your quota is a daily "is there a newer release?" to GitHub, which you can
   switch off.
 
-The menubar shows a stack of meters and the time left before a window resets ("1h 16m"). The bars
+The menubar shows a set of meters and the time left before a window resets ("1h 16m"). The meters
 carry how much is left; the countdown carries how long there is to spend it.
 
-**Settings → General** decides what the icon draws. Pick **2 or 3 bars**, then choose which quota
-each one shows — Claude session, Claude week, Codex session, Codex week — by dragging a quota onto
-a bar; dragging one that is already placed swaps the two. The countdown is chosen separately under
-**Count down to**, because the most useful deadline is not always one the bars have room for, and
-tying the two would mean changing the icon to change the text. The icon can show **bars only, the
-countdown only, or both**. The same pane offers **Start Tokenmax at login**.
+**Settings → General → Menu bar icon** decides what is drawn, in one of two shapes.
+
+**Bars** are two or three stacked capsules. Length is the channel the eye compares most accurately,
+so this is the shape to pick when the question is "which of these is lowest". Three is the ceiling:
+a fourth bar does not fit the menu bar's 16pt of height.
+
+**Rings** are nested arcs, two per ring — an outer arc enclosing an inner one. That buys two things
+bars cannot give. A session runs *inside* a week, and putting the week on the outer arc draws that
+relationship instead of flattening it into two equal-looking rows. And two rings hold all four
+quotas at once, where bars stop at three. The cost is width: two rings take about 35pt where two
+bars take 20, so on a MacBook with a notch this is the shape that competes with your other menu bar
+items. One ring is 16pt — narrower than the bars — so watching a single provider comes out ahead.
+The outer arc is drawn dimmer than the inner one, which is what makes the pair read as nested
+rather than as two unrelated circles; it goes to full strength the moment it has something to
+announce.
+
+In either shape, choose which quota each position shows — Claude session, Claude week, Codex
+session, Codex week — by dragging a quota onto a slot; dragging one that is already placed swaps
+the two. Rings are not locked to one provider per ring: if what you actually watch is both weekly
+windows, put them on the two outer arcs. A preview under the picker shows the icon you have built
+on a light and a dark menu bar.
+
+The countdown is chosen separately under **Count down to**, because the most useful deadline is not
+always one the icon has room for, and tying the two would mean changing the icon to change the
+text. The icon can show **the icon only, the countdown only, or both**. The same pane offers
+**Start Tokenmax at login**.
 
 A quota belonging to a provider you have switched off is never drawn, but its slot is remembered —
 turn the provider back on and your arrangement returns rather than a rebuilt one.
 
-When the session window is inside your reminder lead time and still holds usable quota, the bars
+When the session window is inside your reminder lead time and still holds usable quota, the meters
 light up: "now is a good moment to spend this". Settings → General → **Highlight** picks the
 colour (six presets, or any colour via the system picker), optionally adds a glow, and can switch
 the whole signal off so the icon stays plain at all times. The colour is shared with the matching
@@ -106,10 +126,11 @@ signed in, Tokenmax picks it up and adds its section to the popover. A ChatGPT-m
 login reports quota and, when Codex reports one, a banked reset count and expiry. An API-key login is unmetered and is labelled as billed instead.
 Don't use Codex? **Settings → Data Source** switches it off and it disappears.
 
-**5. Make the icon yours.** **Settings → General** — two or three bars, which of the four
-quotas each one draws (drag a quota onto a bar; drop it on an occupied one to swap), and a
-countdown that can follow a different window from any of them. The same pane chooses
-between bars, the countdown, or both, and sets the highlight colour.
+**5. Make the icon yours.** **Settings → General** — bars or rings, which of the four
+quotas each position draws (drag a quota onto a slot; drop it on an occupied one to swap),
+and a countdown that can follow a different window from any of them. Rings are the only
+shape that fits all four quotas at once. The same pane chooses between the icon, the
+countdown, or both, and sets the highlight colour.
 
 **6. Queue something.** ⌘N in the queue window. If the project lives in Documents,
 Desktop, Downloads or iCloud Drive, macOS asks for folder access — say yes *now*, while

@@ -5,6 +5,16 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **A double-ring menu bar icon.** Settings → General → Menu bar icon now offers a second shape
+  beside the bars: nested arcs, an outer one enclosing an inner one, two per ring. A session runs
+  inside a week, so putting the week on the outer arc draws that relationship instead of flattening
+  it into two equal rows — and two rings hold all four quotas at once, where bars stop at three.
+  Every arc is assignable by the same drag as the bars, so a ring is not tied to one provider.
+  Bars stay the default and nothing changes for an existing install. Two rings take about 35pt of
+  menu bar where two bars take 20; a single ring takes 16, less than the bars it replaces. The
+  display-mode labels are now "Icon only" and "Icon + time remaining", since they no longer only
+  describe bars.
+
 - **Celebrate confirmed quota resets.** An optional, click-through confetti shower can mark new
   quota windows. Choose every reset or individual Claude Code/Codex session and weekly events;
   stale data, reset-time jitter, and quiet hours stay silent. A **Preview Confetti** button in

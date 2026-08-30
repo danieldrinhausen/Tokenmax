@@ -65,18 +65,36 @@ anything itself. Switch the check off in the same place.
 
 **3. Decide what the icon should show.**
 
-**Settings → General** decides both halves independently. Choose **2 or 3 bars**,
-then drag a quota — Claude session, Claude week, Codex session, Codex week — onto
-the bar you want it on; dropping one onto an occupied bar swaps the two. **Count
-down to** picks the window the countdown text tracks, which does not have to be a
-window the bars show. The text can also be switched off, leaving bars alone.
+**Settings → General** decides both halves independently. Under **Menu bar icon**,
+pick the shape first — **Bars** or **Rings** — then say what each position shows
+by dragging a quota — Claude session, Claude week, Codex session, Codex week —
+onto the slot you want it on; dropping one onto an occupied slot swaps the two.
+**Count down to** picks the window the countdown text tracks, which does not have
+to be a window the icon shows. The text can also be switched off, leaving the
+icon alone.
+
+Bars are two or three stacked capsules and are the easiest to compare against
+each other. Rings are nested arcs, two per ring: the outer arc encloses the
+inner one, which is how a session sits inside a week. Rings are the only shape
+that fits all four quotas, and the only one that costs real menu bar width —
+about 35pt for two rings against 20pt for two bars. A single ring is 16pt, so
+if you watch one provider, rings are the *narrower* choice.
 
 <p align="center">
   <img src="images/settings-general.png" width="640" alt="Settings → General, showing the bar layout editor and the countdown source">
 </p>
 
 There is no wrong answer, but the countdown alone is the most legible at a
-glance, and the bars alone are the least distracting.
+glance, and the icon alone is the least distracting.
+
+**Watching all four quotas at once.** Three bars is the ceiling, so this needs
+rings. Switch the style to **Rings**, choose **2 rings**, and the default puts
+each provider's week on its outer arc with its session inside. Two rings, four
+numbers, no popover. A ring is not tied to one provider, though — if what
+actually governs your week is the two weekly windows and you rarely bump a
+session limit, drag both weeks onto the outer arcs and both sessions inside, and
+the left ring becomes Claude-versus-Codex at a glance rather than two views of
+one provider.
 
 **4. Add Codex, if you use it.**
 
@@ -91,7 +109,7 @@ such rather than showing an empty meter, and will not start quota-gated
 automatic Codex tasks against it.
 
 If you do not use Codex, **Settings → Data Source** switches it off: its popover
-section, its bars and its reminders all disappear. Nothing is deleted, so
+section, its meters and its reminders all disappear. Nothing is deleted, so
 switching it back on restores your arrangement.
 
 **5. Grant folder access when you add your first task.**
@@ -141,7 +159,7 @@ The `│` marker is where a perfectly even burn would have left you *right now*.
 the condition it describes. The two halves come from one comparison, so they
 cannot contradict each other.
 
-**When the bars light up**, the session window is inside your reminder lead time
+**When the meters light up**, the session window is inside your reminder lead time
 and still holds usable quota. That is the app saying: this is the moment to spend
 it, because it is about to evaporate.
 
@@ -204,8 +222,8 @@ Claude automation is unaffected — it has its own switch under **Settings → Q
 Automation** and works as documented.
 
 **Switching it off.** **Settings → Data Source** stops polling Codex, hides its
-section and bars, cancels its pending reminders and refuses to auto-run its
-tasks. It hides rather than deletes: your rules, bar layout and Codex tasks stay
+section and meters, cancels its pending reminders and refuses to auto-run its
+tasks. It hides rather than deletes: your rules, icon layout and Codex tasks stay
 on disk and come back exactly as they were.
 
 ---
