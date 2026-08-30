@@ -4,18 +4,18 @@ import Foundation
 /// against the current snapshots.
 ///
 /// Pure and separate from the view because the interesting part is no longer the
-/// drawing: with bars spanning two providers, "is this stale?" stopped being one
-/// question about one snapshot. A bar whose own provider is stale must stub out
+/// drawing: with meters spanning two providers, "is this stale?" stopped being one
+/// question about one snapshot. A meter whose own provider is stale must stub out
 /// while the others keep reading live, and the countdown must disappear when the
 /// window it follows goes stale even if the rest of the icon is fine.
 struct MenuBarIconModel: Equatable {
-    var bars: [MenuBarIconRenderer.Bar]
+    var meters: [MenuBarIconRenderer.Meter]
     /// Every shown provider is stale, so the whole icon mutes. One stale
-    /// provider among several only stubs its own bar.
+    /// provider among several only stubs its own meter.
     var isStale: Bool
     /// The countdown window's reset time, and whether it can be trusted as a
     /// live deadline. Its source is configured separately from the bars, so it
-    /// may well be a window no bar is showing.
+    /// may well be a window no meter is showing.
     var countdownResetAt: Date?
     var countdownIsStale: Bool
 
@@ -36,16 +36,16 @@ struct MenuBarIconModel: Equatable {
     ) -> MenuBarIconModel {
         let sources = layout.sources
 
-        let bars = sources.map { source -> MenuBarIconRenderer.Bar in
+        let meters = sources.map { source -> MenuBarIconRenderer.Meter in
             let window = snapshot(source.provider)?.window(source.kind)
             // A stale provider contributes no number. Nil lands on the same
             // stub the renderer already draws for an unknown reading, which is
-            // the honest picture: the bar is there, the value is not.
+            // the honest picture: the meter is there, the value is not.
             let fraction = isStale(source.provider) ? nil : window?.remainingPercent
-            return MenuBarIconRenderer.Bar(
+            return MenuBarIconRenderer.Meter(
                 fraction: fraction,
                 isAlerting: alerting.contains(source),
-                // A stale bar has no reading, so it has no opportunity to
+                // A stale meter has no reading, so it has no opportunity to
                 // announce either — same reason `fraction` is nil above.
                 isReady: !isStale(source.provider) && ready.contains(source)
             )
@@ -54,7 +54,7 @@ struct MenuBarIconModel: Equatable {
         let shownProviders = Set(sources.map(\.provider))
 
         return MenuBarIconModel(
-            bars: bars,
+            meters: meters,
             isStale: !shownProviders.isEmpty && shownProviders.allSatisfy { isStale($0) },
             countdownResetAt: countdownSource.flatMap {
                 snapshot($0.provider)?.window($0.kind)?.resetAt

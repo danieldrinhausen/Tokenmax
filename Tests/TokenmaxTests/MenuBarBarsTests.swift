@@ -242,7 +242,7 @@ struct MenuBarIconModelTests {
             ready: []
         )
 
-        #expect(model.bars.map(\.fraction) == [90, 40, 70])
+        #expect(model.meters.map(\.fraction) == [90, 40, 70])
     }
 
     /// The whole point of splitting staleness per provider: one provider going
@@ -261,7 +261,7 @@ struct MenuBarIconModelTests {
             ready: []
         )
 
-        #expect(model.bars.map(\.fraction) == [40, nil])
+        #expect(model.meters.map(\.fraction) == [40, nil])
         // Not every shown provider is stale, so the icon as a whole stays live.
         #expect(!model.isStale)
     }
@@ -293,7 +293,7 @@ struct MenuBarIconModelTests {
             ready: []
         )
 
-        #expect(model.bars.map(\.isAlerting) == [false, true])
+        #expect(model.meters.map(\.isAlerting) == [false, true])
     }
 
     /// The countdown is configured separately from the bars, so it must read
@@ -387,7 +387,7 @@ struct MenuBarIconModelTests {
             ready: [.claudeSession]
         )
 
-        #expect(model.bars.map(\.isReady) == [true, false])
+        #expect(model.meters.map(\.isReady) == [true, false])
     }
 
     /// Same reason `fraction` is nil for a stale provider: a bar with no reading
@@ -405,7 +405,7 @@ struct MenuBarIconModelTests {
             ready: [.claudeSession]
         )
 
-        #expect(model.bars.allSatisfy { !$0.isReady })
+        #expect(model.meters.allSatisfy { !$0.isReady })
     }
 }
 
@@ -431,7 +431,7 @@ struct MenuBarAlertColourTests {
     /// popover calls the same window a good time to spend.
     @Test("The burn highlight outranks an already-fired reminder")
     func highlightBeatsAlert() {
-        let both = MenuBarIconRenderer.barColor(
+        let both = MenuBarIconRenderer.meterColor(
             isStale: false, isReady: true, isAlerting: true, templated: false
         )
         #expect(both == MenuBarIconRenderer.readyColor)
@@ -443,7 +443,7 @@ struct MenuBarAlertColourTests {
     /// that genuinely warrants a warning colour.
     @Test("An alert still colours a bar that is not a burn opportunity")
     func alertAppliesWithoutHighlight() {
-        let alerting = MenuBarIconRenderer.barColor(
+        let alerting = MenuBarIconRenderer.meterColor(
             isStale: false, isReady: false, isAlerting: true, templated: false
         )
         #expect(alerting == MenuBarIconRenderer.alertColor)
@@ -452,7 +452,7 @@ struct MenuBarAlertColourTests {
     /// Stale data must never be dressed up — including as an alert.
     @Test("Stale data never alerts")
     func staleNeverAlerts() {
-        let stale = MenuBarIconRenderer.barColor(
+        let stale = MenuBarIconRenderer.meterColor(
             isStale: true, isReady: false, isAlerting: true, templated: false
         )
         #expect(stale != MenuBarIconRenderer.alertColor)
@@ -463,10 +463,10 @@ struct MenuBarAlertColourTests {
     @Test("An alerting icon stops being a template")
     func alertingIconIsNotTemplated() {
         let plain = MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false
+            meters: [.init(fraction: 40), .init(fraction: 70)], isStale: false
         )
         let alerting = MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70, isAlerting: true)], isStale: false
+            meters: [.init(fraction: 40), .init(fraction: 70, isAlerting: true)], isStale: false
         )
 
         #expect(plain.isTemplate)
@@ -492,10 +492,10 @@ struct MenuBarAlertColourTests {
         MenuBarIconRenderer.invalidateCache()
 
         let plain = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false
+            meters: [.init(fraction: 40), .init(fraction: 70)], isStale: false
         )
         let alerting = MenuBarIconRenderer.cachedImage(
-            bars: [.init(fraction: 40), .init(fraction: 70, isAlerting: true)],
+            meters: [.init(fraction: 40), .init(fraction: 70, isAlerting: true)],
             isStale: false
         )
 
@@ -507,16 +507,16 @@ struct MenuBarAlertColourTests {
     @Test("A third bar does not grow the icon")
     func threeBarsKeepTheSameSize() {
         let two = MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false
+            meters: [.init(fraction: 40), .init(fraction: 70)], isStale: false
         )
         let three = MenuBarIconRenderer.image(
-            bars: [.init(fraction: 40), .init(fraction: 70), .init(fraction: 90)], isStale: false
+            meters: [.init(fraction: 40), .init(fraction: 70), .init(fraction: 90)], isStale: false
         )
 
         #expect(two.size == MenuBarIconRenderer.size)
         #expect(three.size == MenuBarIconRenderer.size)
 
-        let (barHeight, gap) = MenuBarIconRenderer.geometry(barCount: 3)
+        let (barHeight, gap) = MenuBarIconRenderer.geometry(meterCount: 3)
         #expect(barHeight * 3 + gap * 2 <= MenuBarIconRenderer.size.height)
     }
 }

@@ -26,19 +26,22 @@ enum MenuBarIconRenderer {
     /// replaces the colour when tinting.
     static let templateColor = NSColor.black
 
-    /// One bar's worth of state.
-    struct Bar: Hashable, Sendable {
+    /// One meter's worth of state.
+    ///
+    /// A reading, not a shape: the same values are drawn as a capsule or as an
+    /// arc depending on the configured style.
+    struct Meter: Hashable, Sendable {
         /// Percent *remaining*, or nil when unknown.
         var fraction: Double?
         /// This window's reminder has already fired and the window has not reset
-        /// yet, so the bar carries the alert colour.
+        /// yet, so the meter carries the alert colour.
         var isAlerting: Bool
         /// *This* window is in its "spend it now" stretch.
         ///
-        /// Per bar, not per icon. It used to be one flag passed to every bar,
-        /// which meant a window with four days left was painted "spend it now"
-        /// because a different provider's session was about to reset — a bar
-        /// reporting a state that was never its own.
+        /// Per meter, not per icon. It used to be one flag passed to every
+        /// meter, which meant a window with four days left was painted "spend it
+        /// now" because a different provider's session was about to reset — a
+        /// meter reporting a state that was never its own.
         var isReady: Bool
 
         init(fraction: Double?, isAlerting: Bool = false, isReady: Bool = false) {
@@ -48,7 +51,7 @@ enum MenuBarIconRenderer {
         }
     }
 
-    /// The colour of a bar whose reminder has fired.
+    /// The colour of a meter whose reminder has fired.
     ///
     /// Fixed rather than configurable, and deliberately the same orange the
     /// popover already uses for everything noteworthy — a second colour picker
@@ -56,7 +59,7 @@ enum MenuBarIconRenderer {
     /// the two signals it exists to separate become one.
     static let alertColor = NSColor(srgbRed: 1.00, green: 0.58, blue: 0.10, alpha: 1)
 
-    /// What an *un*-alerting bar is drawn in once the icon has to abandon
+    /// What an *un*-alerting meter is drawn in once the icon has to abandon
     /// templating to show colour at all.
     ///
     /// A mid grey rather than `labelColor`, for the reason in the type comment:
@@ -80,9 +83,9 @@ enum MenuBarIconRenderer {
     static let glowRadius: CGFloat = 2.5
 
     private struct CacheKey: Hashable {
-        /// Percentages rounded to whole numbers, paired with each bar's alert
-        /// state — the whole reading, in order.
-        let bars: [Bar]
+        /// Percentages rounded to whole numbers, paired with each meter's
+        /// alert state — the whole reading, in order.
+        let meters: [Meter]
         let isStale: Bool
         /// Nil unless the highlight is actually being drawn, so every unlit
         /// reading shares one cache entry no matter what colour is configured.
@@ -94,18 +97,18 @@ enum MenuBarIconRenderer {
     /// each distinct reading is drawn once and reused.
     @MainActor private static var imageCache: [CacheKey: NSImage] = [:]
 
-    /// Bar thickness and spacing for a given bar count.
+    /// Bar thickness and spacing for a given meter count.
     ///
     /// Three bars have to fit the same 16pt as two — the icon may not grow, or
     /// it shoves its neighbours along the menu bar and misaligns against every
     /// other item. So the third bar is paid for out of thickness and gap rather
     /// than height.
-    static func geometry(barCount: Int) -> (barHeight: CGFloat, gap: CGFloat) {
-        barCount >= 3 ? (3.5, 1.75) : (5, 2.5)
+    static func geometry(meterCount: Int) -> (barHeight: CGFloat, gap: CGFloat) {
+        meterCount >= 3 ? (3.5, 1.75) : (5, 2.5)
     }
 
     static func image(
-        bars: [Bar],
+        meters: [Meter],
         isStale: Bool,
         highlight: HighlightColor = .default,
         glow: Bool = false
@@ -115,21 +118,21 @@ enum MenuBarIconRenderer {
         let image = NSImage(size: size)
         image.lockFocus()
 
-        let (barHeight, gap) = geometry(barCount: bars.count)
-        let totalHeight = barHeight * CGFloat(bars.count) + gap * CGFloat(max(0, bars.count - 1))
+        let (barHeight, gap) = geometry(meterCount: meters.count)
+        let totalHeight = barHeight * CGFloat(meters.count) + gap * CGFloat(max(0, meters.count - 1))
         let originY = (size.height - totalHeight) / 2
 
         // A coloured bar cannot survive templating, and a template is the only
         // way the neutral bars can match the menu bar. When both are on screen
         // the colour has to win, so the neutrals fall back to grey.
-        let templated = !bars.contains { $0.isReady || $0.isAlerting }
+        let templated = !meters.contains { $0.isReady || $0.isAlerting }
 
-        for (index, bar) in bars.enumerated() {
+        for (index, meter) in meters.enumerated() {
             // Drawn top-down: the first source is the top bar, matching the
             // order the settings editor shows.
-            let rowFromBottom = CGFloat(bars.count - 1 - index)
+            let rowFromBottom = CGFloat(meters.count - 1 - index)
             draw(
-                bar: bar,
+                meter: meter,
                 rect: NSRect(
                     x: 0,
                     y: originY + rowFromBottom * (barHeight + gap),
@@ -139,7 +142,7 @@ enum MenuBarIconRenderer {
                 isStale: isStale,
                 templated: templated,
                 highlight: highlight,
-                glow: isGlowing(isStale: isStale, isReady: bar.isReady, glow: glow)
+                glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow)
             )
         }
 
@@ -157,18 +160,18 @@ enum MenuBarIconRenderer {
 
     @MainActor
     static func cachedImage(
-        bars: [Bar],
+        meters: [Meter],
         isStale: Bool,
         highlight: HighlightColor = .default,
         glow: Bool = false
     ) -> NSImage {
-        let lit = bars.contains(where: \.isReady) && !isStale
+        let lit = meters.contains(where: \.isReady) && !isStale
 
         // Round to whole percent: the icon cannot show more resolution than
         // that, and it stops the cache growing on every tiny fluctuation.
         let key = CacheKey(
-            bars: bars.map {
-                Bar(
+            meters: meters.map {
+                Meter(
                     fraction: $0.fraction.map { Double(Int($0.rounded())) },
                     isAlerting: $0.isAlerting,
                     isReady: $0.isReady
@@ -182,7 +185,7 @@ enum MenuBarIconRenderer {
         if let cached = imageCache[key] { return cached }
 
         let rendered = image(
-            bars: bars,
+            meters: meters,
             isStale: isStale,
             highlight: highlight,
             glow: glow
@@ -202,24 +205,24 @@ enum MenuBarIconRenderer {
     }
 
     private static func draw(
-        bar: Bar,
+        meter: Meter,
         rect: NSRect,
         isStale: Bool,
         templated: Bool,
         highlight: HighlightColor,
         glow: Bool
     ) {
-        let fraction = bar.fraction
+        let fraction = meter.fraction
         let radius = rect.height / 2
-        let color = barColor(
+        let color = meterColor(
             isStale: isStale,
-            isReady: bar.isReady,
-            isAlerting: bar.isAlerting,
+            isReady: meter.isReady,
+            isAlerting: meter.isAlerting,
             templated: templated,
             highlight: highlight
         )
 
-        // Empty track: the bar colour at low alpha, so it reads as "unfilled"
+        // Empty track: the meter colour at low alpha, so it reads as "unfilled"
         // rather than as a second colour.
         color.withAlphaComponent(0.25).setFill()
         NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
@@ -266,9 +269,9 @@ enum MenuBarIconRenderer {
     /// templating, and macOS supplies the actual colour.
     ///
     /// The precedence is the point: a fired reminder outranks a burn
-    /// opportunity on its own bar, so "you are about to waste this window" is
+    /// opportunity on its own meter, so "you are about to waste this window" is
     /// never repainted by the more general "now is a good time to spend".
-    static func barColor(
+    static func meterColor(
         isStale: Bool,
         isReady: Bool,
         isAlerting: Bool = false,

@@ -20,10 +20,10 @@ struct IconSnapshotDump {
         var lit = NSImage()
         appearance.performAsCurrentDrawingAppearance {
             unlit = MenuBarIconRenderer.image(
-                bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false
+                meters: [.init(fraction: 40), .init(fraction: 70)], isStale: false
             )
             lit = MenuBarIconRenderer.image(
-                bars: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)],
+                meters: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)],
                 isStale: false
             )
         }
@@ -79,14 +79,14 @@ struct IconSnapshotDump {
         appearance.performAsCurrentDrawingAppearance {
             rendered = [
                 // Two bars, neutral — the shipping default.
-                MenuBarIconRenderer.image(bars: [.init(fraction: 40), .init(fraction: 70)], isStale: false),
+                MenuBarIconRenderer.image(meters: [.init(fraction: 40), .init(fraction: 70)], isStale: false),
                 // Three bars, neutral.
                 MenuBarIconRenderer.image(
-                    bars: [.init(fraction: 40), .init(fraction: 70), .init(fraction: 90)], isStale: false
+                    meters: [.init(fraction: 40), .init(fraction: 70), .init(fraction: 90)], isStale: false
                 ),
                 // Three bars, middle one alerting: neutrals fall back to grey.
                 MenuBarIconRenderer.image(
-                    bars: [
+                    meters: [
                         .init(fraction: 40),
                         .init(fraction: 70, isAlerting: true),
                         .init(fraction: 90),
@@ -97,7 +97,7 @@ struct IconSnapshotDump {
                 // highlight wins there, while a bar that is only alerting keeps
                 // the alert colour and an ordinary bar stays neutral.
                 MenuBarIconRenderer.image(
-                    bars: [
+                    meters: [
                         .init(fraction: 40, isReady: true),
                         .init(fraction: 70, isAlerting: true),
                         .init(fraction: 90),

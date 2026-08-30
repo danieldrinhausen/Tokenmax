@@ -27,9 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // will ask consent again — the expected once-per-build prompt.
         Log.shared.write("launch: cdhash \(CodeIdentity.cdhash ?? "unknown") — keychain consent is keyed to this; a changed hash means one new prompt")
 
-        // Bar colour is `labelColor`, which resolves to white on a dark menu
-        // bar and black on a light one. Cached images have to be thrown away
-        // when the user switches appearance or the icon keeps the old colour.
+        // A meter that has abandoned templating resolves its neutral against
+        // the current appearance, so cached images have to be thrown away when
+        // the user switches appearance or the icon keeps the old colour.
         appearanceObserver = NSApp.observe(\.effectiveAppearance) { _, _ in
             Task { @MainActor in
                 MenuBarIconRenderer.invalidateCache()

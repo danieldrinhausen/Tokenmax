@@ -168,7 +168,7 @@ struct SharedEnvironment: ViewModifier {
     }
 }
 
-/// The menubar item itself. `MenuBarExtra` renders a `Label`, so the two-meter
+/// The menubar item itself. `MenuBarExtra` renders a `Label`, so the meter
 /// glyph is drawn into an `NSImage` and handed over as the icon.
 private struct MenuBarLabel: View {
     let mode: MenuBarDisplayMode
@@ -222,7 +222,7 @@ private struct MenuBarLabel: View {
     /// good moment to spend quota. Redraws only when the reading itself changes.
     private var animatedIcon: some View {
         Image(nsImage: MenuBarIconRenderer.cachedImage(
-            bars: model.bars,
+            meters: model.meters,
             isStale: model.isStale,
             highlight: highlight,
             glow: glow
