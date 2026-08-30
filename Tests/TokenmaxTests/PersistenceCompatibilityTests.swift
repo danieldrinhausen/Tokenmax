@@ -89,6 +89,28 @@ struct PersistenceCompatibilityTests {
         #expect(settings.codexAutoRun.maximumTasksPerWindow == 1)
         // A screen-wide effect must never become enabled by an upgrade.
         #expect(!settings.resetCelebration.enabled)
+        // Nor may an upgrade place an always-on edge surface over somebody's
+        // existing workspace.
+        #expect(!settings.sideNotch.enabled)
+    }
+
+    @Test("Independent Side Notch colours survive a round trip")
+    func sideNotchColoursRoundTrip() throws {
+        var settings = AppSettings()
+        settings.sideNotch.enabled = true
+        settings.sideNotch.colorSource = .custom
+        settings.sideNotch.customColors = SideNotchColorSettings(
+            scheme: .escalating,
+            escalation: .default,
+            opportunityColor: HighlightColor(red: 0.2, green: 0.4, blue: 0.8),
+            glow: true
+        )
+
+        let data = try JSONStore.makeEncoder().encode(settings)
+        let decoded = try JSONStore.makeDecoder().decode(AppSettings.self, from: data)
+
+        #expect(decoded.sideNotch == settings.sideNotch)
+        #expect(decoded.effectiveSideNotchColors == settings.sideNotch.customColors)
     }
 
     /// The Codex overrides must not be re-defaulted by a partial write: a file

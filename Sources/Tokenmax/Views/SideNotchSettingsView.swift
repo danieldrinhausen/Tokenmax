@@ -1,0 +1,112 @@
+import SwiftUI
+
+struct SideNotchSettingsView: View {
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var sideNotch: SideNotchCoordinator
+
+    var body: some View {
+        Section("Side Notch · Alpha") {
+            Toggle("Show the Side Notch", isOn: $settingsStore.settings.sideNotch.enabled)
+
+            Text("A small handle stays at the centre of the right screen edge. Hover it for provider rings; hover a ring for both quota windows, or click one to pin the detail card. It follows the pointer between displays and never takes keyboard focus.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if settingsStore.settings.sideNotch.enabled {
+                if let suppression = sideNotch.suppression {
+                    Label(suppression.explanation, systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Picker("Colours", selection: colorSourceBinding) {
+                    ForEach(SideNotchColorSource.allCases) { source in
+                        Text(source.displayName).tag(source)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("Provider order and each ring's outer/inner quotas follow the ring arrangement above. The Side Notch keeps one double ring per provider even when the menu bar pairs quotas across providers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if settingsStore.settings.sideNotch.colorSource == .custom {
+                    Picker("Ring colour", selection: schemeBinding) {
+                        ForEach(MenuBarColorScheme.allCases) { scheme in
+                            Text(scheme.displayName).tag(scheme)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+
+                    if customColors.scheme == .escalating {
+                        MenuBarEscalationSettingsView(
+                            escalation: escalationBinding,
+                            surface: .sideNotch
+                        )
+                    }
+
+                    HighlightColorPicker(label: "Opportunity", color: opportunityBinding)
+                    Toggle("Add a glow", isOn: glowBinding)
+
+                    Text("Custom colours start as a copy of the current menu bar palette, then remain independent when you switch between Follow menu bar and Custom.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var colorSourceBinding: Binding<SideNotchColorSource> {
+        Binding(
+            get: { settingsStore.settings.sideNotch.colorSource },
+            set: { source in
+                if source == .custom, settingsStore.settings.sideNotch.customColors == nil {
+                    settingsStore.settings.sideNotch.customColors = settingsStore.settings.menuBarColorsForSideNotch
+                }
+                settingsStore.settings.sideNotch.colorSource = source
+            }
+        )
+    }
+
+    private var customColors: SideNotchColorSettings {
+        settingsStore.settings.sideNotch.customColors ?? settingsStore.settings.menuBarColorsForSideNotch
+    }
+
+    private var schemeBinding: Binding<MenuBarColorScheme> {
+        Binding(
+            get: { customColors.scheme },
+            set: { value in updateCustom { $0.scheme = value } }
+        )
+    }
+
+    private var escalationBinding: Binding<MenuBarEscalation> {
+        Binding(
+            get: { customColors.escalation },
+            set: { value in updateCustom { $0.escalation = value } }
+        )
+    }
+
+    private var opportunityBinding: Binding<HighlightColor> {
+        Binding(
+            get: { customColors.opportunityColor },
+            set: { value in updateCustom { $0.opportunityColor = value } }
+        )
+    }
+
+    private var glowBinding: Binding<Bool> {
+        Binding(
+            get: { customColors.glow },
+            set: { value in updateCustom { $0.glow = value } }
+        )
+    }
+
+    private func updateCustom(_ update: (inout SideNotchColorSettings) -> Void) {
+        var colors = customColors
+        update(&colors)
+        settingsStore.settings.sideNotch.customColors = colors
+    }
+}

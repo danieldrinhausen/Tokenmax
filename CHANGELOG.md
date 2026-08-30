@@ -5,6 +5,15 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Side Notch is available as an opt-in Alpha surface.** Settings → General can place a tiny,
+  focus-free handle at the right edge of the display under the pointer. Hover expands it into one
+  animated double ring per enabled provider; hovering a ring opens both quota rows and reset times,
+  while a click pins and releases the card. It follows Spaces and full-screen apps, honours Reduce
+  Motion, and collapses 400ms after the pointer leaves the combined surface. Ring order comes from
+  the freely configured menu-bar ring slots but is regrouped per provider. Colours can follow the
+  menu bar or start from a copied palette and then remain independent. The feature is off on every
+  existing install, and stale or absent readings show empty neutral tracks rather than 0%.
+
 - **Escalation colours for the menu bar meters.** Settings → General → Colour can switch the icon
   from **Monochrome** to **Escalating**: up to three levels, each with a colour and a trigger that
   is either a percentage or that window's own reminder firing. Applies to bars and rings alike.

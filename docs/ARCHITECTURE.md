@@ -21,6 +21,7 @@ Everything follows the same split:
   │  NotificationScheduler   │◄─────│  NotificationCoordinator    │
   │  QueueAutoRunDecision    │◄─────│  QueueAutoRunCoordinator    │
   │  QuotaResetCelebrationDecision │◄─│ QuotaResetCelebrationCoordinator │
+  │  SideNotchDecision       │◄─────│  SideNotchCoordinator       │
   └──────────────────────────┘      └─────────────────────────────┘
    enum / struct                     @MainActor
    decides *what* from data in       owns the clock, processes, files
@@ -38,6 +39,15 @@ than a process or a timer. It earns its own type anyway. What it holds is a
 *precedence* — which of several simultaneous signals a meter should be painted
 in — and precedence is the kind of rule that is invisible in a rendered image
 and obvious in a test.
+
+`SideNotchDecision` reduces pointer events into `peek`, `rail`, or a selected
+provider detail state and names every reason the surface may be suppressed.
+`SideNotchCoordinator` owns the 400ms close timer, display selection, workspace
+notifications and two non-activating `NSPanel`s. Two panels rather than one
+large transparent window are load-bearing: a transparent bridge would still
+intercept clicks intended for the app underneath. `SideNotchPresentation`
+separately resolves menu-bar ring slots into provider-grouped rings without
+reading settings or quota on its own.
 
 **Corollary:** when something decides *not* to act, the reason is a case in an
 enum with human-readable copy — never a bare `return`. The user sees it in
@@ -57,6 +67,7 @@ means a new case.
 | `AutoRun/` | Task execution, transcripts, automation |
 | `Queue/` | Task storage, list filtering and sorting |
 | `Update/` | Version comparison and the daily release check |
+| `SideNotch/` | Pure interaction/presentation decisions and focus-free edge panels |
 | `Persistence/` | Atomic JSON storage, file locations |
 | `Views/` | SwiftUI, no business rules |
 
@@ -75,10 +86,16 @@ map](#the-drift-map) below has a small footprint.
                                                                  ▼
                                                     UsageRefreshCoordinator
                                                                  │
-                        ┌────────────────────────────────────────┼───────────┐
-                        ▼                    ▼                   ▼           ▼
-                  MenuBarIcon           Notifications       SessionOpener  AutoRun
+                        ┌────────────────────────────────────────┼───────────┬───────────┐
+                        ▼                    ▼                   ▼           ▼           ▼
+                  MenuBarIcon           SideNotch          Notifications SessionOpener AutoRun
 ```
+
+The menu-bar popover and Side Notch register independently as active usage
+surfaces. `UsageRefreshCoordinator` keeps a set rather than a Boolean, so
+closing one cannot return polling to background cadence while the other remains
+open. The OAuth client's own 180-second request floor still applies; foreground
+cadence changes UI freshness, not the network safety boundary.
 
 Two usage sources, merged by confidence and freshness in
 `ClaudeCodeProvider.merge`. The endpoint can be polled any time; the statusline

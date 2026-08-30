@@ -14,6 +14,7 @@ struct TokenmaxApp: App {
     @StateObject private var usage: ProviderUsageCoordinator
     @StateObject private var notificationManager: NotificationManager
     @StateObject private var notificationCoordinator: NotificationCoordinator
+    @StateObject private var sideNotch: SideNotchCoordinator
     @StateObject private var resetCelebration: QuotaResetCelebrationCoordinator
     @StateObject private var sessionOpener: SessionOpenerCoordinator
     @StateObject private var autoRun: QueueAutoRunCoordinator
@@ -33,6 +34,11 @@ struct TokenmaxApp: App {
             settingsStore: settingsStore
         )
         let resetCelebration = QuotaResetCelebrationCoordinator(usage: usage, settingsStore: settingsStore)
+        let sideNotch = SideNotchCoordinator(
+            settingsStore: settingsStore,
+            usage: usage,
+            notifications: notificationCoordinator
+        )
         let sessionOpener = SessionOpenerCoordinator(usage: usage.claude, settingsStore: settingsStore)
         let autoRun = QueueAutoRunCoordinator(
             usage: usage,
@@ -46,6 +52,7 @@ struct TokenmaxApp: App {
         _usage = StateObject(wrappedValue: usage)
         _notificationManager = StateObject(wrappedValue: notificationManager)
         _notificationCoordinator = StateObject(wrappedValue: notificationCoordinator)
+        _sideNotch = StateObject(wrappedValue: sideNotch)
         _resetCelebration = StateObject(wrappedValue: resetCelebration)
         _sessionOpener = StateObject(wrappedValue: sessionOpener)
         _autoRun = StateObject(wrappedValue: autoRun)
@@ -82,6 +89,7 @@ struct TokenmaxApp: App {
             .onAppear {
                 usage.start()
                 notificationCoordinator.start()
+                sideNotch.start()
                 resetCelebration.start()
                 sessionOpener.start()
                 autoRun.start()
@@ -126,6 +134,7 @@ struct TokenmaxApp: App {
             usage: usage,
             notificationManager: notificationManager,
             notificationCoordinator: notificationCoordinator,
+            sideNotch: sideNotch,
             resetCelebration: resetCelebration,
             sessionOpener: sessionOpener,
             autoRun: autoRun,
@@ -143,6 +152,7 @@ struct SharedEnvironment: ViewModifier {
     let usage: ProviderUsageCoordinator
     let notificationManager: NotificationManager
     let notificationCoordinator: NotificationCoordinator
+    let sideNotch: SideNotchCoordinator
     let resetCelebration: QuotaResetCelebrationCoordinator
     let sessionOpener: SessionOpenerCoordinator
     let autoRun: QueueAutoRunCoordinator
@@ -160,6 +170,7 @@ struct SharedEnvironment: ViewModifier {
             .environmentObject(usage.claude)
             .environmentObject(notificationManager)
             .environmentObject(notificationCoordinator)
+            .environmentObject(sideNotch)
             .environmentObject(resetCelebration)
             .environmentObject(sessionOpener)
             .environmentObject(autoRun)

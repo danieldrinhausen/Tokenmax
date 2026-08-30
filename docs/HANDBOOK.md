@@ -87,6 +87,20 @@ if you watch one provider, rings are the *narrower* choice.
 There is no wrong answer, but the countdown alone is the most legible at a
 glance, and the icon alone is the least distracting.
 
+**Putting the meters at the screen edge.** **Settings → General → Side Notch ·
+Alpha** is a complementary view, not a replacement for the menu bar. Enable it
+and move to the small handle halfway down the right edge. Hover opens one double
+ring per provider; hover a ring for the two precise quota rows, or click it to
+keep that card open while the pointer moves. Click again to release it. The
+surface follows the display under the pointer, appears on every Space and over
+full-screen apps, and does not take keyboard focus.
+
+Provider order and outer/inner order are derived from the ring arrangement just
+above the switch, but cross-provider menu-bar pairs are regrouped so each large
+ring remains one provider. **Follow menu bar** keeps the colours in sync.
+**Custom** starts as a copy of the current palette and keeps later edits to
+itself, so experimenting never destroys either setup.
+
 **Watching all four quotas at once.** Three bars is the ceiling, so this needs
 rings. Switch the style to **Rings**, choose **2 rings**, and the default puts
 each provider's week on its outer arc with its session inside. Two rings, four
@@ -454,6 +468,13 @@ current state. It spends nothing.
 ---
 
 ## Recipes
+
+**"I want quota visible without spending menu-bar width."**
+Turn on **Side Notch · Alpha**, then switch the menu bar to its smallest useful
+form — for example time remaining only. Leave Side Notch colours on **Follow
+menu bar** at first. Hover the edge handle for a glance, and click the provider
+you are actively using when you want its reset rows to stay open. If you move
+between displays, the collapsed handle follows the pointer automatically.
 
 **"I want to know when quota is about to be wasted, and nothing else."**
 Enable reminders, set a 45-minute session lead. Leave the queue, automation and

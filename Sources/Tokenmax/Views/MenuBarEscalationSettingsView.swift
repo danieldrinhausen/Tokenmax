@@ -11,12 +11,13 @@ import SwiftUI
 /// user is halfway through editing one.
 struct MenuBarEscalationSettingsView: View {
     @Binding var escalation: MenuBarEscalation
+    var surface: EscalationSettingsSurface = .menuBar
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             OptionalHighlightColorPicker(label: "Base", color: baseBinding)
 
-            Text("What a meter is drawn in while it has reached no level. Neutral keeps the icon a template image, so macOS tints it to match the menu bar — pick a colour here only if you want the healthy state to say something too, because a colour that is always on stops matching your other menu bar icons on every wallpaper.")
+            Text(surface.baseExplanation)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -38,7 +39,7 @@ struct MenuBarEscalationSettingsView: View {
             }
 
             let illegible = escalation.colors.filter { !$0.isLegibleOnAnyMenuBar }
-            if !illegible.isEmpty {
+            if surface == .menuBar, !illegible.isEmpty {
                 Label(
                     "One of these colours is hard to make out against a light or a dark menu bar. Menu bar contrast follows your wallpaper, so the icon has to survive both.",
                     systemImage: "exclamationmark.triangle"
@@ -150,5 +151,19 @@ struct MenuBarEscalationSettingsView: View {
         if let color { levels[index].color = color }
         if let trigger { levels[index].trigger = trigger }
         escalation = escalation.replacingLevels(levels)
+    }
+}
+
+enum EscalationSettingsSurface {
+    case menuBar
+    case sideNotch
+
+    var baseExplanation: String {
+        switch self {
+        case .menuBar:
+            "What a meter is drawn in while it has reached no level. Neutral keeps the icon a template image, so macOS tints it to match the menu bar — pick a colour here only if you want the healthy state to say something too, because a colour that is always on stops matching your other menu bar icons on every wallpaper."
+        case .sideNotch:
+            "What a ring is drawn in before it reaches a level. Neutral uses white against the Side Notch's fixed dark surface; choose a colour if the healthy state should carry meaning too."
+        }
     }
 }

@@ -7,10 +7,11 @@ import SwiftUI
 /// someone's existing menu bar, and refusing the choice would be the wrong kind
 /// of protection. The legibility warning next to it covers the gap.
 struct HighlightColorPicker: View {
+    var label = "Colour"
     @Binding var color: HighlightColor
 
     var body: some View {
-        LabeledContent("Colour") {
+        LabeledContent(label) {
             HStack(spacing: 7) {
                 ForEach(HighlightColor.presets) { preset in
                     swatch(preset)

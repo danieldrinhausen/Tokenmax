@@ -113,6 +113,19 @@ struct UsageRefreshLifecycleTests {
         #expect(provider.fetchCount == 2)
     }
 
+    @Test("Closing one usage surface keeps foreground cadence while another remains open")
+    func independentSurfacesKeepForegroundCadence() {
+        let coordinator = makeCoordinator(CountingProvider())
+
+        coordinator.surfaceOpened(.popover)
+        coordinator.surfaceOpened(.sideNotch)
+        coordinator.surfaceClosed(.popover)
+        #expect(coordinator.usesForegroundRefreshCadence)
+
+        coordinator.surfaceClosed(.sideNotch)
+        #expect(!coordinator.usesForegroundRefreshCadence)
+    }
+
     /// Switching a provider back on should show its last reading immediately
     /// rather than flash "Never updated" while the first fetch runs.
     @Test("Stopping keeps the last good reading on screen")

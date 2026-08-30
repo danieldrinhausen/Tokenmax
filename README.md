@@ -16,6 +16,8 @@ evaporating.
 - **A menu bar icon you configure.** Two or three stacked bars, or nested rings that fit all four
   quotas at once — each position drawing a quota you choose, plus a countdown that can track a
   different window entirely, and optional colour levels as a window runs low.
+- **A Side Notch when the menu bar is not enough.** An opt-in Alpha handle at the right screen edge
+  expands into provider rings on hover and reveals both windows without taking keyboard focus.
 - **Pace, not just remaining.** A marker showing where an even burn would have left you, whether
   you are ahead or in deficit, and when the window empties if you carry on at this rate.
 - **Reminders before quota evaporates.** Per-window lead times and thresholds, quiet hours, and
@@ -62,6 +64,21 @@ text. The icon can show **the icon only, the countdown only, or both**. The same
 
 A quota belonging to a provider you have switched off is never drawn, but its slot is remembered —
 turn the provider back on and your arrangement returns rather than a rebuilt one.
+
+**Settings → General → Side Notch · Alpha** adds the same readings as a second, optional surface.
+Off by default, it is a narrow handle halfway down the right edge of whichever display the pointer
+is on. Hover opens a rail with one large double ring per provider; hover a provider for a detail
+card with both percentages and reset times, or click to pin the card until the next click. Leaving
+the whole surface collapses it after 400ms, which is long enough to cross from rail to card without
+making an always-open shelf. The panels join every Space and full-screen app, but cannot become key,
+so checking quota never takes typing away from the app underneath.
+
+The Side Notch uses the configured ring slots as source material, but always groups the two windows
+belonging to one provider. First appearance sets provider order; relative appearance of that
+provider's sources sets outer versus inner. Its colours can follow the menu bar or be independent.
+Choosing **Custom** for the first time copies the current menu-bar palette, threshold ladder,
+opportunity colour and glow, then preserves that copy independently. Stale or missing values draw
+an empty grey track, never a convincing-looking 0% ring.
 
 **Settings → General → Colour** decides whether the meters carry colour from their own reading.
 **Monochrome** is the default and is the icon Tokenmax has always drawn: a template image that macOS

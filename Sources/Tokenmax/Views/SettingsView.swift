@@ -186,6 +186,8 @@ struct GeneralSettingsView: View {
                 )
             }
 
+            SideNotchSettingsView()
+
             Section("Time remaining") {
                 Toggle("Show time remaining in the menu bar", isOn: Binding(
                     get: { settingsStore.settings.menuBarDisplayMode != .iconOnly },

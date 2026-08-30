@@ -11,6 +11,7 @@ final class ProviderUsageCoordinator: ObservableObject {
     private let settingsStore: SettingsStore
     private var cancellables: Set<AnyCancellable> = []
     private var hasStarted = false
+    private var activeSurfaces: Set<UsageRefreshSurface> = []
 
     init(settingsStore: SettingsStore) {
         self.settingsStore = settingsStore
@@ -114,12 +115,29 @@ final class ProviderUsageCoordinator: ObservableObject {
     private func apply(enabled: Set<TokenmaxProvider>) {
         for provider in TokenmaxProvider.allCases {
             let child = coordinator(for: provider)
-            if enabled.contains(provider) { child.start() } else { child.stop() }
+            if enabled.contains(provider) {
+                child.start()
+                for surface in activeSurfaces { child.surfaceOpened(surface) }
+            } else {
+                child.stop()
+            }
         }
     }
 
-    func popoverOpened() { for p in enabledProviders { coordinator(for: p).popoverOpened() } }
-    func popoverClosed() { for p in enabledProviders { coordinator(for: p).popoverClosed() } }
+    func popoverOpened() { surfaceOpened(.popover) }
+    func popoverClosed() { surfaceClosed(.popover) }
+    func sideNotchOpened() { surfaceOpened(.sideNotch) }
+    func sideNotchClosed() { surfaceClosed(.sideNotch) }
+
+    private func surfaceOpened(_ surface: UsageRefreshSurface) {
+        guard activeSurfaces.insert(surface).inserted else { return }
+        for provider in enabledProviders { coordinator(for: provider).surfaceOpened(surface) }
+    }
+
+    private func surfaceClosed(_ surface: UsageRefreshSurface) {
+        guard activeSurfaces.remove(surface) != nil else { return }
+        for provider in enabledProviders { coordinator(for: provider).surfaceClosed(surface) }
+    }
     func refresh(
         reason: String,
         manual: Bool = false,

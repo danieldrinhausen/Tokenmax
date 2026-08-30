@@ -4,10 +4,10 @@ import Foundation
 
 /// Owns the usage polling lifecycle and publishes `UsageState` to the UI.
 ///
-/// Refresh cadence follows the spec: 60s while the popover is open, 300s in the
-/// background, immediately on wake, exponential backoff after failures. The
-/// network itself is separately floored at 180s inside the OAuth client, so a
-/// fast UI tick costs nothing.
+/// Refresh cadence follows the spec: 60s while an interactive usage surface is
+/// open, 300s in the background, immediately on wake, exponential backoff after
+/// failures. The network itself is separately floored at 180s inside the OAuth
+/// client, so a fast UI tick costs nothing.
 @MainActor
 final class UsageRefreshCoordinator: ObservableObject {
     @Published private(set) var state: UsageState = .loading
@@ -34,12 +34,17 @@ final class UsageRefreshCoordinator: ObservableObject {
     /// The in-flight refresh, so `stop()` can cancel it rather than let it land
     /// on a coordinator that is no longer running.
     private var refreshTask: Task<Void, Never>?
-    private var popoverIsOpen = false
+    private var activeSurfaces: Set<UsageRefreshSurface> = []
     private var hasStarted = false
     private var consecutiveFailures = 0
     private var backoffUntil: Date?
 
     private static let backoffSchedule: [TimeInterval] = [30, 60, 120, 300]
+
+    /// Kept internal for lifecycle tests. The timer itself is an implementation
+    /// detail; the rule worth pinning is that any visible surface keeps the
+    /// coordinator on foreground cadence.
+    var usesForegroundRefreshCadence: Bool { !activeSurfaces.isEmpty }
 
     init(
         provider: any UsageProvider = ClaudeCodeProvider(),
@@ -89,7 +94,7 @@ final class UsageRefreshCoordinator: ObservableObject {
         refreshTask?.cancel()
         refreshTask = nil
 
-        popoverIsOpen = false
+        activeSurfaces.removeAll()
         previewUntil = nil
         burnOpportunity = nil
         isRefreshing = false
@@ -98,18 +103,27 @@ final class UsageRefreshCoordinator: ObservableObject {
         Log.shared.write("usage: stopped polling \(provider.identifier)")
     }
 
-    /// `hasStarted` guards both popover paths because they call
+    /// `hasStarted` guards both surface paths because they call
     /// `scheduleRefreshTimer()` unconditionally — without the guard, opening the
-    /// popover would rebuild the timer of a provider that has been switched off.
+    /// popover or notch would rebuild the timer of a provider that has been
+    /// switched off.
     func popoverOpened() {
-        popoverIsOpen = true
-        guard hasStarted else { return }
-        scheduleRefreshTimer()
-        kickOffRefresh(reason: "popover opened")
+        surfaceOpened(.popover)
     }
 
     func popoverClosed() {
-        popoverIsOpen = false
+        surfaceClosed(.popover)
+    }
+
+    func surfaceOpened(_ surface: UsageRefreshSurface) {
+        guard activeSurfaces.insert(surface).inserted else { return }
+        guard hasStarted else { return }
+        scheduleRefreshTimer()
+        kickOffRefresh(reason: "\(surface.logName) opened")
+    }
+
+    func surfaceClosed(_ surface: UsageRefreshSurface) {
+        guard activeSurfaces.remove(surface) != nil else { return }
         guard hasStarted else { return }
         scheduleRefreshTimer()
     }
@@ -176,9 +190,9 @@ final class UsageRefreshCoordinator: ObservableObject {
 
     private func scheduleRefreshTimer() {
         refreshTimer?.invalidate()
-        let interval = popoverIsOpen
-            ? settingsStore.settings.foregroundRefreshSeconds
-            : settingsStore.settings.backgroundRefreshSeconds
+        let interval = activeSurfaces.isEmpty
+            ? settingsStore.settings.backgroundRefreshSeconds
+            : settingsStore.settings.foregroundRefreshSeconds
 
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refresh(reason: "timer") }

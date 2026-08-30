@@ -173,6 +173,27 @@ On a MacBook with a notch this is not cosmetic: items that do not fit are hidden
 outright rather than wrapped, so the extra width can cost you a different app's
 icon entirely.
 
+### The Side Notch does not appear, or appears on the wrong display
+
+It is an Alpha feature and is off by default. Turn on **Settings → General →
+Side Notch · Alpha**. The collapsed handle belongs to the display containing the
+pointer and moves only while collapsed; an open rail stays put so it cannot jump
+away during interaction. Leave the rail and detail card for 400ms, then move the
+pointer to the intended display.
+
+Tokenmax deliberately hides the panel while the Mac is locked or asleep, and
+restores it after the session becomes active. It joins every Space and
+full-screen app without becoming the key window. If the setting is on and no
+handle appears after unlock, open Settings: the Side Notch section names its
+current suppression, and `make logs` records `side notch:` with the same reason.
+
+### The Side Notch ring is empty instead of showing zero
+
+An empty grey track means the value is missing or stale. Zero would claim the
+limit is exhausted, which Tokenmax cannot infer from a failed refresh. Open the
+menu-bar popover for the provider's freshness and use **Refresh** there; the
+Side Notch fills again only after a current reading lands.
+
 ### The icon is suddenly coloured and no longer matches my other menu bar icons
 
 Normally the icon is a *template image*: it carries only a shape, and macOS

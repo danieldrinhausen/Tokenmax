@@ -366,6 +366,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// the defaults.
     var menuBarEscalation: MenuBarEscalation = .default
 
+    /// The optional edge widget. Nested so its alpha-only choices do not turn
+    /// the main settings model into another row of unrelated booleans.
+    var sideNotch: SideNotchSettings = .init()
+
     /// Show the measured pace under each window: how much quota it needs before
     /// the reset, and whether that leaves a reserve or runs out early.
     var showProjections: Bool = true
@@ -580,6 +584,7 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.menuBarColorScheme
         menuBarEscalation = (try? container.decodeIfPresent(MenuBarEscalation.self, forKey: .menuBarEscalation))
             ?? d.menuBarEscalation
+        sideNotch = (try? container.decodeIfPresent(SideNotchSettings.self, forKey: .sideNotch)) ?? d.sideNotch
         showProjections = try container.decodeIfPresent(Bool.self, forKey: .showProjections) ?? d.showProjections
         queueEnabled = try container.decodeIfPresent(Bool.self, forKey: .queueEnabled) ?? d.queueEnabled
         checkForUpdates = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
