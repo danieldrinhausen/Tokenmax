@@ -74,7 +74,8 @@ struct TokenmaxApp: App {
                 now: usage.tick,
                 isHighlighted: usage.burnOpportunity != nil,
                 highlight: settingsStore.settings.menuBarHighlightColor,
-                glow: settingsStore.settings.menuBarHighlightGlow
+                glow: settingsStore.settings.menuBarHighlightGlow,
+                escalation: settingsStore.settings.effectiveEscalation
             )
             // The menubar label is the one view that exists from launch, so it
             // is where the coordinators get started.
@@ -178,6 +179,7 @@ private struct MenuBarLabel: View {
     let isHighlighted: Bool
     let highlight: HighlightColor
     let glow: Bool
+    let escalation: MenuBarEscalation?
 
     @Environment(\.openWindow) private var openWindow
 
@@ -226,7 +228,8 @@ private struct MenuBarLabel: View {
             meters: model.meters,
             isStale: model.isStale,
             highlight: highlight,
-            glow: glow
+            glow: glow,
+            escalation: escalation
         ))
     }
 

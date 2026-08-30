@@ -206,6 +206,66 @@ struct IconSnapshotDump {
         return output
     }
 
+    /// The colour ladder, in both shapes, across the readings that step through
+    /// it. What this is for is judging the *gaps* between the rungs: three warm
+    /// colours have to stay tellable apart at 2.2pt of stroke on a wallpaper
+    /// nobody chose for legibility.
+    private func escalation(scale: CGFloat, background: NSColor) -> NSImage {
+        let brightness = background.usingColorSpace(.deviceRGB)?.brightnessComponent ?? 0.5
+        let appearance = NSAppearance(named: brightness < 0.5 ? .darkAqua : .aqua)!
+        let ladder = MenuBarEscalation.default
+
+        var rendered: [NSImage] = []
+        appearance.performAsCurrentDrawingAppearance {
+            for style in MenuBarIconStyle.allCases {
+                // Healthy, one rung down, both rungs down — the three states of
+                // the default ladder, in order.
+                for pair in [[90.0, 80.0], [90.0, 40.0], [40.0, 10.0]] {
+                    rendered.append(MenuBarIconRenderer.image(
+                        style: style,
+                        meters: pair.map { .init(fraction: $0) },
+                        isStale: false,
+                        escalation: ladder
+                    ))
+                }
+            }
+        }
+
+        let pad: CGFloat = 12 * scale
+        let height = MenuBarIconRenderer.barsSize.height * scale
+        let widths = rendered.map { $0.size.width * scale }
+        let total = NSSize(
+            width: pad * CGFloat(rendered.count + 1) + widths.reduce(0, +),
+            height: height + pad * 2
+        )
+
+        let output = NSImage(size: total)
+        output.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = scale > 3 ? .none : .high
+        background.setFill()
+        NSRect(origin: .zero, size: total).fill()
+
+        var x = pad
+        for (index, image) in rendered.enumerated() {
+            image.draw(in: NSRect(x: x, y: pad, width: widths[index], height: height))
+            x += widths[index] + pad
+        }
+        output.unlockFocus()
+        return output
+    }
+
+    @Test("Dump the escalation ladder in both shapes")
+    func dumpEscalation() throws {
+        let dark = NSColor(calibratedWhite: 0.13, alpha: 1)
+        let light = NSColor(calibratedWhite: 0.93, alpha: 1)
+
+        try write(escalation(scale: 2, background: dark), to: "escalation-dark-2x.png")
+        try write(escalation(scale: 8, background: dark), to: "escalation-dark-8x.png")
+        try write(escalation(scale: 2, background: light), to: "escalation-light-2x.png")
+
+        #expect(FileManager.default.fileExists(atPath: "/tmp/tokenmax-icons/escalation-dark-2x.png"))
+    }
+
     @Test("Dump ring layouts and states")
     func dumpRings() throws {
         let dark = NSColor(calibratedWhite: 0.13, alpha: 1)

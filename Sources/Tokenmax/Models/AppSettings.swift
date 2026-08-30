@@ -352,6 +352,20 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// the plain colour swap is the quieter of the two.
     var menuBarHighlightGlow: Bool = false
 
+    /// Whether the meters carry colour from their own reading.
+    ///
+    /// Monochrome by default, and not only because an upgrade must change
+    /// nothing: plenty of people keep a deliberately colourless menu bar, and
+    /// the icon is built to live there — it is a template image that macOS
+    /// tints like its own icons. Escalating opts out of that permanently for
+    /// any meter that reaches a level.
+    var menuBarColorScheme: MenuBarColorScheme = .monochrome
+
+    /// The ladder itself. Stored whether or not it is switched on, so turning
+    /// escalation off and on again returns the user's own rungs rather than
+    /// the defaults.
+    var menuBarEscalation: MenuBarEscalation = .default
+
     /// Show the measured pace under each window: how much quota it needs before
     /// the reset, and whether that leaves a reserve or runs out early.
     var showProjections: Bool = true
@@ -469,6 +483,14 @@ struct AppSettings: Codable, Sendable, Equatable {
         MenuBarRings(menuBarRings.sources, allowed: allowedMenuBarSources)
     }
 
+    /// The ladder the renderer should apply, or nil while the scheme is
+    /// monochrome. Optional rather than a scheme the renderer switches on, so
+    /// every drawing call site is one `if let` and the monochrome path is
+    /// bit-for-bit the one that shipped before escalation existed.
+    var effectiveEscalation: MenuBarEscalation? {
+        menuBarColorScheme == .escalating ? menuBarEscalation : nil
+    }
+
     /// What the icon actually draws. The single value the menubar label needs,
     /// so no call site has to pair a style with the matching layout itself.
     var effectiveMenuBarLayout: MenuBarIconLayout {
@@ -554,6 +576,10 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.menuBarHighlightColor
         menuBarHighlightGlow = try container.decodeIfPresent(Bool.self, forKey: .menuBarHighlightGlow)
             ?? d.menuBarHighlightGlow
+        menuBarColorScheme = (try? container.decodeIfPresent(MenuBarColorScheme.self, forKey: .menuBarColorScheme))
+            ?? d.menuBarColorScheme
+        menuBarEscalation = (try? container.decodeIfPresent(MenuBarEscalation.self, forKey: .menuBarEscalation))
+            ?? d.menuBarEscalation
         showProjections = try container.decodeIfPresent(Bool.self, forKey: .showProjections) ?? d.showProjections
         queueEnabled = try container.decodeIfPresent(Bool.self, forKey: .queueEnabled) ?? d.queueEnabled
         checkForUpdates = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates

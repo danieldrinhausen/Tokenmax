@@ -140,6 +140,9 @@ enum MenuBarIconRenderer {
         /// reading shares one cache entry no matter what colour is configured.
         let highlight: HighlightColor?
         let glow: Bool
+        /// A drawing input like any other: without it, editing a level in
+        /// Settings would leave the old icon on screen.
+        let escalation: MenuBarEscalation?
     }
 
     /// The status item rasterizes its image more often than it is assigned, so
@@ -162,7 +165,8 @@ enum MenuBarIconRenderer {
         meters: [Meter],
         isStale: Bool,
         highlight: HighlightColor = .default,
-        glow: Bool = false
+        glow: Bool = false,
+        escalation: MenuBarEscalation? = nil
     ) -> NSImage {
         let canvas = size(style: style, meterCount: meters.count)
 
@@ -174,13 +178,19 @@ enum MenuBarIconRenderer {
         // A coloured meter cannot survive templating, and a template is the only
         // way the neutral meters can match the menu bar. When both are on screen
         // the colour has to win, so the neutrals fall back to grey.
-        let templated = !meters.contains { $0.isReady || $0.isAlerting }
+        let templated = !meters.contains { needsRealColor(meter: $0, escalation: escalation) }
 
         switch style {
         case .bars:
-            drawBars(meters, in: canvas, isStale: isStale, templated: templated, highlight: highlight, glow: glow)
+            drawBars(
+                meters, in: canvas, isStale: isStale, templated: templated,
+                highlight: highlight, glow: glow, escalation: escalation
+            )
         case .rings:
-            drawRings(meters, in: canvas, isStale: isStale, templated: templated, highlight: highlight, glow: glow)
+            drawRings(
+                meters, in: canvas, isStale: isStale, templated: templated,
+                highlight: highlight, glow: glow, escalation: escalation
+            )
         }
 
         image.unlockFocus()
@@ -194,7 +204,8 @@ enum MenuBarIconRenderer {
         isStale: Bool,
         templated: Bool,
         highlight: HighlightColor,
-        glow: Bool
+        glow: Bool,
+        escalation: MenuBarEscalation?
     ) {
         let (barHeight, gap) = geometry(meterCount: meters.count)
         let totalHeight = barHeight * CGFloat(meters.count) + gap * CGFloat(max(0, meters.count - 1))
@@ -215,7 +226,8 @@ enum MenuBarIconRenderer {
                 isStale: isStale,
                 templated: templated,
                 highlight: highlight,
-                glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow)
+                glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow),
+                escalation: escalation
             )
         }
     }
@@ -230,7 +242,8 @@ enum MenuBarIconRenderer {
         isStale: Bool,
         templated: Bool,
         highlight: HighlightColor,
-        glow: Bool
+        glow: Bool,
+        escalation: MenuBarEscalation?
     ) {
         for (index, meter) in meters.enumerated() {
             let ring = index / 2
@@ -247,11 +260,12 @@ enum MenuBarIconRenderer {
                 // the arc has nothing to announce. A ring that is lit or
                 // alerting draws at full strength: muting a signal that exists
                 // precisely to be noticed would be the wrong way round.
-                dimmed: isOuter && !meter.isReady && !meter.isAlerting,
+                dimmed: isOuter && !needsRealColor(meter: meter, escalation: escalation),
                 isStale: isStale,
                 templated: templated,
                 highlight: highlight,
-                glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow)
+                glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow),
+                escalation: escalation
             )
         }
     }
@@ -269,7 +283,8 @@ enum MenuBarIconRenderer {
         meters: [Meter],
         isStale: Bool,
         highlight: HighlightColor = .default,
-        glow: Bool = false
+        glow: Bool = false,
+        escalation: MenuBarEscalation? = nil
     ) -> NSImage {
         let lit = meters.contains(where: \.isReady) && !isStale
 
@@ -286,7 +301,8 @@ enum MenuBarIconRenderer {
             },
             isStale: isStale,
             highlight: lit ? highlight : nil,
-            glow: isGlowing(isStale: isStale, isReady: lit, glow: glow)
+            glow: isGlowing(isStale: isStale, isReady: lit, glow: glow),
+            escalation: escalation
         )
 
         if let cached = imageCache[key] { return cached }
@@ -296,7 +312,8 @@ enum MenuBarIconRenderer {
             meters: meters,
             isStale: isStale,
             highlight: highlight,
-            glow: glow
+            glow: glow,
+            escalation: escalation
         )
         // Three bars, three alert states and now two styles multiply the
         // reachable states, so the cap is well above the old 16 to keep the
@@ -319,7 +336,8 @@ enum MenuBarIconRenderer {
         isStale: Bool,
         templated: Bool,
         highlight: HighlightColor,
-        glow: Bool
+        glow: Bool,
+        escalation: MenuBarEscalation?
     ) {
         let fraction = meter.fraction
         let radius = rect.height / 2
@@ -328,7 +346,9 @@ enum MenuBarIconRenderer {
             isReady: meter.isReady,
             isAlerting: meter.isAlerting,
             templated: templated,
-            highlight: highlight
+            highlight: highlight,
+            fraction: fraction,
+            escalation: escalation
         )
 
         // Empty track: the meter colour at low alpha, so it reads as "unfilled"
@@ -386,14 +406,17 @@ enum MenuBarIconRenderer {
         isStale: Bool,
         templated: Bool,
         highlight: HighlightColor,
-        glow: Bool
+        glow: Bool,
+        escalation: MenuBarEscalation?
     ) {
         let base = meterColor(
             isStale: isStale,
             isReady: meter.isReady,
             isAlerting: meter.isAlerting,
             templated: templated,
-            highlight: highlight
+            highlight: highlight,
+            fraction: meter.fraction,
+            escalation: escalation
         )
         // Multiplied into whatever alpha the colour already carries, never
         // assigned over it: `meterColor` mutes a stale reading to 0.45, and
@@ -466,28 +489,64 @@ enum MenuBarIconRenderer {
     /// In the templated state this is only a mask — alpha is what survives
     /// templating, and macOS supplies the actual colour.
     ///
-    /// The precedence is the point: a fired reminder outranks a burn
-    /// opportunity on its own meter, so "you are about to waste this window" is
-    /// never repainted by the more general "now is a good time to spend".
+    /// The precedence is the point, and it turns on one distinction: whether a
+    /// signal is a statement about the *quota* or about what the user has
+    /// already been told.
+    ///
+    /// 1. Stale outranks everything. There is no reading to colour.
+    /// 2. A percentage-triggered escalation level. 15% left is not an
+    ///    opportunity however close the reset is.
+    /// 3. The burn opportunity. "Now is a good time to spend this."
+    /// 4. A reminder-triggered escalation level, then the fixed alert colour —
+    ///    both are "already announced", which is bookkeeping rather than a
+    ///    statement about quota, so a window with 80% left that happens to have
+    ///    been announced stays an opportunity.
+    /// 5. The configured base colour, if any.
+    /// 6. Neutral: the template mask, or grey once the icon has had to abandon
+    ///    templating.
     static func meterColor(
         isStale: Bool,
         isReady: Bool,
         isAlerting: Bool = false,
         templated: Bool = true,
-        highlight: HighlightColor = .default
+        highlight: HighlightColor = .default,
+        fraction: Double? = nil,
+        escalation: MenuBarEscalation? = nil
     ) -> NSColor {
         if isStale { return (templated ? templateColor : untemplatedNeutralColor).withAlphaComponent(0.45) }
-        // Ready outranks alerting. "Already notified" is notification
-        // bookkeeping, not a statement about quota: a window with 80% left that
-        // happens to have been announced is an *opportunity*, and painting it
-        // the warning colour contradicted the popover, which was calling the
-        // same window a good time to spend. Alert survives for the case it was
-        // meant for — a window that has been announced and is genuinely low,
-        // which by then is no longer a burn opportunity and so never reaches
-        // this branch as ready.
+
+        let reached = escalation.flatMap {
+            MenuBarEscalationDecision.reached(fraction: fraction, isAlerting: isAlerting, escalation: $0)
+        }
+
+        if let reached, reached.outranksHighlight { return reached.color.nsColor }
         if isReady { return highlight.nsColor }
-        if isAlerting { return alertColor }
+        if let reached { return reached.color.nsColor }
+        // The fixed orange steps aside once a ladder is configured. The
+        // reminder case is expressible as its own rung there, and two competing
+        // warm colours on a 2.2pt arc are worse than one — the user cannot rank
+        // them, so the second only makes the first ambiguous.
+        if isAlerting, escalation == nil { return alertColor }
+        if let base = escalation?.baseColor { return base.nsColor }
         return templated ? templateColor : untemplatedNeutralColor
+    }
+
+    /// Whether a reading needs a real colour, which is what forces the whole
+    /// icon out of templating. One meter that does drags the others out with
+    /// it, since a template is all-or-nothing.
+    ///
+    /// Stale is deliberately absent: a muted stub is drawn in the template mask
+    /// like any neutral meter, so an icon that has only gone stale still tints
+    /// itself to the menu bar.
+    static func needsRealColor(meter: Meter, escalation: MenuBarEscalation?) -> Bool {
+        if meter.isReady { return true }
+        guard let escalation else { return meter.isAlerting }
+        if escalation.baseColor != nil { return true }
+        return MenuBarEscalationDecision.reached(
+            fraction: meter.fraction,
+            isAlerting: meter.isAlerting,
+            escalation: escalation
+        ) != nil
     }
 
     /// "3:44", always `hours:minutes` even under an hour ("0:44") — time until
