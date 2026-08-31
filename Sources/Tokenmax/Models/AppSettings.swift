@@ -288,6 +288,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// The old percentage readout duplicated the bars and was dropped.
     var menuBarDisplayMode: MenuBarDisplayMode = .iconAndText
 
+    /// The status item is the app's ordinary way back in. It may disappear
+    /// only while Side Notch supplies another visible surface.
+    var showMenuBarItem = true
+
     /// Which shape the icon is drawn in. See `MenuBarIconStyle` for what each
     /// one is good at.
     ///
@@ -544,6 +548,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         // so retiring an enum case can never reset the user's configuration.
         menuBarDisplayMode = (try? container.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode))
             ?? d.menuBarDisplayMode
+        showMenuBarItem = (try? container.decodeIfPresent(Bool.self, forKey: .showMenuBarItem))
+            ?? d.showMenuBarItem
         menuBarProviderID = try container.decodeIfPresent(String.self, forKey: .menuBarProviderID)
             ?? d.menuBarProviderID
         foregroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .foregroundRefreshSeconds)
@@ -585,6 +591,10 @@ struct AppSettings: Codable, Sendable, Equatable {
         menuBarEscalation = (try? container.decodeIfPresent(MenuBarEscalation.self, forKey: .menuBarEscalation))
             ?? d.menuBarEscalation
         sideNotch = (try? container.decodeIfPresent(SideNotchSettings.self, forKey: .sideNotch)) ?? d.sideNotch
+        showMenuBarItem = MenuBarItemDecision.resolvedVisibility(
+            requestedVisible: showMenuBarItem,
+            sideNotchEnabled: sideNotch.enabled
+        )
         showProjections = try container.decodeIfPresent(Bool.self, forKey: .showProjections) ?? d.showProjections
         queueEnabled = try container.decodeIfPresent(Bool.self, forKey: .queueEnabled) ?? d.queueEnabled
         checkForUpdates = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates

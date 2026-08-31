@@ -194,6 +194,17 @@ limit is exhausted, which Tokenmax cannot infer from a failed refresh. Open the
 menu-bar popover for the provider's freshness and use **Refresh** there; the
 Side Notch fills again only after a current reading lands.
 
+### The Tokenmax menu bar item disappeared
+
+**Show the menu bar item** was switched off while Side Notch was enabled. This
+is a supported Side-Notch-only setup, not macOS hiding a crowded status item.
+Right-click the collapsed handle or open rail and choose **Show Menu Bar Item**.
+
+Tokenmax will not persist a state with both the menu bar item and Side Notch
+hidden: switching Side Notch off restores the item first, and a hand-edited
+settings file asking for neither is normalized on launch. If neither surface is
+visible despite that, relaunch Tokenmax; the menu item is the safe fallback.
+
 ### The icon is suddenly coloured and no longer matches my other menu bar icons
 
 Normally the icon is a *template image*: it carries only a shape, and macOS

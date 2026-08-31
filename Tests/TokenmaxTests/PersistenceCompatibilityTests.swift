@@ -92,6 +92,22 @@ struct PersistenceCompatibilityTests {
         // Nor may an upgrade place an always-on edge surface over somebody's
         // existing workspace.
         #expect(!settings.sideNotch.enabled)
+        // The status item is the only way back in until Side Notch is enabled.
+        #expect(settings.showMenuBarItem)
+    }
+
+    @Test("A settings file cannot hide every way back into Tokenmax")
+    func menuBarVisibilityNeedsSideNotch() throws {
+        let unreachable = try decode(AppSettings.self, """
+        { "showMenuBarItem": false, "sideNotch": { "enabled": false } }
+        """)
+        let sideNotchOnly = try decode(AppSettings.self, """
+        { "showMenuBarItem": false, "sideNotch": { "enabled": true } }
+        """)
+
+        #expect(unreachable.showMenuBarItem)
+        #expect(!sideNotchOnly.showMenuBarItem)
+        #expect(sideNotchOnly.sideNotch.enabled)
     }
 
     @Test("Independent Side Notch colours survive a round trip")

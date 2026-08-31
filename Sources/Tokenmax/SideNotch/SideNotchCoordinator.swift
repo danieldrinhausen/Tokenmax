@@ -28,9 +28,13 @@ final class SideNotchCoordinator: ObservableObject {
     private var hasStarted = false
     private var refreshSurfaceIsOpen = false
 
-    private static let peekSize = NSSize(width: 12, height: 72)
-    private static let railWidth: CGFloat = 78
-    private static let detailSize = NSSize(width: 316, height: 172)
+    /// The collapsed window is wider than what it draws. That invisible margin
+    /// buys a humane hover target without turning the edge mark into a tab.
+    private static let peekSize = NSSize(width: 16, height: 72)
+    private static let railWidth: CGFloat = 76
+    private static let railHeaderHeight: CGFloat = 22
+    private static let providerRowHeight: CGFloat = 64
+    private static let detailSize = NSSize(width: 306, height: 154)
     private static let closeDelay: TimeInterval = 0.4
 
     init(
@@ -124,6 +128,24 @@ final class SideNotchCoordinator: ObservableObject {
         scheduleCloseIfOutside()
     }
 
+    func toggleMenuBarItem() {
+        settingsStore.settings.showMenuBarItem.toggle()
+    }
+
+    func refreshFromContextMenu() {
+        Task {
+            await usage.refreshAll(
+                reason: "side notch menu",
+                manual: true,
+                retryDeniedKeychainAccess: true
+            )
+        }
+    }
+
+    func quit() {
+        NSApp.terminate(nil)
+    }
+
     private func transition(_ event: SideNotchEvent) {
         let next = SideNotchDecision.reduce(state, event: event)
         guard next != state else { return }
@@ -201,7 +223,7 @@ final class SideNotchCoordinator: ObservableObject {
         }
         suppression = nil
         let providerCount = max(1, presentations.count)
-        let expandedHeight = CGFloat(24 + providerCount * 68)
+        let expandedHeight = Self.railHeaderHeight + CGFloat(providerCount) * Self.providerRowHeight
         let size = state == .peek
             ? Self.peekSize
             : NSSize(width: Self.railWidth, height: expandedHeight)
@@ -216,7 +238,9 @@ final class SideNotchCoordinator: ObservableObject {
             detailPanel?.orderOut(nil)
         } else if let selected = state.selectedProvider,
                   let index = presentations.firstIndex(where: { $0.provider == selected }) {
-            let cellCenterFromTop = CGFloat(24 + index * 68 + 34)
+            let cellCenterFromTop = Self.railHeaderHeight
+                + CGFloat(index) * Self.providerRowHeight
+                + Self.providerRowHeight / 2
             let targetCenterY = railFrame.maxY - cellCenterFromTop
             let detailY = min(
                 screen.visibleFrame.maxY - Self.detailSize.height,
@@ -254,9 +278,20 @@ final class SideNotchCoordinator: ObservableObject {
     private func showDetail(frame: NSRect) {
         guard let detailPanel else { return }
         let wasVisible = detailPanel.isVisible
-        detailPanel.setFrame(frame, display: true)
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+
+        if wasVisible, !reduceMotion {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                detailPanel.animator().setFrame(frame, display: true)
+            }
+        } else {
+            detailPanel.setFrame(frame, display: true)
+        }
         detailPanel.orderFrontRegardless()
-        guard !wasVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+
+        guard !wasVisible, !reduceMotion else {
             detailPanel.alphaValue = 1
             return
         }

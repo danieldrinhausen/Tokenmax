@@ -150,6 +150,21 @@ struct GeneralSettingsView: View {
             }
 
             Section("Menu bar icon") {
+                Toggle("Show the menu bar item", isOn: menuBarItemBinding)
+                    .disabled(menuBarHideSuppression != nil)
+
+                if let suppression = menuBarHideSuppression {
+                    Text(suppression.explanation)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if !settingsStore.settings.showMenuBarItem {
+                    Text("Right-click Side Notch to restore the menu bar item at any time.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Picker("Style", selection: $settingsStore.settings.menuBarIconStyle) {
                     ForEach(MenuBarIconStyle.allCases) { style in
                         Text(style.displayName).tag(style)
@@ -185,8 +200,6 @@ struct GeneralSettingsView: View {
                     highlight: settingsStore.settings.menuBarHighlightColor
                 )
             }
-
-            SideNotchSettingsView()
 
             Section("Time remaining") {
                 Toggle("Show time remaining in the menu bar", isOn: Binding(
@@ -240,6 +253,8 @@ struct GeneralSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+
+            SideNotchSettingsView()
 
             Section("Highlight") {
                 Toggle(
@@ -325,6 +340,22 @@ struct GeneralSettingsView: View {
         // The registration can be revoked from System Settings while Tokenmax
         // is running, so re-read it whenever the pane comes back into view.
         .onAppear { loginItem.refresh() }
+    }
+
+    private var menuBarHideSuppression: MenuBarItemSuppressionReason? {
+        MenuBarItemDecision.hideSuppression(sideNotchEnabled: settingsStore.settings.sideNotch.enabled)
+    }
+
+    private var menuBarItemBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.showMenuBarItem },
+            set: { requested in
+                settingsStore.settings.showMenuBarItem = MenuBarItemDecision.resolvedVisibility(
+                    requestedVisible: requested,
+                    sideNotchEnabled: settingsStore.settings.sideNotch.enabled
+                )
+            }
+        )
     }
 }
 

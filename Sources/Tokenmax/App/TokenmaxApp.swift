@@ -57,10 +57,30 @@ struct TokenmaxApp: App {
         _sessionOpener = StateObject(wrappedValue: sessionOpener)
         _autoRun = StateObject(wrappedValue: autoRun)
         _updates = StateObject(wrappedValue: updates)
+
+        // The status item is optional now, so it can no longer own app
+        // startup. Deferred one main-runloop pass to let SwiftUI install the
+        // StateObjects before their first published changes arrive. The test
+        // host constructs this App too; starting production coordinators there
+        // would escape the suite's otherwise isolated fixtures.
+        if !RuntimeEnvironment.isTesting {
+            Task { @MainActor in
+                usage.start()
+                notificationCoordinator.start()
+                sideNotch.start()
+                resetCelebration.start()
+                sessionOpener.start()
+                autoRun.start()
+                updates.start()
+                // Asked while the user is present, never when an unattended task
+                // first discovers a protected project directory.
+                WorkingDirectoryAccess.requestAccess(for: taskStore.tasks)
+            }
+        }
     }
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: menuBarItemBinding) {
             MenuBarPopoverView()
                 .modifier(sharedEnvironment)
                 .onAppear { usage.popoverOpened() }
@@ -84,25 +104,11 @@ struct TokenmaxApp: App {
                 glow: settingsStore.settings.menuBarHighlightGlow,
                 escalation: settingsStore.settings.effectiveEscalation
             )
-            // The menubar label is the one view that exists from launch, so it
-            // is where the coordinators get started.
             .onAppear {
-                usage.start()
-                notificationCoordinator.start()
-                sideNotch.start()
-                resetCelebration.start()
-                sessionOpener.start()
-                autoRun.start()
-                updates.start()
                 // Here rather than in `applicationDidFinishLaunching` because
                 // the stores live in this struct, and because the status item
                 // it watches for does not exist until this scene has been built.
                 appDelegate.installMenuBarContextMenu(settingsStore: settingsStore, usage: usage)
-                // Asked now, not when a task runs. Reading a protected folder
-                // raises a consent dialog that blocks until answered, and an
-                // unattended run is exactly when nobody will answer it — so the
-                // question has to be put while the user is still here.
-                WorkingDirectoryAccess.requestAccess(for: taskStore.tasks)
             }
         }
         .menuBarExtraStyle(.window)
@@ -141,6 +147,23 @@ struct TokenmaxApp: App {
             modelCatalog: modelCatalog,
             codexModelCatalog: codexModelCatalog,
             updates: updates
+        )
+    }
+
+    private var menuBarItemBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.showMenuBarItem },
+            set: { requested in
+                let resolved = MenuBarItemDecision.resolvedVisibility(
+                    requestedVisible: requested,
+                    sideNotchEnabled: settingsStore.settings.sideNotch.enabled
+                )
+                // SwiftUI may write the scene's current insertion state back
+                // while reconciling the main menu. Publishing that no-op makes
+                // the scene dirty again and turns reconciliation into a loop.
+                guard resolved != settingsStore.settings.showMenuBarItem else { return }
+                settingsStore.settings.showMenuBarItem = resolved
+            }
         )
     }
 }

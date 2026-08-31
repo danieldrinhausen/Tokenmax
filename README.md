@@ -62,6 +62,11 @@ always one the icon has room for, and tying the two would mean changing the icon
 text. The icon can show **the icon only, the countdown only, or both**. The same pane offers
 **Start Tokenmax at login**.
 
+The entire menu bar item can also be hidden once Side Notch is on. That makes the edge widget a
+standalone quota surface rather than a second copy, but it never leaves the app unreachable:
+Tokenmax refuses the combination where both surfaces are off, and Side Notch's right-click menu
+can restore the menu bar item, refresh readings, or quit the app.
+
 A quota belonging to a provider you have switched off is never drawn, but its slot is remembered —
 turn the provider back on and your arrangement returns rather than a rebuilt one.
 

@@ -12,7 +12,14 @@ versions follow [semver](https://semver.org/).
   Motion, and collapses 400ms after the pointer leaves the combined surface. Ring order comes from
   the freely configured menu-bar ring slots but is regrouped per provider. Colours can follow the
   menu bar or start from a copied palette and then remain independent. The feature is off on every
-  existing install, and stale or absent readings show empty neutral tracks rather than 0%.
+  existing install, and stale or absent readings show empty neutral tracks rather than 0%. The
+  Alpha's first polish pass keeps the collapsed mark small but gives it a wider invisible hover
+  target and a subtle edge glint, thins and separates the nested arcs, highlights the selected
+  provider, and joins the denser detail card to its rail cell with a short pointer. The menu-bar
+  colour controls now sit before Side Notch, where its **Follow menu bar** choice can be understood.
+  People who want Side Notch alone can hide the complete menu bar item; Tokenmax refuses to hide
+  both surfaces, starts its background coordinators independently of the status item, and offers
+  restore, refresh and quit from Side Notch's own context menu.
 
 - **Escalation colours for the menu bar meters.** Settings → General → Colour can switch the icon
   from **Monochrome** to **Escalating**: up to three levels, each with a colour and a trigger that

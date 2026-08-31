@@ -49,6 +49,14 @@ intercept clicks intended for the app underneath. `SideNotchPresentation`
 separately resolves menu-bar ring slots into provider-grouped rings without
 reading settings or quota on its own.
 
+`MenuBarItemDecision` is the reachability rule for the optional status item. A
+request to hide it is accepted only while Side Notch is enabled, and the same
+normalization runs while decoding settings. Side Notch's context menu is the
+recovery path. Because the status item may now be absent at launch,
+`TokenmaxApp` starts usage, notification, opener, automation and update
+coordinators independently of `MenuBarLabel.onAppear`; the label owns only the
+AppKit context monitor that cannot exist before its status item does.
+
 **Corollary:** when something decides *not* to act, the reason is a case in an
 enum with human-readable copy — never a bare `return`. The user sees it in
 Settings, it appears in the log, and it is assertable in a test. A new guard

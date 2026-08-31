@@ -6,7 +6,7 @@ struct SideNotchSettingsView: View {
 
     var body: some View {
         Section("Side Notch · Alpha") {
-            Toggle("Show the Side Notch", isOn: $settingsStore.settings.sideNotch.enabled)
+            Toggle("Show the Side Notch", isOn: sideNotchEnabledBinding)
 
             Text("A small handle stays at the centre of the right screen edge. Hover it for provider rings; hover a ring for both quota windows, or click one to pin the detail card. It follows the pointer between displays and never takes keyboard focus.")
                 .font(.caption)
@@ -68,6 +68,18 @@ struct SideNotchSettingsView: View {
                     settingsStore.settings.sideNotch.customColors = settingsStore.settings.menuBarColorsForSideNotch
                 }
                 settingsStore.settings.sideNotch.colorSource = source
+            }
+        )
+    }
+
+    private var sideNotchEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.sideNotch.enabled },
+            set: { enabled in
+                if !enabled {
+                    settingsStore.settings.showMenuBarItem = true
+                }
+                settingsStore.settings.sideNotch.enabled = enabled
             }
         )
     }

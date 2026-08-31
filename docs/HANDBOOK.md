@@ -95,6 +95,12 @@ keep that card open while the pointer moves. Click again to release it. The
 surface follows the display under the pointer, appears on every Space and over
 full-screen apps, and does not take keyboard focus.
 
+If Side Notch is the view you actually use, switch off **Show the menu bar
+item** under **Menu bar icon**. Tokenmax permits that only while Side Notch is
+enabled, so an accidental pair of off switches cannot make a menubar-only app
+unreachable. Right-click the edge handle or open rail to restore the menu bar
+item, refresh quota, or quit Tokenmax.
+
 Provider order and outer/inner order are derived from the ring arrangement just
 above the switch, but cross-provider menu-bar pairs are regrouped so each large
 ring remains one provider. **Follow menu bar** keeps the colours in sync.
@@ -471,10 +477,11 @@ current state. It spends nothing.
 
 **"I want quota visible without spending menu-bar width."**
 Turn on **Side Notch · Alpha**, then switch the menu bar to its smallest useful
-form — for example time remaining only. Leave Side Notch colours on **Follow
-menu bar** at first. Hover the edge handle for a glance, and click the provider
-you are actively using when you want its reset rows to stay open. If you move
-between displays, the collapsed handle follows the pointer automatically.
+form — or hide the menu bar item completely. Leave Side Notch colours on
+**Follow menu bar** at first. Hover the edge handle for a glance, and click the
+provider you are actively using when you want its reset rows to stay open. If
+you move between displays, the collapsed handle follows the pointer
+automatically. Right-click it whenever you need the menu bar item back.
 
 **"I want to know when quota is about to be wasted, and nothing else."**
 Enable reminders, set a 45-minute session lead. Leave the queue, automation and
