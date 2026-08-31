@@ -5,6 +5,16 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Side Notch now closes as smoothly as it opens.** Its detail card used to disappear the moment
+  the pointer left, even while the rail was still collapsing. The card now fades out over the same
+  transition as the rail, so the combined surface leaves the screen as one motion.
+
+- **Reminder settings now lead with the decision, not the scheduler's bookkeeping.** Each provider
+  window is a compact on/off summary; its tuning controls and read-only delivery state are revealed
+  together only when needed. Delivery sound and badge options likewise stay behind the reminder
+  master switch, leaving a multi-provider Notifications pane scannable without hiding configured
+  rules.
+
 - **Side Notch-only mode can now actually be entered and recovered from.** SwiftUI was writing the
   menu-bar scene's old insertion state back while removing it, immediately turning **Show the menu
   bar item** on again. That scene binding is now one-way from the persisted user choice. Settings

@@ -445,7 +445,7 @@ struct NotificationSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
+            Section("Delivery") {
                 Toggle("Enable reminders", isOn: Binding(
                     get: { settingsStore.settings.remindersEnabled },
                     set: { enabled in
@@ -466,6 +466,20 @@ struct NotificationSettingsView: View {
                             notificationManager.openSystemNotificationSettings()
                         }
                         .font(.caption)
+                    }
+                }
+
+                // Sound and badges describe how a delivered notification looks,
+                // not whether any particular quota window should produce one.
+                // Keeping them behind the master switch leaves the page focused
+                // on the decision that is currently actionable.
+                if settingsStore.settings.remindersEnabled {
+                    DisclosureGroup("Delivery options") {
+                        Toggle("Play sound", isOn: $settingsStore.settings.playSound)
+                        Toggle("Show badge", isOn: $settingsStore.settings.showBadge)
+                        Text("If your Mac is asleep when a reminder is due, macOS delivers it on wake rather than at the scheduled time.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -520,14 +534,6 @@ struct NotificationSettingsView: View {
                 }
             }
 
-            Section {
-                Toggle("Play sound", isOn: $settingsStore.settings.playSound)
-                Toggle("Show badge", isOn: $settingsStore.settings.showBadge)
-                Text("If your Mac is asleep when a reminder is due, macOS delivers it on wake rather than at the scheduled time.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Quota reset confetti") {
                 Toggle("Celebrate new quota", isOn: $settingsStore.settings.resetCelebration.enabled)
 
@@ -573,50 +579,62 @@ struct NotificationSettingsView: View {
     ) -> some View {
         Section(title) {
             Toggle("Remind me before reset", isOn: rule.enabled)
+            Text(reminderSummary(rule.wrappedValue))
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
-            // Shows the effect of every control below it, so changing a setting
-            // has visible consequences instead of silent ones.
-            if let status = notifications.status(for: provider, kind: kind) {
-                HStack(spacing: 5) {
-                    Image(systemName: status.isSuppressed ? "bell.slash" : "bell")
-                        .font(.caption)
-                    Text(status.summary())
-                        .font(.caption)
-                    Spacer()
-                    if case .suppressed(.alreadyFiredForWindow, _) = status {
-                        Button("Send Again") {
-                            Task { await notifications.rearmCurrentWindow(kind, provider: provider) }
+            // A disabled rule has no settings to tune. Hiding them instead of
+            // greying them out keeps four independent windows scannable.
+            if rule.wrappedValue.enabled {
+                DisclosureGroup("Reminder options") {
+                    Picker("Lead time", selection: rule.leadTimeMinutes) {
+                        ForEach(leadOptions, id: \.self) { minutes in
+                            Text(leadLabel(minutes)).tag(minutes)
                         }
-                        .font(.caption)
+                    }
+
+                    Picker("Minimum remaining quota", selection: rule.minimumRemainingPercent) {
+                        ForEach([5.0, 10.0, 20.0, 30.0, 50.0], id: \.self) { value in
+                            Text("\(Int(value))%").tag(value)
+                        }
+                    }
+
+                    // Hidden rather than disabled when the queue is off: the
+                    // stored value is deliberately left alone so it comes back
+                    // as configured, and the scheduler ignores it meanwhile.
+                    if settingsStore.settings.queueEnabled {
+                        Toggle("Only notify when tasks are queued", isOn: rule.onlyWhenTasksQueued)
+                    }
+                    Toggle("Notify once per window", isOn: rule.notifyOncePerWindow)
+
+                    // Scheduling state is useful when diagnosing a reminder,
+                    // but it is not a setting. Keep it beside the controls it
+                    // explains rather than letting it compete with the list of
+                    // windows above.
+                    if let status = notifications.status(for: provider, kind: kind) {
+                        HStack(spacing: 5) {
+                            Image(systemName: status.isSuppressed ? "bell.slash" : "bell")
+                                .font(.caption)
+                            Text(status.summary())
+                                .font(.caption)
+                            Spacer()
+                            if case .suppressed(.alreadyFiredForWindow, _) = status {
+                                Button("Send Again") {
+                                    Task { await notifications.rearmCurrentWindow(kind, provider: provider) }
+                                }
+                                .font(.caption)
+                            }
+                        }
+                        .foregroundStyle(status.isNoteworthy ? Color.orange : Color.secondary)
                     }
                 }
-                .foregroundStyle(status.isNoteworthy ? Color.orange : Color.secondary)
             }
-
-            Picker("Lead time", selection: rule.leadTimeMinutes) {
-                ForEach(leadOptions, id: \.self) { minutes in
-                    Text(leadLabel(minutes)).tag(minutes)
-                }
-            }
-            .disabled(!rule.wrappedValue.enabled)
-
-            Picker("Minimum remaining quota", selection: rule.minimumRemainingPercent) {
-                ForEach([5.0, 10.0, 20.0, 30.0, 50.0], id: \.self) { value in
-                    Text("\(Int(value))%").tag(value)
-                }
-            }
-            .disabled(!rule.wrappedValue.enabled)
-
-            // Hidden rather than disabled when the queue is off: the stored
-            // value is deliberately left alone so it comes back as configured,
-            // and the scheduler ignores it in the meantime.
-            if settingsStore.settings.queueEnabled {
-                Toggle("Only notify when tasks are queued", isOn: rule.onlyWhenTasksQueued)
-                    .disabled(!rule.wrappedValue.enabled)
-            }
-            Toggle("Notify once per window", isOn: rule.notifyOncePerWindow)
-                .disabled(!rule.wrappedValue.enabled)
         }
+    }
+
+    private func reminderSummary(_ rule: ReminderRule) -> String {
+        guard rule.enabled else { return "Off" }
+        return "On · \(leadLabel(rule.leadTimeMinutes)) · at least \(Int(rule.minimumRemainingPercent))% remaining"
     }
 
     private func leadLabel(_ minutes: Int) -> String {

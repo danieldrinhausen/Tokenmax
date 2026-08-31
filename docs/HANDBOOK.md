@@ -276,6 +276,11 @@ on disk and come back exactly as they were.
 
 **Settings → Notifications.** Permission is requested here, never at launch.
 
+Each available Claude Code or Codex window has a short On/Off summary. Open **Reminder options**
+only for the window you are changing; that keeps its lead time, quota floor, queue condition and
+once-per-window policy next to the read-only scheduling state they produce. The page stays readable
+when several providers are enabled, rather than showing four sets of inactive controls at once.
+
 **Quota reset confetti** is separate from reminders: reminders ask you to use quota before it
 expires, while confetti marks quota that has already returned. Turn it on, then choose **Always**
 or **Specific events** and select the provider/window combinations worth celebrating. Tokenmax
