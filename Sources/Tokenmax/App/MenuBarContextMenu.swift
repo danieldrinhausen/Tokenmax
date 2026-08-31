@@ -125,7 +125,10 @@ final class MenuBarContextMenu: NSObject {
 
         switch item {
         case .settings:
-            requestWindow(.tokenmaxOpenSettings)
+            // A native Settings scene answers this AppKit action without
+            // relying on the optional menubar label to relay an open request.
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         case .openQueue:
             requestWindow(.tokenmaxOpenQueue)
         case .refresh:
@@ -141,10 +144,8 @@ final class MenuBarContextMenu: NSObject {
         }
     }
 
-    /// Windows are opened by SwiftUI's `openWindow`, which only exists inside a
-    /// view — so the request is posted and the menubar label, the one view alive
-    /// for the whole run, answers it. Activation stays here because it is an
-    /// `NSApp` concern and has to happen either way.
+    /// Queue is a named SwiftUI window, so the request is posted to the label
+    /// that owns `openWindow`. Settings uses the native scene action above.
     private func requestWindow(_ name: Notification.Name) {
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(name: name, object: nil)

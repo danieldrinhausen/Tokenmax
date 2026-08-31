@@ -20,6 +20,13 @@ Anything it reports as a failure names the source file that needs changing.
 
 ## Installing and launching
 
+### I hid the menu bar item and cannot find Settings
+
+Right-click the Side Notch handle or its expanded rail and choose
+**Settings…**. The same menu can restore **Show Menu Bar Item**. Tokenmax does
+not allow both Side Notch and the menu bar item to be switched off together, so
+that recovery path remains on screen.
+
 ### "Apple could not verify Tokenmax is free of malware"
 
 Expected. The app is signed but not notarized — notarization requires a paid

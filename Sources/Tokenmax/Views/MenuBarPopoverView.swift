@@ -591,17 +591,16 @@ struct MenuBarPopoverView: View {
             // the one thing here anybody opens more than once, so it gets the
             // button; Quit, which is used once and never in a hurry, moved to
             // the menubar icon's right-click menu.
-            Button("Settings…") { open(TokenmaxWindow.settings) }
+            SettingsLink {
+                Text("Settings…")
+            }
         }
     }
 
-    /// Activation first, then the window. `openWindow` only orders the window
-    /// to the front *within* this app; putting the app itself in front of every
-    /// other one is a separate step, and it cannot be left to the window's
-    /// `onAppear` — reopening a window that is merely buried does not appear
-    /// again, so that hook never runs a second time and the window stays where
-    /// it was. The queue button always did this; Settings did not, which is why
-    /// Settings was the one that went missing.
+    /// Activation first, then the named queue window. `openWindow` only orders
+    /// it to the front *within* this app; putting the app itself in front of
+    /// every other one is a separate step. Settings uses the native
+    /// `SettingsLink`, which performs both parts itself.
     private func open(_ id: String) {
         NSApp.activate(ignoringOtherApps: true)
         openWindow(id: id)

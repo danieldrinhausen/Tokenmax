@@ -26,7 +26,8 @@ versions follow [semver](https://semver.org/).
   colour controls now sit before Side Notch, where its **Follow menu bar** choice can be understood.
   People who want Side Notch alone can hide the complete menu bar item; Tokenmax refuses to hide
   both surfaces, starts its background coordinators independently of the status item, and offers
-  restore, refresh and quit from Side Notch's own context menu. Its detail card now carries the
+  Settings, restore, refresh and quit from Side Notch's own context menu. Settings is now a native
+  macOS scene, so opening it no longer depends on the hidden status item. Its detail card carries the
   provider context that was previously exclusive to the popover: plan and freshness, the pace
   marker, reserve or deficit, projected empty time, each reminder's state and unexpired Codex reset
   credits. The card grows for the information and windows that actually exist, so weekly-only plans

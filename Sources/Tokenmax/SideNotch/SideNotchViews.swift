@@ -23,6 +23,10 @@ struct SideNotchRailView: View {
             }
         }
         .contextMenu {
+            SettingsLink {
+                Text("Settings…")
+            }
+            Divider()
             Button(coordinator.settingsStore.settings.showMenuBarItem
                 ? "Hide Menu Bar Item"
                 : "Show Menu Bar Item"

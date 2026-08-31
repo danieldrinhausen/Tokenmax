@@ -2,7 +2,6 @@ import SwiftUI
 
 enum TokenmaxWindow {
     static let queue = "tokenmax.queue"
-    static let settings = "tokenmax.settings"
 }
 
 @main
@@ -124,7 +123,7 @@ struct TokenmaxApp: App {
         // way out of.
         .defaultSize(width: 860, height: 620)
 
-        Window("Tokenmax Settings", id: TokenmaxWindow.settings) {
+        Settings {
             SettingsView()
                 .modifier(sharedEnvironment)
                 .onAppear { appDelegate.windowDidOpen() }
@@ -239,14 +238,10 @@ private struct MenuBarLabel: View {
                 }
             }
         }
-        // "Open Queue" from a notification banner arrives here, since this view
-        // is always alive and has access to `openWindow`.
+        // "Open Queue" from a notification banner arrives here while the
+        // status item exists, since this view has access to `openWindow`.
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxOpenQueue)) { _ in
             openWindow(id: TokenmaxWindow.queue)
-        }
-        // Same reason: the right-click menu is AppKit and has no `openWindow`.
-        .onReceive(NotificationCenter.default.publisher(for: .tokenmaxOpenSettings)) { _ in
-            openWindow(id: TokenmaxWindow.settings)
         }
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxAppearanceChanged)) { _ in
             appearanceGeneration &+= 1

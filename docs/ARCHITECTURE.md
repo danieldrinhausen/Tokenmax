@@ -53,10 +53,16 @@ the detail card. Projection copy and reset-credit expiry use the same pure
 `UsageWindowPresentation` functions as the popover, so the two surfaces cannot
 describe one snapshot differently.
 
+Settings is a native SwiftUI `Settings` scene rather than an identified window.
+That gives both SwiftUI surfaces a `SettingsLink` and lets the AppKit menu send
+the standard `showSettingsWindow:` action. Opening preferences therefore does
+not depend on `MenuBarLabel` existing, which is essential once the status item
+can be hidden.
+
 `MenuBarItemDecision` is the reachability rule for the optional status item. A
 request to hide it is accepted only while Side Notch is enabled, and the same
-normalization runs while decoding settings. Side Notch's context menu is the
-recovery path. Because the status item may now be absent at launch,
+normalization runs while decoding settings. Side Notch's context menu, including
+its direct Settings link, is the recovery path. Because the status item may now be absent at launch,
 `TokenmaxApp` starts usage, notification, opener, automation and update
 coordinators independently of `MenuBarLabel.onAppear`; the label owns only the
 AppKit context monitor that cannot exist before its status item does.

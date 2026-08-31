@@ -491,6 +491,8 @@ form — or hide the menu bar item completely. Leave Side Notch colours on
 provider you are actively using when you want its reset rows to stay open. If
 you move between displays, the collapsed handle follows the pointer
 automatically. Right-click it whenever you need the menu bar item back.
+The same menu opens **Settings…** directly, so every preference remains reachable
+while the menu bar item is hidden.
 
 **"I want to know when quota is about to be wasted, and nothing else."**
 Enable reminders, set a 45-minute session lead. Leave the queue, automation and
