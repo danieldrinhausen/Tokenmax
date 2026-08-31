@@ -53,12 +53,15 @@ the detail card. Projection copy and reset-credit expiry use the same pure
 `UsageWindowPresentation` functions as the popover, so the two surfaces cannot
 describe one snapshot differently.
 
-Settings is a native SwiftUI `Settings` scene rather than an identified window.
-Every surface posts one app-level request; `AppDelegate` waits for a contextual
-menu to dismiss, sends the standard `showSettingsWindow:` action, orders the
-resulting window forward and makes it key. Opening or refocusing preferences
-therefore does not depend on `MenuBarLabel` existing or on the Settings view
-appearing for the first time, both essential once the status item can be hidden.
+`SettingsWindowController` owns one ordinary AppKit settings window whose
+content is the shared SwiftUI settings view. Every surface posts the same app
+level request, which the controller handles after a contextual menu dismisses;
+it then moves the window to the active Space, orders it forward and makes it
+key. This deliberately avoids SwiftUI's `showSettingsWindow:` action, which can
+report success while leaving an accessory app's Settings window behind another
+app. Preferences therefore do not depend on `MenuBarLabel` existing or on the
+view appearing for the first time, both essential once the status item can be
+hidden.
 
 `MenuBarItemDecision` is the reachability rule for the optional status item. A
 request to hide it is accepted only while Side Notch is enabled, and the same

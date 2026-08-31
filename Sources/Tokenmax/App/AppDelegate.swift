@@ -27,15 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // will ask consent again — the expected once-per-build prompt.
         Log.shared.write("launch: cdhash \(CodeIdentity.cdhash ?? "unknown") — keychain consent is keyed to this; a changed hash means one new prompt")
 
-        // The status item is optional, so Settings requests terminate here
-        // rather than in a view whose lifetime depends on that item existing.
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(openSettingsRequested),
-            name: .tokenmaxOpenSettings,
-            object: nil
-        )
-
         // A meter that has abandoned templating resolves its neutral against
         // the current appearance, so cached images have to be thrown away when
         // the user switches appearance or the icon keeps the old colour.
@@ -95,20 +86,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             NSApp.activate(ignoringOtherApps: true)
             keyCandidate?.makeKeyAndOrderFront(nil)
-        }
-    }
-
-    @objc private func openSettingsRequested() {
-        // `showSettingsWindow:` creates the native SwiftUI Settings scene when
-        // needed and reuses it otherwise. Defer out of the menu action, then
-        // raise explicitly because reusing an existing window does not run the
-        // Settings view's `onAppear` again.
-        Task { @MainActor [weak self] in
-            await Task.yield()
-            let handled = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            Log.shared.write("window: Settings request \(handled ? "handled" : "unhandled")")
-            await Task.yield()
-            self?.raise()
         }
     }
 

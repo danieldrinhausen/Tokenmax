@@ -142,7 +142,7 @@ final class MenuBarContextMenu: NSObject {
     }
 
     /// Queue is a named SwiftUI window, so the request is posted to the label
-    /// that owns `openWindow`. Settings terminates in `AppDelegate` instead.
+    /// that owns `openWindow`. Settings has its own AppKit controller instead.
     private func requestWindow(_ name: Notification.Name) {
         NSApp.activate(ignoringOtherApps: true)
         NotificationCenter.default.post(name: name, object: nil)

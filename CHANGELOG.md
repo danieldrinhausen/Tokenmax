@@ -9,8 +9,10 @@ versions follow [semver](https://semver.org/).
   menu-bar scene's old insertion state back while removing it, immediately turning **Show the menu
   bar item** on again. That scene binding is now one-way from the persisted user choice. Settings
   requests from either context menu now terminate in the always-alive app delegate, wait for the
-  menu to dismiss, and explicitly raise and focus the native Settings window — including one that
-  was already open behind another app.
+  menu to dismiss, and explicitly raise and focus a dedicated Settings window — including one that
+  was already open behind another app. The first native Settings-scene route was insufficient on
+  accessory apps: macOS acknowledged its action but could leave the window invisible, so Tokenmax
+  now controls the real AppKit window directly.
 
 - **Codex session reminders now match Claude's independent controls.** Accounts that report a
   session window can choose its lead time, minimum remaining quota, queue condition and repeat

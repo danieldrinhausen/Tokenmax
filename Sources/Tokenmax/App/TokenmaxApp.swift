@@ -17,9 +17,10 @@ struct TokenmaxApp: App {
     @StateObject private var resetCelebration: QuotaResetCelebrationCoordinator
     @StateObject private var sessionOpener: SessionOpenerCoordinator
     @StateObject private var autoRun: QueueAutoRunCoordinator
-    @StateObject private var modelCatalog = ModelCatalogStore()
-    @StateObject private var codexModelCatalog = CodexModelCatalogStore()
+    @StateObject private var modelCatalog: ModelCatalogStore
+    @StateObject private var codexModelCatalog: CodexModelCatalogStore
     @StateObject private var updates: UpdateCheckCoordinator
+    @StateObject private var settingsWindow: SettingsWindowController
 
     init() {
         let settingsStore = SettingsStore()
@@ -44,7 +45,26 @@ struct TokenmaxApp: App {
             taskStore: taskStore,
             settingsStore: settingsStore
         )
+        let modelCatalog = ModelCatalogStore()
+        let codexModelCatalog = CodexModelCatalogStore()
         let updates = UpdateCheckCoordinator(settingsStore: settingsStore)
+        let environment = SharedEnvironment(
+            settingsStore: settingsStore,
+            taskStore: taskStore,
+            usage: usage,
+            notificationManager: notificationManager,
+            notificationCoordinator: notificationCoordinator,
+            sideNotch: sideNotch,
+            resetCelebration: resetCelebration,
+            sessionOpener: sessionOpener,
+            autoRun: autoRun,
+            modelCatalog: modelCatalog,
+            codexModelCatalog: codexModelCatalog,
+            updates: updates
+        )
+        let settingsWindow = SettingsWindowController {
+            NSHostingController(rootView: SettingsView().modifier(environment))
+        }
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
         _taskStore = StateObject(wrappedValue: taskStore)
@@ -55,7 +75,10 @@ struct TokenmaxApp: App {
         _resetCelebration = StateObject(wrappedValue: resetCelebration)
         _sessionOpener = StateObject(wrappedValue: sessionOpener)
         _autoRun = StateObject(wrappedValue: autoRun)
+        _modelCatalog = StateObject(wrappedValue: modelCatalog)
+        _codexModelCatalog = StateObject(wrappedValue: codexModelCatalog)
         _updates = StateObject(wrappedValue: updates)
+        _settingsWindow = StateObject(wrappedValue: settingsWindow)
 
         // The status item is optional now, so it can no longer own app
         // startup. Deferred one main-runloop pass to let SwiftUI install the
@@ -123,13 +146,6 @@ struct TokenmaxApp: App {
         // way out of.
         .defaultSize(width: 860, height: 620)
 
-        Settings {
-            SettingsView()
-                .modifier(sharedEnvironment)
-                .onAppear { appDelegate.windowDidOpen() }
-                .onDisappear { appDelegate.windowDidClose() }
-        }
-        .windowResizability(.contentSize)
     }
 
     private var sharedEnvironment: SharedEnvironment {
