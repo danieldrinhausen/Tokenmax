@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-08-31
+
 - **Settings is anchored at the top of the menu-bar context menu.** Recent macOS popup placement
   could hide the first generated row, leaving only queue, refresh and quit actions visible. The
   menu now explicitly positions its permanent Settings action beneath the status icon.
