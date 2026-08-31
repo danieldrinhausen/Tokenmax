@@ -255,8 +255,6 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            SideNotchSettingsView()
-
             Section("Highlight") {
                 Toggle(
                     "Highlight when it's a good time to spend quota",
@@ -300,6 +298,11 @@ struct GeneralSettingsView: View {
                     }
                 }
             }
+
+            // Side Notch has its own display and colour rules. Keeping it after
+            // the complete menu-bar block makes that boundary visible instead
+            // of implying the controls above belong to both surfaces.
+            SideNotchSettingsView()
 
             Section("Usage") {
                 Toggle("Show projected pace", isOn: $settingsStore.settings.showProjections)

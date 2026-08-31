@@ -5,6 +5,10 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **General now keeps its display surfaces legible.** Side Notch follows the complete menu-bar
+  block rather than splitting its icon, colour and highlight controls, making clear which choices
+  belong to the menu bar and which configure the independent notch surface.
+
 - **General now distinguishes active choices from inactive or diagnostic detail.** The Terminal
   choice lives with the queue it affects, menu-bar countdown and highlight controls disappear when
   their parent switch is off, and fixed refresh timings move under Diagnostics instead of looking
