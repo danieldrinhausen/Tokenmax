@@ -5,6 +5,11 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **General now distinguishes active choices from inactive or diagnostic detail.** The Terminal
+  choice lives with the queue it affects, menu-bar countdown and highlight controls disappear when
+  their parent switch is off, and fixed refresh timings move under Diagnostics instead of looking
+  like unavailable preferences.
+
 - **Side Notch now closes as smoothly as it opens.** Its detail card used to disappear the moment
   the pointer left, even while the rail was still collapsing. The card now fades out over the same
   transition as the rail, so the combined surface leaves the screen as one motion.

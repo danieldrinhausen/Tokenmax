@@ -121,7 +121,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Section {
+            Section("App") {
                 Toggle("Start Tokenmax at login", isOn: Binding(
                     get: { loginItem.isEnabled },
                     set: { loginItem.setEnabled($0) }
@@ -201,7 +201,7 @@ struct GeneralSettingsView: View {
                 )
             }
 
-            Section("Time remaining") {
+            Section("Menu bar text") {
                 Toggle("Show time remaining in the menu bar", isOn: Binding(
                     get: { settingsStore.settings.menuBarDisplayMode != .iconOnly },
                     set: { settingsStore.settings.menuBarDisplayMode = $0 ? .iconAndText : .iconOnly }
@@ -209,17 +209,18 @@ struct GeneralSettingsView: View {
 
                 // Its own choice rather than "whatever the top bar shows": the
                 // most useful deadline is not always one the bars have room for.
-                Picker("Count down to", selection: $settingsStore.settings.menuBarCountdownSource) {
-                    ForEach(settingsStore.settings.allowedMenuBarSources) { source in
-                        Text(source.displayName).tag(source)
+                if settingsStore.settings.menuBarDisplayMode != .iconOnly {
+                    Picker("Count down to", selection: $settingsStore.settings.menuBarCountdownSource) {
+                        ForEach(settingsStore.settings.allowedMenuBarSources) { source in
+                            Text(source.displayName).tag(source)
+                        }
                     }
-                }
-                .disabled(settingsStore.settings.menuBarDisplayMode == .iconOnly)
 
-                Text("Time left before the chosen window resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                    Text("Time left before the chosen window resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
             }
 
@@ -266,10 +267,10 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // Everything below configures the highlight, so it all goes grey
-                // together when the highlight is off — but the switch above must
-                // stay live, or there would be no way back on.
-                Group {
+                // A disabled highlight has no colour or preview to configure.
+                // Hiding the inactive details keeps the visual controls from
+                // overwhelming the more ordinary General choices.
+                if settingsStore.settings.menuBarHighlightWhenReady {
                     HighlightColorPicker(color: $settingsStore.settings.menuBarHighlightColor)
 
                     Toggle("Add a glow", isOn: $settingsStore.settings.menuBarHighlightGlow)
@@ -298,10 +299,9 @@ struct GeneralSettingsView: View {
                             .font(.caption)
                     }
                 }
-                .disabled(!settingsStore.settings.menuBarHighlightWhenReady)
             }
 
-            Section {
+            Section("Usage") {
                 Toggle("Show projected pace", isOn: $settingsStore.settings.showProjections)
                 Text("Under each meter: whether your spending is ahead of or behind an even burn of the window, and when it runs out if you are ahead. The marker on the bar is where an even burn would have left the meter right now.")
                     .font(.caption)
@@ -315,25 +315,31 @@ struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if settingsStore.settings.queueEnabled {
+                    Picker("Terminal", selection: $settingsStore.settings.terminalApplication) {
+                        ForEach(AppSettings.terminalOptions, id: \.self) { app in
+                            Text(app).tag(app)
+                        }
+                    }
+                }
             }
 
-            Picker("Terminal", selection: $settingsStore.settings.terminalApplication) {
-                ForEach(AppSettings.terminalOptions, id: \.self) { app in
-                    Text(app).tag(app)
+            Section("Diagnostics") {
+                // These timings are intentionally fixed, so presenting them as
+                // ordinary form rows made read-only implementation details look
+                // like settings users had somehow lost the ability to edit.
+                DisclosureGroup("Refresh details") {
+                    LabeledContent("Background refresh") {
+                        Text("\(Int(settingsStore.settings.backgroundRefreshSeconds / 60)) min")
+                    }
+                    LabeledContent("Mark stale after") {
+                        Text("\(Int(settingsStore.settings.staleAfterSeconds / 60)) min")
+                    }
+                    Text("Usage requests to Anthropic are rate-limited to one every 3 minutes regardless of these values.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-            }
-            .disabled(!settingsStore.settings.queueEnabled)
-
-            Section {
-                LabeledContent("Background refresh") {
-                    Text("\(Int(settingsStore.settings.backgroundRefreshSeconds / 60)) min")
-                }
-                LabeledContent("Mark stale after") {
-                    Text("\(Int(settingsStore.settings.staleAfterSeconds / 60)) min")
-                }
-                Text("Usage requests to Anthropic are rate-limited to one every 3 minutes regardless of these values.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
