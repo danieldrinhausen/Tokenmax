@@ -27,6 +27,7 @@ final class SideNotchCoordinator: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var hasStarted = false
     private var refreshSurfaceIsOpen = false
+    private var detailDismissalGeneration = 0
 
     /// The collapsed window is wider than what it draws. That invisible margin
     /// buys a humane hover target without turning the edge mark into a tab.
@@ -35,6 +36,7 @@ final class SideNotchCoordinator: ObservableObject {
     private static let railHeaderHeight: CGFloat = 22
     private static let providerRowHeight: CGFloat = 64
     private static let closeDelay: TimeInterval = 0.4
+    private static let panelTransitionDuration: TimeInterval = 0.22
 
     init(
         settingsStore: SettingsStore,
@@ -237,7 +239,7 @@ final class SideNotchCoordinator: ObservableObject {
         )
 
         if state == .peek {
-            detailPanel?.orderOut(nil)
+            dismissDetail()
         } else if let selected = state.selectedProvider,
                   let index = presentations.firstIndex(where: { $0.provider == selected }) {
             let presentation = presentations[index]
@@ -259,7 +261,7 @@ final class SideNotchCoordinator: ObservableObject {
             )
             showDetail(frame: detailFrame)
         } else {
-            detailPanel?.orderOut(nil)
+            dismissDetail()
         }
 
         animateRail(to: railFrame)
@@ -274,7 +276,7 @@ final class SideNotchCoordinator: ObservableObject {
             return
         }
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.22
+            context.duration = Self.panelTransitionDuration
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             railPanel.animator().setFrame(frame, display: true)
         }
@@ -282,12 +284,13 @@ final class SideNotchCoordinator: ObservableObject {
 
     private func showDetail(frame: NSRect) {
         guard let detailPanel else { return }
+        detailDismissalGeneration += 1
         let wasVisible = detailPanel.isVisible
         let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
         if wasVisible, !reduceMotion {
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.18
+                context.duration = Self.panelTransitionDuration
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 detailPanel.animator().setFrame(frame, display: true)
             }
@@ -302,14 +305,36 @@ final class SideNotchCoordinator: ObservableObject {
         }
         detailPanel.alphaValue = 0
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.16
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            context.duration = Self.panelTransitionDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             detailPanel.animator().alphaValue = 1
+        }
+    }
+
+    private func dismissDetail() {
+        guard let detailPanel, detailPanel.isVisible else { return }
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            detailPanel.orderOut(nil)
+            return
+        }
+        detailDismissalGeneration += 1
+        let generation = detailDismissalGeneration
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.panelTransitionDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            detailPanel.animator().alphaValue = 0
+        } completionHandler: {
+            Task { @MainActor [weak self] in
+                guard let self, self.detailDismissalGeneration == generation else { return }
+                detailPanel.orderOut(nil)
+                detailPanel.alphaValue = 1
+            }
         }
     }
 
     private func hidePanels() {
         cancelClose()
+        detailDismissalGeneration += 1
         pointerInsideRail = false
         pointerInsideDetail = false
         if state != .peek { state = .peek }
