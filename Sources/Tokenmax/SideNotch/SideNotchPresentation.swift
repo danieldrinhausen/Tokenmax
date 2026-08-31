@@ -4,6 +4,8 @@ struct SideNotchMeterPresentation: Equatable, Identifiable, Sendable {
     let source: MenuBarQuotaSource
     let window: UsageWindow?
     let isStale: Bool
+    let projection: UsageProjection?
+    let reminderStatus: ReminderStatus?
     let color: HighlightColor?
     let glow: Bool
 
@@ -22,10 +24,46 @@ struct SideNotchMeterPresentation: Equatable, Identifiable, Sendable {
 
 struct SideNotchProviderPresentation: Equatable, Identifiable, Sendable {
     let provider: TokenmaxProvider
+    let planName: String?
+    let updatedText: String
+    let isStale: Bool
+    let availableResetText: String?
     let outer: SideNotchMeterPresentation
     let inner: SideNotchMeterPresentation
 
     var id: TokenmaxProvider { provider }
+    var detailMeters: [SideNotchMeterPresentation] {
+        [outer, inner].filter { $0.window != nil }
+    }
+}
+
+struct SideNotchDetailDimensions: Equatable, Sendable {
+    let width: Double
+    let height: Double
+}
+
+/// Sizes the detail panel from the information it will actually draw. This is
+/// presentation policy rather than window management, so it stays pure and a
+/// weekly-only provider cannot regress into reserving an empty session row.
+enum SideNotchDetailLayout {
+    static func dimensions(for presentation: SideNotchProviderPresentation) -> SideNotchDetailDimensions {
+        let meters = presentation.detailMeters
+        var height = 62.0
+
+        if meters.isEmpty {
+            height += 28
+        } else {
+            for meter in meters {
+                height += 35
+                if meter.projection != nil { height += 16 }
+                if meter.reminderStatus != nil { height += 16 }
+            }
+            height += Double(max(0, meters.count - 1)) * 9
+        }
+
+        if presentation.availableResetText != nil { height += 22 }
+        return SideNotchDetailDimensions(width: 340, height: height)
+    }
 }
 
 /// Resolves the freely arranged menu-bar ring slots into one unambiguous ring
@@ -39,7 +77,10 @@ enum SideNotchPresentation {
         isStale: (TokenmaxProvider) -> Bool,
         alerting: Set<MenuBarQuotaSource>,
         ready: Set<MenuBarQuotaSource>,
-        colors: SideNotchColorSettings
+        colors: SideNotchColorSettings,
+        now: Date,
+        projection: (UsageWindow) -> UsageProjection?,
+        reminderStatus: (TokenmaxProvider, UsageWindowKind) -> ReminderStatus?
     ) -> [SideNotchProviderPresentation] {
         orderedProviders(layout: layout, enabledProviders: enabledProviders).compactMap { provider in
             let sources = layout.sources.filter { $0.provider == provider }
@@ -48,13 +89,23 @@ enum SideNotchPresentation {
             let current = snapshot(provider)
             return SideNotchProviderPresentation(
                 provider: provider,
+                planName: current?.planName,
+                updatedText: current.map {
+                    "Updated \(RelativeTime.short(now.timeIntervalSince($0.fetchedAt))) ago"
+                } ?? "Never updated",
+                isStale: stale,
+                availableResetText: current.flatMap {
+                    UsageWindowPresentation.availableResetText(for: $0, now: now)
+                },
                 outer: meter(
                     source: sources[0], snapshot: current, isStale: stale,
-                    alerting: alerting, ready: ready, colors: colors
+                    alerting: alerting, ready: ready, colors: colors,
+                    projection: projection, reminderStatus: reminderStatus
                 ),
                 inner: meter(
                     source: sources[1], snapshot: current, isStale: stale,
-                    alerting: alerting, ready: ready, colors: colors
+                    alerting: alerting, ready: ready, colors: colors,
+                    projection: projection, reminderStatus: reminderStatus
                 )
             )
         }
@@ -79,7 +130,9 @@ enum SideNotchPresentation {
         isStale: Bool,
         alerting: Set<MenuBarQuotaSource>,
         ready: Set<MenuBarQuotaSource>,
-        colors: SideNotchColorSettings
+        colors: SideNotchColorSettings,
+        projection: (UsageWindow) -> UsageProjection?,
+        reminderStatus: (TokenmaxProvider, UsageWindowKind) -> ReminderStatus?
     ) -> SideNotchMeterPresentation {
         let window = snapshot?.window(source.kind)
         let fraction = isStale ? nil : window?.remainingPercent
@@ -116,6 +169,8 @@ enum SideNotchPresentation {
             source: source,
             window: window,
             isStale: isStale,
+            projection: isStale ? nil : window.flatMap(projection),
+            reminderStatus: reminderStatus(source.provider, source.kind),
             color: color,
             glow: colors.glow && color != nil
         )

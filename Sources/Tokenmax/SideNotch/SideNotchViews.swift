@@ -177,21 +177,56 @@ struct SideNotchDetailView: View {
         Group {
             if let presentation = coordinator.selectedPresentation {
                 VStack(alignment: .leading, spacing: 9) {
-                    HStack(spacing: 6) {
-                        Image(systemName: presentation.provider.sideNotchSymbol)
-                            .font(.system(size: 10.5, weight: .semibold))
-                        Text(presentation.provider.displayName)
-                            .font(.system(size: 12, weight: .semibold))
-                        Spacer()
-                        if coordinator.state.isLocked {
-                            Image(systemName: "pin.fill")
-                                .font(.system(size: 8))
-                                .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Image(systemName: presentation.provider.sideNotchSymbol)
+                                .font(.system(size: 10.5, weight: .semibold))
+                            Text(presentation.provider.displayName)
+                                .font(.system(size: 12, weight: .semibold))
+                            if presentation.isStale, presentation.updatedText != "Never updated" {
+                                Text("· Stale")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(.orange)
+                            }
+                            Spacer(minLength: 4)
+                            if let plan = presentation.planName {
+                                Text(plan)
+                                    .font(.system(size: 9, weight: .medium))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.white.opacity(0.12), in: Capsule())
+                            }
+                            if coordinator.state.isLocked {
+                                Image(systemName: "pin.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text(presentation.updatedText)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.white.opacity(0.45))
+                    }
+
+                    if presentation.detailMeters.isEmpty {
+                        Text("No quota reading available")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white.opacity(0.55))
+                    } else {
+                        ForEach(presentation.detailMeters) { meter in
+                            detailRow(meter)
                         }
                     }
 
-                    detailRow(presentation.outer)
-                    detailRow(presentation.inner)
+                    if let availableResetText = presentation.availableResetText {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.counterclockwise.circle")
+                                .font(.system(size: 9))
+                            Text(availableResetText)
+                                .font(.system(size: 9))
+                        }
+                        .foregroundStyle(.white.opacity(0.62))
+                        .help("A banked reset refreshes Codex's eligible usage windows. Redeem it from Codex after reviewing its offer details.")
+                    }
                 }
                 .padding(.leading, 14)
                 .padding(.vertical, 13)
@@ -216,14 +251,11 @@ struct SideNotchDetailView: View {
 
     private func detailRow(_ meter: SideNotchMeterPresentation) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(meter.shortLabel)
-                    .font(.system(size: 10, weight: .medium))
-                Spacer()
-                Text(remainingText(meter))
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-            }
+            Text(meter.shortLabel.uppercased())
+                .font(.system(size: 8.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .tracking(0.5)
+
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.13))
@@ -236,20 +268,47 @@ struct SideNotchDetailView: View {
                                 radius: meter.glow ? 4 : 0
                             )
                     }
+                    if let marker = paceMarker(for: meter) {
+                        Capsule()
+                            .fill(markerColor(for: meter))
+                            .frame(width: 2)
+                            .offset(x: (geometry.size.width - 2) * marker)
+                    }
                 }
             }
             .frame(height: 3.5)
 
-            Text(resetText(meter))
-                .font(.system(size: 8.5))
-                .foregroundStyle(.white.opacity(0.55))
-                .lineLimit(1)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(remainingText(meter))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(meter.isStale ? Color.white.opacity(0.50) : .white)
+                Spacer(minLength: 4)
+                Text(resetText(meter))
+                    .font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
+            }
+
+            if let projection = meter.projection {
+                projectionLine(projection)
+            }
+
+            if let status = meter.reminderStatus {
+                HStack(spacing: 4) {
+                    Image(systemName: status.isSuppressed ? "bell.slash" : "bell")
+                        .font(.system(size: 8))
+                    Text(status.summary(now: coordinator.usage.tick))
+                        .font(.system(size: 9))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(status.isNoteworthy ? Color.orange : Color.white.opacity(0.55))
+            }
         }
-        .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: meter)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: meter.fraction)
     }
 
     private func remainingText(_ meter: SideNotchMeterPresentation) -> String {
-        if meter.isStale { return "Stale" }
         guard let window = meter.window else { return "Unavailable" }
         return UsageWindowPresentation.remainingText(for: window)
     }
@@ -261,6 +320,34 @@ struct SideNotchDetailView: View {
             isStale: meter.isStale,
             now: coordinator.usage.tick
         )
+    }
+
+    private func projectionLine(_ projection: UsageProjection) -> some View {
+        let presentation = UsageWindowPresentation.projectionLine(
+            for: projection,
+            now: coordinator.usage.tick
+        )
+
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(presentation.outlookText)
+                .foregroundStyle(presentation.isDeficit ? Color.orange : Color.white.opacity(0.58))
+            Spacer(minLength: 4)
+            Text(presentation.paceText)
+                .foregroundStyle(Color.white.opacity(0.55))
+        }
+        .font(.system(size: 9))
+        .lineLimit(1)
+    }
+
+    private func paceMarker(for meter: SideNotchMeterPresentation) -> Double? {
+        guard !meter.isStale, let projection = meter.projection else { return nil }
+        return max(0, min(1, projection.evenPaceRemainingPercent / 100))
+    }
+
+    private func markerColor(for meter: SideNotchMeterPresentation) -> Color {
+        guard let projection = meter.projection else { return .clear }
+        if case .deficit = projection.outlook { return .red }
+        return Color.white.opacity(0.85)
     }
 }
 

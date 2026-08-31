@@ -90,10 +90,12 @@ glance, and the icon alone is the least distracting.
 **Putting the meters at the screen edge.** **Settings → General → Side Notch ·
 Alpha** is a complementary view, not a replacement for the menu bar. Enable it
 and move to the small handle halfway down the right edge. Hover opens one double
-ring per provider; hover a ring for the two precise quota rows, or click it to
-keep that card open while the pointer moves. Click again to release it. The
-surface follows the display under the pointer, appears on every Space and over
-full-screen apps, and does not take keyboard focus.
+ring per provider; hover a ring for plan and freshness, the precise quota rows,
+pace reserve or deficit, projected empty time and reminder state. Codex also
+shows banked reset credits when it reports them. Click a ring to keep that card
+open while the pointer moves, and again to release it. The surface follows the
+display under the pointer, appears on every Space and over full-screen apps, and
+does not take keyboard focus.
 
 If Side Notch is the view you actually use, switch off **Show the menu bar
 item** under **Menu bar icon**. Tokenmax permits that only while Side Notch is

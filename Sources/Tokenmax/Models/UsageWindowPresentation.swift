@@ -1,5 +1,11 @@
 import Foundation
 
+struct UsageProjectionLinePresentation: Equatable, Sendable {
+    let outlookText: String
+    let paceText: String
+    let isDeficit: Bool
+}
+
 /// How a quota window should be described, independent of how it is drawn.
 ///
 /// Both the popover's full meter and the queue's compact bar have to answer the
@@ -78,5 +84,47 @@ enum UsageWindowPresentation {
     static func fillFraction(for window: UsageWindow, isStale: Bool) -> Double? {
         guard !isStale, let remaining = window.remainingPercent else { return nil }
         return max(0, min(1, remaining / 100))
+    }
+
+    /// The projection sentence shared by every quota surface. Keeping both
+    /// halves together prevents a compact view from pairing a reserve label
+    /// with the deficit-only empty-time estimate.
+    static func projectionLine(
+        for projection: UsageProjection,
+        now: Date
+    ) -> UsageProjectionLinePresentation {
+        switch projection.outlook {
+        case let .reserve(percent):
+            return UsageProjectionLinePresentation(
+                outlookText: percent.rounded() < 1
+                    ? "On pace"
+                    : "\(Int(percent.rounded()))% in reserve",
+                paceText: "Lasts until reset",
+                isDeficit: false
+            )
+        case let .deficit(percent, emptyAt):
+            return UsageProjectionLinePresentation(
+                outlookText: percent.rounded() < 1
+                    ? "On pace"
+                    : "\(Int(percent.rounded()))% in deficit",
+                paceText: "Projected empty in \(RelativeTime.countdown(emptyAt.timeIntervalSince(now)))",
+                isDeficit: true
+            )
+        }
+    }
+
+    /// A banked reset belongs to the provider rather than either window, so it
+    /// sits below both in every surface. An expired cached credit is never
+    /// advertised as available.
+    static func availableResetText(for snapshot: UsageSnapshot, now: Date) -> String? {
+        guard let count = snapshot.availableResetCount, count > 0,
+              snapshot.availableResetExpiresAt.map({ $0 > now }) ?? true
+        else { return nil }
+
+        let noun = count == 1 ? "reset" : "resets"
+        if let expiry = snapshot.availableResetExpiresAt {
+            return "\(count) available \(noun) · expires \(expiry.formatted(date: .abbreviated, time: .omitted))"
+        }
+        return "\(count) available \(noun)"
     }
 }

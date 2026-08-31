@@ -47,7 +47,11 @@ notifications and two non-activating `NSPanel`s. Two panels rather than one
 large transparent window are load-bearing: a transparent bridge would still
 intercept clicks intended for the app underneath. `SideNotchPresentation`
 separately resolves menu-bar ring slots into provider-grouped rings without
-reading settings or quota on its own.
+reading settings or quota on its own. It also carries the selected provider's
+plan, freshness, projections, reminder decisions and banked reset credit into
+the detail card. Projection copy and reset-credit expiry use the same pure
+`UsageWindowPresentation` functions as the popover, so the two surfaces cannot
+describe one snapshot differently.
 
 `MenuBarItemDecision` is the reachability rule for the optional status item. A
 request to hide it is accepted only while Side Notch is enabled, and the same

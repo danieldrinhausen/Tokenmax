@@ -104,44 +104,20 @@ struct UsageWindowView: View {
     // MARK: - Projection
 
     private func projectionLine(_ projection: UsageProjection) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(outlookText(projection.outlook))
+        let presentation = UsageWindowPresentation.projectionLine(for: projection, now: now)
+
+        return HStack(alignment: .firstTextBaseline) {
+            Text(presentation.outlookText)
                 .font(.system(size: 12))
-                .foregroundStyle(outlookColor(projection.outlook))
+                .foregroundStyle(presentation.isDeficit ? Color.orange : Color.secondary)
 
             Spacer(minLength: 12)
 
-            Text(paceText(projection.outlook))
+            Text(presentation.paceText)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
         .help(helpText(projection))
-    }
-
-    /// Rounding to zero means spending is sitting on the even-burn line.
-    /// "0% in reserve" reads as an error; "On pace" is the same fact stated the
-    /// way it is meant.
-    private func outlookText(_ outlook: UsageOutlook) -> String {
-        switch outlook {
-        case let .reserve(percent):
-            percent.rounded() < 1 ? "On pace" : "\(Int(percent.rounded()))% in reserve"
-        case let .deficit(percent, _):
-            percent.rounded() < 1 ? "On pace" : "\(Int(percent.rounded()))% in deficit"
-        }
-    }
-
-    private func paceText(_ outlook: UsageOutlook) -> String {
-        switch outlook {
-        case .reserve:
-            "Lasts until reset"
-        case let .deficit(_, emptyAt):
-            "Projected empty in \(RelativeTime.countdown(emptyAt.timeIntervalSince(now)))"
-        }
-    }
-
-    private func outlookColor(_ outlook: UsageOutlook) -> Color {
-        if case .deficit = outlook { return .orange }
-        return .secondary
     }
 
     /// The number is an extrapolation, not a measurement of the future. Saying

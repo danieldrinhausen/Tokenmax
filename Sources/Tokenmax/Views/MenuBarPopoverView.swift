@@ -256,7 +256,8 @@ struct MenuBarPopoverView: View {
                     reminderLine(for: .weekly, provider: provider)
                 }
             }
-            if provider == .codex, let resetText = availableResetText(for: snapshot, now: usage.tick) {
+            if provider == .codex,
+               let resetText = UsageWindowPresentation.availableResetText(for: snapshot, now: usage.tick) {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.counterclockwise.circle")
                         .font(.system(size: 10))
@@ -267,21 +268,6 @@ struct MenuBarPopoverView: View {
                 .help("A banked reset refreshes Codex's eligible usage windows. Redeem it from Codex after reviewing its offer details.")
             }
         }
-    }
-
-    /// Never leave an expired cached credit visible as available. A stale
-    /// snapshot can still show a future credit — the provider header makes its
-    /// age clear — but it cannot truthfully promise one past its own expiry.
-    private func availableResetText(for snapshot: UsageSnapshot, now: Date) -> String? {
-        guard let count = snapshot.availableResetCount, count > 0,
-              snapshot.availableResetExpiresAt.map({ $0 > now }) ?? true
-        else { return nil }
-
-        let noun = count == 1 ? "reset" : "resets"
-        if let expiry = snapshot.availableResetExpiresAt {
-            return "\(count) available \(noun) · expires \(expiry.formatted(date: .abbreviated, time: .omitted))"
-        }
-        return "\(count) available \(noun)"
     }
 
     /// A projection is a claim about what is happening *now*. Carrying the last

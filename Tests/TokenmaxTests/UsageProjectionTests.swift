@@ -134,6 +134,25 @@ struct UsageProjectionTests {
         #expect(abs(percent - 45) < 0.5)
     }
 
+    @Test("Projection copy keeps reserve and deficit meanings paired")
+    func projectionCopyStaysConsistent() throws {
+        let deficit = UsageWindowPresentation.projectionLine(
+            for: try #require(project(remaining: 28, resetInHours: 3.1)),
+            now: now
+        )
+        let reserve = UsageWindowPresentation.projectionLine(
+            for: try #require(project(kind: .weekly, remaining: 57, resetInHours: 25)),
+            now: now
+        )
+
+        #expect(deficit.outlookText == "34% in deficit")
+        #expect(deficit.paceText.hasPrefix("Projected empty in "))
+        #expect(deficit.isDeficit)
+        #expect(reserve.outlookText == "42% in reserve")
+        #expect(reserve.paceText == "Lasts until reset")
+        #expect(!reserve.isDeficit)
+    }
+
     // MARK: - Internal consistency
 
     /// The two halves of the line come from one comparison, so they can never

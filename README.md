@@ -73,10 +73,12 @@ turn the provider back on and your arrangement returns rather than a rebuilt one
 **Settings → General → Side Notch · Alpha** adds the same readings as a second, optional surface.
 Off by default, it is a narrow handle halfway down the right edge of whichever display the pointer
 is on. Hover opens a rail with one large double ring per provider; hover a provider for a detail
-card with both percentages and reset times, or click to pin the card until the next click. Leaving
-the whole surface collapses it after 400ms, which is long enough to cross from rail to card without
-making an always-open shelf. The panels join every Space and full-screen app, but cannot become key,
-so checking quota never takes typing away from the app underneath.
+card with the same context as the popover: plan and freshness, percentages and reset times, pace
+reserve or deficit, projected empty time, reminder state and Codex reset credits when available.
+Click to pin the card until the next click. Leaving the whole surface collapses it after 400ms,
+which is long enough to cross from rail to card without making an always-open shelf. The panels join
+every Space and full-screen app, but cannot become key, so checking quota never takes typing away
+from the app underneath.
 
 The Side Notch uses the configured ring slots as source material, but always groups the two windows
 belonging to one provider. First appearance sets provider order; relative appearance of that

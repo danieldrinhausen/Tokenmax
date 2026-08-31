@@ -34,7 +34,6 @@ final class SideNotchCoordinator: ObservableObject {
     private static let railWidth: CGFloat = 76
     private static let railHeaderHeight: CGFloat = 22
     private static let providerRowHeight: CGFloat = 64
-    private static let detailSize = NSSize(width: 306, height: 154)
     private static let closeDelay: TimeInterval = 0.4
 
     init(
@@ -80,7 +79,10 @@ final class SideNotchCoordinator: ObservableObject {
             isStale: { usage.isStale(for: $0) },
             alerting: notifications.alertingSources,
             ready: usage.readySources,
-            colors: settings.effectiveSideNotchColors
+            colors: settings.effectiveSideNotchColors,
+            now: usage.tick,
+            projection: { usage.projection(for: $0) },
+            reminderStatus: { notifications.status(for: $0, kind: $1) }
         )
     }
 
@@ -238,19 +240,22 @@ final class SideNotchCoordinator: ObservableObject {
             detailPanel?.orderOut(nil)
         } else if let selected = state.selectedProvider,
                   let index = presentations.firstIndex(where: { $0.provider == selected }) {
+            let presentation = presentations[index]
+            let dimensions = SideNotchDetailLayout.dimensions(for: presentation)
+            let detailSize = NSSize(width: dimensions.width, height: dimensions.height)
             let cellCenterFromTop = Self.railHeaderHeight
                 + CGFloat(index) * Self.providerRowHeight
                 + Self.providerRowHeight / 2
             let targetCenterY = railFrame.maxY - cellCenterFromTop
             let detailY = min(
-                screen.visibleFrame.maxY - Self.detailSize.height,
-                max(screen.visibleFrame.minY, targetCenterY - Self.detailSize.height / 2)
+                screen.visibleFrame.maxY - detailSize.height,
+                max(screen.visibleFrame.minY, targetCenterY - detailSize.height / 2)
             )
             let detailFrame = NSRect(
-                x: railFrame.minX - Self.detailSize.width,
+                x: railFrame.minX - detailSize.width,
                 y: detailY,
-                width: Self.detailSize.width,
-                height: Self.detailSize.height
+                width: detailSize.width,
+                height: detailSize.height
             )
             showDetail(frame: detailFrame)
         } else {
