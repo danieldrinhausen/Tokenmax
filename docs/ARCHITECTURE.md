@@ -61,6 +61,14 @@ recovery path. Because the status item may now be absent at launch,
 coordinators independently of `MenuBarLabel.onAppear`; the label owns only the
 AppKit context monitor that cannot exist before its status item does.
 
+`NotificationScheduler` evaluates one provider/window rule at a time; a valid
+snapshot that omits that window is the named `.windowUnavailable` suppression,
+not missing or stale data. Delivered requests carry both provider and window in
+their metadata. `ReminderRuleSourceResolver` is the pure compatibility boundary
+that recovers those values from older identifiers, so the coordinator records
+the fingerprint of the exact Codex or Claude rule that fired rather than a
+provider-agnostic approximation.
+
 **Corollary:** when something decides *not* to act, the reason is a case in an
 enum with human-readable copy — never a bare `return`. The user sees it in
 Settings, it appears in the log, and it is assertable in a test. A new guard

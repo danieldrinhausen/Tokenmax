@@ -134,6 +134,33 @@ struct NotificationSchedulerTests {
         )
     }
 
+    /// Delivery callbacks arrive later than scheduling and must recover the
+    /// exact provider rule whose fingerprint keeps once-per-window reliable.
+    @Test("Delivery metadata resolves every provider window independently")
+    func resolvesDeliveredReminderSource() {
+        #expect(
+            ReminderRuleSourceResolver.resolve(
+                identifier: "ignored", providerID: "codex", windowKind: "session"
+            ) == ReminderRuleSource(provider: .codex, kind: .session)
+        )
+        #expect(
+            ReminderRuleSourceResolver.resolve(
+                identifier: "ignored", providerID: "claude-code", windowKind: "weekly"
+            ) == ReminderRuleSource(provider: .claudeCode, kind: .weekly)
+        )
+    }
+
+    @Test("Older delivered reminders resolve from their identifier")
+    func resolvesLegacyReminderSource() {
+        let source = ReminderRuleSourceResolver.resolve(
+            identifier: "codex-weekly-2026-08-31T12:00:00Z-snooze-1",
+            providerID: nil,
+            windowKind: nil
+        )
+
+        #expect(source == ReminderRuleSource(provider: .codex, kind: .weekly))
+    }
+
     @Test("Drift changes the identity but not the scheduled fire time")
     func driftDoesNotShiftFireTime() {
         guard case let .schedule(id1, fire1, _, _) = NotificationScheduler.decide(input(resetInMinutes: 60)),
@@ -579,6 +606,13 @@ struct IdleWindowTests {
         #expect(!status.isNoteworthy)
     }
 
+    @Test("A plan without a session window is informative rather than alarming")
+    func unavailableWindowIsNotNoteworthy() {
+        let status = ReminderStatus(decision: .skip(reason: .windowUnavailable))
+        #expect(!status.isNoteworthy)
+        #expect(status.summary().contains("plan reports no such window"))
+    }
+
     /// The pending request belongs to the window that just expired.
     @Test("An idle window clears the previous window's pending reminder")
     func idleWindowCancelsPending() {
@@ -601,7 +635,7 @@ struct PendingRetentionTests {
     func decidedReasonsCancelPending() {
         for reason: SchedulingDecision.SkipReason in [
             .remindersDisabled, .ruleDisabled, .notEnoughQuotaLeft,
-            .queueEmpty, .alreadyFiredForWindow, .quietHours, .resetTooSoon,
+            .windowUnavailable, .queueEmpty, .alreadyFiredForWindow, .quietHours, .resetTooSoon,
         ] {
             #expect(reason.shouldCancelPending)
         }

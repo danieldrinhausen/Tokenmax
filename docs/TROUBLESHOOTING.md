@@ -384,6 +384,7 @@ Reminders are suppressed for named reasons, and every skip is logged. Run
 | Log reason | What it means |
 |---|---|
 | stale data | Could not confirm quota at the moment it would have fired |
+| window unavailable | This plan does not report that session or weekly window |
 | unknown reset | No reset timestamp to schedule against |
 | fire time passed | The moment had already gone when scheduling ran |
 | below minimum quota | Less than your configured minimum remained |
@@ -394,6 +395,11 @@ Reminders are suppressed for named reasons, and every skip is logged. Run
 If it says **already fired**, Settings shows the delivery time
 ("Already notified at 16:09"). Changing any rule that produced it re-arms the
 current window.
+
+If the Codex session row says **this plan reports no such window**, Tokenmax did
+receive a valid Codex snapshot, but the account exposed only its weekly quota.
+The saved session rule is not lost; it becomes active if a later plan reports
+the window.
 
 ### Reminders arrive late
 

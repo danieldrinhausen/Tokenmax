@@ -488,13 +488,21 @@ struct NotificationSettingsView: View {
                 )
             }
 
-            // Its own rule, not a toggle on Claude's: the two weeks are
-            // different lengths of rope, so one threshold cannot fit both.
-            // Codex reports no session window, hence no session section.
-            //
-            // Hidden rather than disabled when the data source is off: there is
-            // nothing to remind about, and the rule stays on disk regardless.
+            // Separate rules, not aliases of Claude's: provider windows can
+            // carry different quota and deserve different thresholds. Some
+            // Codex plans omit the session; its status names that absence, but
+            // the stored choice remains ready if the account later reports it.
+            // Hidden rather than disabled with the provider off: there is
+            // nothing to remind about, and both rules stay on disk regardless.
             if settingsStore.settings.codexEnabled {
+                reminderSection(
+                    title: "\(TokenmaxProvider.codex.displayName) session",
+                    rule: $settingsStore.settings.codexSessionReminder,
+                    leadOptions: [10, 15, 30, 45, 60],
+                    kind: .session,
+                    provider: .codex
+                )
+
                 reminderSection(
                     title: "\(TokenmaxProvider.codex.displayName) weekly window",
                     rule: $settingsStore.settings.codexWeeklyReminder,

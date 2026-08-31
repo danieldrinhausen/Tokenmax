@@ -232,9 +232,11 @@ refresh of the eligible quota windows, not money or a larger subscription
 allowance. Tokenmax deliberately does not redeem it; open Codex's usage summary
 to review the offer and confirm it there.
 
-**Reminders.** Codex's weekly window has its own lead time and its own minimum
-remaining quota under **Settings → Notifications**. Turning on Claude's weekly
-reminder does not turn on Codex's, and the thresholds are not shared.
+**Reminders.** Codex's session and weekly windows each have their own lead time
+and minimum remaining quota under **Settings → Notifications**. The session rule
+only has a window to schedule against when the account reports one; on a
+weekly-only account its status says so explicitly. Turning on a Claude reminder
+does not turn on either Codex rule, and every threshold remains independent.
 
 **Running tasks.** A task belongs to one provider. Codex tasks run through the
 same App Server interface used to read quota, and the differences worth knowing
@@ -287,6 +289,11 @@ long and you get told about a window you are still actively using.
 
 A practical starting point: **45–60 minutes for the session window**, and **a few
 hours for the weekly**, since a week's leftovers need a longer runway.
+
+Codex session reminders are off when first introduced, including on an upgrade
+where global reminders are already enabled. Opt in to that individual rule once
+you have chosen a threshold; weekly-only plans keep the choice for a future plan
+change but cannot schedule it without a reported session window.
 
 Then set **minimum quota** — below this, staying quiet is the right answer. There
 is no point being told that 4% remains.

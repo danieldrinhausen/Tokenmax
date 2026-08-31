@@ -530,19 +530,26 @@ struct ProviderReminderRuleTests {
         var settings = AppSettings()
         settings.sessionReminder.leadTimeMinutes = 11
         settings.weeklyReminder.leadTimeMinutes = 22
-        settings.codexWeeklyReminder.leadTimeMinutes = 33
+        settings.codexSessionReminder.leadTimeMinutes = 33
+        settings.codexWeeklyReminder.leadTimeMinutes = 44
 
         #expect(settings.reminderRule(for: .claudeCode, kind: .session).leadTimeMinutes == 11)
         #expect(settings.reminderRule(for: .claudeCode, kind: .weekly).leadTimeMinutes == 22)
-        #expect(settings.reminderRule(for: .codex, kind: .weekly).leadTimeMinutes == 33)
+        #expect(settings.reminderRule(for: .codex, kind: .session).leadTimeMinutes == 33)
+        #expect(settings.reminderRule(for: .codex, kind: .weekly).leadTimeMinutes == 44)
     }
 
-    /// Codex reports no session window; a rule that could fire for one would be
-    /// a reminder about something that does not exist.
-    @Test("Windows a provider does not report can never fire")
-    func unreportedWindowsAreDisabled() {
+    /// Existing users who already enabled global reminders must not receive a
+    /// new Codex banner merely by installing a build that adds this rule.
+    @Test("The new Codex session reminder is opt-in")
+    func codexSessionStartsDisabled() {
         let settings = AppSettings()
         #expect(!settings.reminderRule(for: .codex, kind: .session).enabled)
+    }
+
+    @Test("Model-specific windows without rules can never fire")
+    func unconfiguredWindowsAreDisabled() {
+        let settings = AppSettings()
         #expect(!settings.reminderRule(for: .claudeCode, kind: .modelSpecificWeekly).enabled)
     }
 }

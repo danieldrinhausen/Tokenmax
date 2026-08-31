@@ -88,6 +88,17 @@ struct ReminderRule: Codable, Sendable, Equatable {
         notifyOncePerWindow: true
     )
 
+    /// Some Codex plans report the same five-hour window shape as Claude. Its
+    /// timings can share the familiar starting point, but its opt-in cannot:
+    /// adding a persisted rule must never turn a new banner on during upgrade.
+    static let codexSessionDefault = ReminderRule(
+        enabled: false,
+        leadTimeMinutes: 30,
+        minimumRemainingPercent: 20,
+        onlyWhenTasksQueued: true,
+        notifyOncePerWindow: true
+    )
+
     /// Codex gets its own weekly default rather than sharing Claude's. The two
     /// weeks are different lengths of rope — reusing one threshold would be
     /// wrong for whichever provider it was not tuned for. Off by default, like
@@ -330,6 +341,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     var remindersEnabled: Bool = false
     var sessionReminder: ReminderRule = .sessionDefault
     var weeklyReminder: ReminderRule = .weeklyDefault
+    /// Present only on Codex plans that report a session window. Kept even on
+    /// weekly-only plans so changing subscriptions does not erase the choice.
+    var codexSessionReminder: ReminderRule = .codexSessionDefault
     /// Codex's weekly window, configured independently of Claude's. See
     /// `ReminderRule.codexWeeklyDefault`.
     var codexWeeklyReminder: ReminderRule = .codexWeeklyDefault
@@ -524,9 +538,9 @@ struct AppSettings: Codable, Sendable, Equatable {
         switch (provider, kind) {
         case (.claudeCode, .session): sessionReminder
         case (.claudeCode, .weekly): weeklyReminder
+        case (.codex, .session): codexSessionReminder
         case (.codex, .weekly): codexWeeklyReminder
-        // Codex reports no session window, and no provider reports a
-        // model-specific weekly to remind about.
+        // No provider currently exposes a model-specific weekly reminder rule.
         default: .disabled
         }
     }
@@ -561,6 +575,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         remindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .remindersEnabled) ?? d.remindersEnabled
         sessionReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .sessionReminder) ?? d.sessionReminder
         weeklyReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .weeklyReminder) ?? d.weeklyReminder
+        codexSessionReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .codexSessionReminder)
+            ?? d.codexSessionReminder
         codexWeeklyReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .codexWeeklyReminder)
             ?? d.codexWeeklyReminder
         // `try?` as above: `MenuBarBars` normalizes what it can, but a value of

@@ -15,6 +15,9 @@ enum SchedulingDecision: Equatable, Sendable {
         case ruleDisabled
         case dataStale
         case noSnapshot
+        /// The provider returned a valid snapshot, but this plan does not
+        /// include the window being configured.
+        case windowUnavailable
         case noResetTime
         /// No window is running yet — the session clock starts on first use.
         /// Nothing to remind about, and nothing wrong.
@@ -56,6 +59,37 @@ enum SchedulingDecision: Equatable, Sendable {
         case let .deliverNow(identifier, _, _): identifier
         case .skip: nil
         }
+    }
+}
+
+/// Resolves a delivered notification back to the persisted rule that created
+/// it. Metadata is authoritative, while the identifier fallback keeps banners
+/// scheduled by older builds deduplicated after an upgrade.
+struct ReminderRuleSource: Equatable, Sendable {
+    var provider: TokenmaxProvider
+    var kind: UsageWindowKind
+}
+
+enum ReminderRuleSourceResolver {
+    static func resolve(
+        identifier: String,
+        providerID: String?,
+        windowKind: String?
+    ) -> ReminderRuleSource {
+        let explicitProvider = providerID.flatMap(TokenmaxProvider.init(rawValue:))
+        let explicitKind = windowKind.flatMap(UsageWindowKind.init(rawValue:))
+        let base = identifier.components(separatedBy: "-snooze-").first ?? identifier
+
+        let inferred = TokenmaxProvider.allCases.lazy.compactMap { provider in
+            UsageWindowKind.allCases.first { kind in
+                base.hasPrefix("\(provider.rawValue)-\(kind.rawValue)-")
+            }.map { ReminderRuleSource(provider: provider, kind: $0) }
+        }.first
+
+        return ReminderRuleSource(
+            provider: explicitProvider ?? inferred?.provider ?? .claudeCode,
+            kind: explicitKind ?? inferred?.kind ?? .session
+        )
     }
 }
 

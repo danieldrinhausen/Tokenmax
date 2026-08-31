@@ -154,8 +154,14 @@ final class NotificationCoordinator: NSObject, ObservableObject {
             let queuedCount = taskStore.tasks.filter { $0.status == .ready && $0.provider == provider }.count
             for kind in [UsageWindowKind.session, .weekly] {
                 guard let window = snapshot?.window(kind) else {
-                    let reason: SchedulingDecision.SkipReason = snapshot == nil && settings.remindersEnabled
-                        ? .noSnapshot : (settings.remindersEnabled ? .noResetTime : .remindersDisabled)
+                    let reason: SchedulingDecision.SkipReason
+                    if !settings.remindersEnabled {
+                        reason = .remindersDisabled
+                    } else if snapshot == nil {
+                        reason = .noSnapshot
+                    } else {
+                        reason = .windowUnavailable
+                    }
                     let decision = SchedulingDecision.skip(reason: reason)
                     await NotificationScheduler.apply(
                         decision, kind: kind, playSound: settings.playSound, providerID: provider.rawValue
@@ -227,11 +233,15 @@ final class NotificationCoordinator: NSObject, ObservableObject {
     /// The fingerprint has to be stored here too. A record written without one
     /// looks exactly like a pre-fingerprint file to `hasFired`, which would
     /// re-arm the window and send the reminder a second time.
-    private func recordFired(identifier: String) {
+    private func recordFired(identifier: String, providerID: String?, windowKind: String?) {
         // Snoozed copies carry a `-snooze-N` suffix; the window is the base.
         let base = identifier.components(separatedBy: "-snooze-").first ?? identifier
-        let isWeekly = base.contains("-weekly-")
-        let rule = isWeekly ? settingsStore.settings.weeklyReminder : settingsStore.settings.sessionReminder
+        let source = ReminderRuleSourceResolver.resolve(
+            identifier: base,
+            providerID: providerID,
+            windowKind: windowKind
+        )
+        let rule = settingsStore.settings.reminderRule(for: source.provider, kind: source.kind)
 
         state.markFired(base, fingerprint: rule.fingerprint)
         persistState()
@@ -268,9 +278,10 @@ final class NotificationCoordinator: NSObject, ObservableObject {
         content.title = payload.title
         content.body = payload.body
         content.categoryIdentifier = NotificationManager.categoryIdentifier
-        if let windowKind = payload.windowKind {
-            content.userInfo = ["windowKind": windowKind]
-        }
+        var userInfo: [String: String] = [:]
+        if let windowKind = payload.windowKind { userInfo["windowKind"] = windowKind }
+        if let providerID = payload.providerID { userInfo["providerID"] = providerID }
+        content.userInfo = userInfo
         if settingsStore.settings.playSound { content.sound = .default }
         NotificationIcon.attach(to: content)
 
@@ -296,10 +307,13 @@ extension NotificationCoordinator: UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         let identifier = notification.request.identifier
+        let userInfo = notification.request.content.userInfo
+        let providerID = userInfo["providerID"] as? String
+        let windowKind = userInfo["windowKind"] as? String
         // The delegate callback is nonisolated; extract the value before the
         // actor hop instead of capturing the non-Sendable notification object.
         Task { @MainActor [weak self] in
-            self?.recordFired(identifier: identifier)
+            self?.recordFired(identifier: identifier, providerID: providerID, windowKind: windowKind)
         }
         // The system callback must be completed independently of the main actor.
         completionHandler([.banner, .sound])
@@ -318,7 +332,8 @@ extension NotificationCoordinator: UNUserNotificationCenterDelegate {
             identifier: identifier,
             title: content.title,
             body: content.body,
-            windowKind: content.userInfo["windowKind"] as? String
+            windowKind: content.userInfo["windowKind"] as? String,
+            providerID: content.userInfo["providerID"] as? String
         )
 
         // Complete the OS callback now. The actual app action is serialized on
@@ -327,7 +342,11 @@ extension NotificationCoordinator: UNUserNotificationCenterDelegate {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.recordFired(identifier: identifier)
+            self.recordFired(
+                identifier: identifier,
+                providerID: snoozePayload.providerID,
+                windowKind: snoozePayload.windowKind
+            )
 
             switch action {
             case NotificationManager.Action.openQueue,
@@ -361,4 +380,5 @@ private struct NotificationSnoozePayload: Sendable {
     let title: String
     let body: String
     let windowKind: String?
+    let providerID: String?
 }

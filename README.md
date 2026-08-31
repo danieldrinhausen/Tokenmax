@@ -423,8 +423,10 @@ Switch it off in **Settings → General → Show projected pace**.
 
 ## Notifications
 
-Permission is requested only when you enable reminders — never at launch. Session and weekly
-windows are configured independently.
+Permission is requested only when you enable reminders — never at launch. Claude Code and Codex
+session and weekly windows are configured independently. A Codex session reminder is available
+when the account reports that window; it starts off on upgrade so an existing global opt-in never
+turns into a surprise banner.
 
 You can also opt into a brief, screen-wide **quota reset confetti** shower. Choose **Always** to celebrate
 every confirmed new window, or **Specific events** to choose Claude Code and Codex session and
@@ -439,7 +441,7 @@ reset.
 </p>
 
 A reminder is scheduled at `resetAt − leadTime` with the identifier
-`{provider}-{window}-{ISO8601 resetAt}` — `claude-session-…`, `codex-weekly-…`. Because the
+`{provider}-{window}-{ISO8601 resetAt}` — `claude-code-session-…`, `codex-session-…`. Because the
 identifier derives from the reset timestamp, rescheduling is idempotent: repeated refreshes cannot
 stack duplicates.
 

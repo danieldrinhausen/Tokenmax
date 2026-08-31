@@ -68,7 +68,7 @@ enum ReminderStatus: Equatable, Sendable {
         switch reason {
         // Chosen by the user, or simply nothing to report yet — none of these
         // are a problem, so none of them get the orange treatment.
-        case .remindersDisabled, .ruleDisabled, .windowNotStarted: return false
+        case .remindersDisabled, .ruleDisabled, .windowUnavailable, .windowNotStarted: return false
         default: return true
         }
     }
@@ -83,6 +83,7 @@ extension SchedulingDecision.SkipReason {
         case .ruleDisabled: "Reminder off for this window"
         case .dataStale: "No reminder — usage data is stale"
         case .noSnapshot: "No reminder — no usage snapshot available"
+        case .windowUnavailable: "No reminder — this plan reports no such window"
         case .noResetTime: "No reminder — reset time unknown"
         case .windowNotStarted: "No session running — starts with your next prompt"
         case .notEnoughQuotaLeft: "No reminder — below your minimum quota"

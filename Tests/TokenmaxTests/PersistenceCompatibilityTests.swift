@@ -717,6 +717,8 @@ struct PersistenceCompatibilityTests {
         #expect(settings.remindersEnabled)
         #expect(settings.menuBarDisplayMode == .iconAndText)
         #expect(settings.terminalApplication == "Terminal")
+        #expect(settings.codexSessionReminder == .codexSessionDefault)
+        #expect(!settings.codexSessionReminder.enabled)
     }
 
     @Test("A reminder rule missing a key keeps its other values")
@@ -899,6 +901,8 @@ struct PersistenceCompatibilityTests {
         var settings = AppSettings()
         settings.remindersEnabled = true
         settings.sessionReminder.leadTimeMinutes = 45
+        settings.codexSessionReminder.enabled = true
+        settings.codexSessionReminder.leadTimeMinutes = 20
         settings.menuBarHighlightWhenReady = false
         settings.showProjections = false
         settings.queueEnabled = false

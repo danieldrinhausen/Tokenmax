@@ -5,6 +5,13 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Codex session reminders now match Claude's independent controls.** Accounts that report a
+  session window can choose its lead time, minimum remaining quota, queue condition and repeat
+  policy without sharing the Codex weekly or Claude rules. The new rule stays off on upgrade, and
+  weekly-only plans explain that the window is unavailable instead of presenting missing data as
+  a reset-time failure. Delivered and snoozed reminders now retain their provider as well as their
+  window, fixing once-per-window fingerprints that previously fell back to Claude's rule.
+
 - **Side Notch is available as an opt-in Alpha surface.** Settings → General can place a tiny,
   focus-free handle at the right edge of the display under the pointer. Hover expands it into one
   animated double ring per enabled provider; hovering a ring opens both quota rows and reset times,
