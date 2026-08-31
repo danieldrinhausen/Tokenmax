@@ -423,13 +423,14 @@ Switch it off in **Settings → General → Show projected pace**.
 
 ## Notifications
 
-Permission is requested only when you enable reminders — never at launch. Claude Code and Codex
-session and weekly windows are configured independently. Each window begins as a compact On/Off
-summary; open **Reminder options** only for the one you want to tune. Its lead time, minimum quota,
-queue condition, repeat policy and live scheduling explanation stay together, so read-only delivery
-state does not obscure the choices for the other windows. A Codex session reminder is available when
-the account reports that window; it starts off on upgrade so an existing global opt-in never turns
-into a surprise banner.
+Permission is requested only when you switch on **Allow reminder notifications** — never at launch.
+That switch permits delivery; it does not choose the windows. Claude Code and Codex session and
+weekly windows are configured independently, so you can choose any combination of the four. Each
+window begins as a compact On/Off summary; open **Reminder options** only for the one you want to
+tune. Its lead time, minimum quota, queue condition, repeat policy and live scheduling explanation
+stay together, so read-only delivery state does not obscure the choices for the other windows. A
+Codex session reminder is available when the account reports that window; it starts off on upgrade
+so an existing delivery opt-in never turns into a surprise banner.
 
 You can also opt into a brief, screen-wide **quota reset confetti** shower. Choose **Always** to celebrate
 every confirmed new window, or **Specific events** to choose Claude Code and Codex session and

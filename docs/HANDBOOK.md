@@ -274,12 +274,14 @@ on disk and come back exactly as they were.
 
 ## Reminders that are worth receiving
 
-**Settings → Notifications.** Permission is requested here, never at launch.
+**Settings → Notifications.** **Allow reminder notifications** permits macOS to deliver banners and
+requests permission here, never at launch. It is not a choice of quota window.
 
 Each available Claude Code or Codex window has a short On/Off summary. Open **Reminder options**
 only for the window you are changing; that keeps its lead time, quota floor, queue condition and
 once-per-window policy next to the read-only scheduling state they produce. The page stays readable
-when several providers are enabled, rather than showing four sets of inactive controls at once.
+when several providers are enabled, rather than showing four sets of inactive controls at once. Turn
+on exactly the session and weekly windows you want; their rules remain independent.
 
 **Quota reset confetti** is separate from reminders: reminders ask you to use quota before it
 expires, while confetti marks quota that has already returned. Turn it on, then choose **Always**

@@ -446,7 +446,7 @@ struct NotificationSettingsView: View {
     var body: some View {
         Form {
             Section("Delivery") {
-                Toggle("Enable reminders", isOn: Binding(
+                Toggle("Allow reminder notifications", isOn: Binding(
                     get: { settingsStore.settings.remindersEnabled },
                     set: { enabled in
                         settingsStore.settings.remindersEnabled = enabled
@@ -482,6 +482,12 @@ struct NotificationSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+
+            Section("Quota windows") {
+                Text("Choose the quota windows you want to hear about. Each has its own on/off switch, schedule and threshold.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if settingsStore.settings.claudeCodeEnabled {

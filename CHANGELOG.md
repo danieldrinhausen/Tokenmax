@@ -12,8 +12,8 @@ versions follow [semver](https://semver.org/).
 - **Reminder settings now lead with the decision, not the scheduler's bookkeeping.** Each provider
   window is a compact on/off summary; its tuning controls and read-only delivery state are revealed
   together only when needed. Delivery sound and badge options likewise stay behind the reminder
-  master switch, leaving a multi-provider Notifications pane scannable without hiding configured
-  rules.
+  permission switch, which now makes clear that it permits notification delivery while the user
+  independently chooses any combination of Claude Code and Codex session and weekly windows.
 
 - **Side Notch-only mode can now actually be entered and recovered from.** SwiftUI was writing the
   menu-bar scene's old insertion state back while removing it, immediately turning **Show the menu
