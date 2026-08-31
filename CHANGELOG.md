@@ -5,6 +5,10 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Settings is anchored at the top of the menu-bar context menu.** Recent macOS popup placement
+  could hide the first generated row, leaving only queue, refresh and quit actions visible. The
+  menu now explicitly positions its permanent Settings action beneath the status icon.
+
 - **General now keeps its display surfaces legible.** Side Notch follows the complete menu-bar
   block rather than splitting its icon, colour and highlight controls, making clear which choices
   belong to the menu bar and which configure the independent notch surface.

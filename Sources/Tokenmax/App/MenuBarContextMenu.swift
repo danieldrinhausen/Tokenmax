@@ -104,18 +104,30 @@ final class MenuBarContextMenu: NSObject {
         // `validateMenuItem:`, and nothing here does.
         menu.autoenablesItems = false
 
-        for item in MenuBarContextMenuItem.items(queueEnabled: settingsStore.settings.queueEnabled) {
+        // Do not leave Settings to the generic loop below. On recent macOS
+        // menu-bar popups, a nil positioning item can drop the first generated
+        // row from the visible portion of the menu. Settings is the recovery
+        // route for every preference, so it must be both first and the item
+        // AppKit anchors under the status icon.
+        let settings = menuItem(for: .settings)
+        menu.addItem(settings)
+
+        for item in MenuBarContextMenuItem.items(queueEnabled: settingsStore.settings.queueEnabled).dropFirst() {
             if item == .quit { menu.addItem(.separator()) }
-            let menuItem = NSMenuItem(title: item.title, action: #selector(menuItemSelected(_:)), keyEquivalent: "")
-            menuItem.target = self
-            menuItem.representedObject = item.rawValue
-            // A second refresh while one is in flight would be swallowed by the
-            // per-provider request floor anyway; say so rather than no-op.
-            menuItem.isEnabled = item != .refresh || !usage.isRefreshingAny
-            menu.addItem(menuItem)
+            menu.addItem(menuItem(for: item))
         }
 
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
+        menu.popUp(positioning: settings, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
+    }
+
+    private func menuItem(for item: MenuBarContextMenuItem) -> NSMenuItem {
+        let menuItem = NSMenuItem(title: item.title, action: #selector(menuItemSelected(_:)), keyEquivalent: "")
+        menuItem.target = self
+        menuItem.representedObject = item.rawValue
+        // A second refresh while one is in flight would be swallowed by the
+        // per-provider request floor anyway; say so rather than no-op.
+        menuItem.isEnabled = item != .refresh || !usage.isRefreshingAny
+        return menuItem
     }
 
     @objc private func menuItemSelected(_ sender: NSMenuItem) {
