@@ -33,4 +33,18 @@ struct MenuBarItemDecisionTests {
             sideNotchEnabled: true
         ))
     }
+
+    /// Regression: removing `MenuBarExtra` produced one last `true` write from
+    /// SwiftUI, which immediately flipped the user's off switch back on.
+    @Test("Scene reconciliation cannot overwrite the user's hidden choice")
+    func sceneWriteDoesNotRestoreHiddenItem() {
+        #expect(!MenuBarItemDecision.persistedVisibility(
+            afterSceneReconciliation: true,
+            currentUserChoice: false
+        ))
+        #expect(MenuBarItemDecision.persistedVisibility(
+            afterSceneReconciliation: false,
+            currentUserChoice: true
+        ))
+    }
 }

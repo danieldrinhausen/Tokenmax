@@ -22,4 +22,14 @@ enum MenuBarItemDecision {
     static func resolvedVisibility(requestedVisible: Bool, sideNotchEnabled: Bool) -> Bool {
         requestedVisible || !sideNotchEnabled
     }
+
+    /// `MenuBarExtra` writes its current insertion state while reconciling a
+    /// removal. That callback describes the scene SwiftUI is tearing down, not
+    /// a user action; accepting it restores the item the user just hid.
+    static func persistedVisibility(
+        afterSceneReconciliation _: Bool,
+        currentUserChoice: Bool
+    ) -> Bool {
+        currentUserChoice
+    }
 }

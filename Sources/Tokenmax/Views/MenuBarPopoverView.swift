@@ -591,16 +591,17 @@ struct MenuBarPopoverView: View {
             // the one thing here anybody opens more than once, so it gets the
             // button; Quit, which is used once and never in a hurry, moved to
             // the menubar icon's right-click menu.
-            SettingsLink {
-                Text("Settings…")
+            Button("Settings…") {
+                NotificationCenter.default.post(name: .tokenmaxOpenSettings, object: nil)
             }
         }
     }
 
     /// Activation first, then the named queue window. `openWindow` only orders
     /// it to the front *within* this app; putting the app itself in front of
-    /// every other one is a separate step. Settings uses the native
-    /// `SettingsLink`, which performs both parts itself.
+    /// every other one is a separate step. Settings is routed through the app
+    /// delegate because its native scene needs the same treatment even when
+    /// this optional status-item view does not exist.
     private func open(_ id: String) {
         NSApp.activate(ignoringOtherApps: true)
         openWindow(id: id)

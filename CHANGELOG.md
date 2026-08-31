@@ -5,6 +5,13 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Side Notch-only mode can now actually be entered and recovered from.** SwiftUI was writing the
+  menu-bar scene's old insertion state back while removing it, immediately turning **Show the menu
+  bar item** on again. That scene binding is now one-way from the persisted user choice. Settings
+  requests from either context menu now terminate in the always-alive app delegate, wait for the
+  menu to dismiss, and explicitly raise and focus the native Settings window — including one that
+  was already open behind another app.
+
 - **Codex session reminders now match Claude's independent controls.** Accounts that report a
   session window can choose its lead time, minimum remaining quota, queue condition and repeat
   policy without sharing the Codex weekly or Claude rules. The new rule stays off on upgrade, and

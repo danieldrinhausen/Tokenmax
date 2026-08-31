@@ -25,7 +25,9 @@ Anything it reports as a failure names the source file that needs changing.
 Right-click the Side Notch handle or its expanded rail and choose
 **Settings…**. The same menu can restore **Show Menu Bar Item**. Tokenmax does
 not allow both Side Notch and the menu bar item to be switched off together, so
-that recovery path remains on screen.
+that recovery path remains on screen. Choosing Settings raises the existing
+window as well as opening a new one; check the current Space rather than hunting
+behind another app.
 
 ### "Apple could not verify Tokenmax is free of malware"
 

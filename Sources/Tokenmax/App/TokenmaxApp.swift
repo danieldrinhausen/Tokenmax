@@ -152,16 +152,15 @@ struct TokenmaxApp: App {
     private var menuBarItemBinding: Binding<Bool> {
         Binding(
             get: { settingsStore.settings.showMenuBarItem },
-            set: { requested in
-                let resolved = MenuBarItemDecision.resolvedVisibility(
-                    requestedVisible: requested,
-                    sideNotchEnabled: settingsStore.settings.sideNotch.enabled
+            set: { sceneState in
+                let retained = MenuBarItemDecision.persistedVisibility(
+                    afterSceneReconciliation: sceneState,
+                    currentUserChoice: settingsStore.settings.showMenuBarItem
                 )
-                // SwiftUI may write the scene's current insertion state back
-                // while reconciling the main menu. Publishing that no-op makes
-                // the scene dirty again and turns reconciliation into a loop.
-                guard resolved != settingsStore.settings.showMenuBarItem else { return }
-                settingsStore.settings.showMenuBarItem = resolved
+                // Settings and Side Notch own the persisted intent. The scene
+                // binding only reports lifecycle output and must not reverse it.
+                guard retained != settingsStore.settings.showMenuBarItem else { return }
+                settingsStore.settings.showMenuBarItem = retained
             }
         )
     }

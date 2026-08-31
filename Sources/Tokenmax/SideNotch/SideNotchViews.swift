@@ -23,8 +23,8 @@ struct SideNotchRailView: View {
             }
         }
         .contextMenu {
-            SettingsLink {
-                Text("Settings…")
+            Button("Settings…") {
+                NotificationCenter.default.post(name: .tokenmaxOpenSettings, object: nil)
             }
             Divider()
             Button(coordinator.settingsStore.settings.showMenuBarItem

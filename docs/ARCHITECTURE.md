@@ -54,10 +54,11 @@ the detail card. Projection copy and reset-credit expiry use the same pure
 describe one snapshot differently.
 
 Settings is a native SwiftUI `Settings` scene rather than an identified window.
-That gives both SwiftUI surfaces a `SettingsLink` and lets the AppKit menu send
-the standard `showSettingsWindow:` action. Opening preferences therefore does
-not depend on `MenuBarLabel` existing, which is essential once the status item
-can be hidden.
+Every surface posts one app-level request; `AppDelegate` waits for a contextual
+menu to dismiss, sends the standard `showSettingsWindow:` action, orders the
+resulting window forward and makes it key. Opening or refocusing preferences
+therefore does not depend on `MenuBarLabel` existing or on the Settings view
+appearing for the first time, both essential once the status item can be hidden.
 
 `MenuBarItemDecision` is the reachability rule for the optional status item. A
 request to hide it is accepted only while Side Notch is enabled, and the same
@@ -65,7 +66,10 @@ normalization runs while decoding settings. Side Notch's context menu, including
 its direct Settings link, is the recovery path. Because the status item may now be absent at launch,
 `TokenmaxApp` starts usage, notification, opener, automation and update
 coordinators independently of `MenuBarLabel.onAppear`; the label owns only the
-AppKit context monitor that cannot exist before its status item does.
+AppKit context monitor that cannot exist before its status item does. The
+`MenuBarExtra` insertion binding is intentionally one-way: SwiftUI reports its
+old scene state while removing the item, but only Settings and Side Notch carry
+user intent and may change the persisted visibility preference.
 
 `NotificationScheduler` evaluates one provider/window rule at a time; a valid
 snapshot that omits that window is the named `.windowUnavailable` suppression,
