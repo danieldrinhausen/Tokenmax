@@ -20,7 +20,10 @@ versions follow [semver](https://semver.org/).
   longer jumps displays during hover. Persistent mode now keeps only the meter visible; its detail
   card dismisses normally after the pointer leaves. The rail now measures its gap beyond the Dock's
   outer glass rather than from the inset icon list, and freezes live Dock geometry while open so
-  magnification or transient Dock contents cannot move it out from under the pointer.
+  magnification or transient Dock contents cannot move it out from under the pointer. Placement
+  changes now lay out from the newly stored side rather than the pre-change value emitted by
+  `@Published`, the rail shares the Dock's floating bottom inset, and the decorative grip that
+  falsely suggested dragging has been removed.
 
 ## [0.1.13] - 2026-08-31
 

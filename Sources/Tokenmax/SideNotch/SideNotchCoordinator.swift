@@ -37,7 +37,7 @@ final class SideNotchCoordinator: ObservableObject {
     private static let dockRailHeight: CGFloat = 54
     private static let railHeaderHeight: CGFloat = 22
     private static let providerRowHeight: CGFloat = 68
-    private static let providerColumnWidth: CGFloat = 68
+    private static let providerColumnWidth: CGFloat = 58
     private static let closeDelay: TimeInterval = 0.4
     private static let panelTransitionDuration: TimeInterval = 0.22
 
@@ -58,8 +58,13 @@ final class SideNotchCoordinator: ObservableObject {
         settingsStore.$settings
             .removeDuplicates()
             .sink { [weak self] _ in
-                self?.reevaluate()
-                self?.objectWillChange.send()
+                // @Published emits from willSet. Defer until the property holds
+                // the new value or placement would not move until the next
+                // pointer event happened to trigger another layout pass.
+                DispatchQueue.main.async { [weak self] in
+                    self?.reevaluate()
+                    self?.objectWillChange.send()
+                }
             }
             .store(in: &cancellables)
 
@@ -255,7 +260,7 @@ final class SideNotchCoordinator: ObservableObject {
                 : Self.peekSize
         } else if settingsStore.settings.sideNotch.placement == .dock {
             size = NSSize(
-                width: Self.railHeaderHeight + CGFloat(providerCount) * Self.providerColumnWidth,
+                width: CGFloat(providerCount) * Self.providerColumnWidth,
                 height: Self.dockRailHeight
             )
         } else {

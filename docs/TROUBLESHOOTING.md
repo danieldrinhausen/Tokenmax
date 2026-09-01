@@ -188,7 +188,7 @@ It is an Alpha feature and is off by default. Turn on **Settings → General →
 Side Notch · Alpha**. In **Side Notch** placement, the collapsed handle belongs
 to the display containing the pointer and moves only while collapsed; an open
 rail stays put so it cannot jump away during interaction. **Dock Notch** instead
-stays flush with the bottom of the display that owns the Dock, with a small gap
+shares the floating bottom baseline of the Dock on its display, with a small gap
 from the Dock's live left or right edge. If macOS denies Accessibility inspection, Tokenmax estimates that
 edge from the centred Dock's configured tiles and currently running apps. Leave
 the rail and detail card for 400ms, then move the pointer to the intended display.

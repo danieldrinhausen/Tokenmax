@@ -73,7 +73,7 @@ turn the provider back on and your arrangement returns rather than a rebuilt one
 
 **Settings → General → Side Notch · Alpha** adds the same readings as a second, optional surface.
 Off by default, choose **Side Notch** for a narrow handle halfway down the right edge of whichever
-display the pointer is on, or **Dock Notch** to rest flush with the bottom of the display that owns
+display the pointer is on, or **Dock Notch** to share the floating baseline of the Dock on its display,
 the Dock, immediately left or right of it. **Always show Dock Notch** keeps its compact horizontal
 provider rings on screen; the detail card still closes after the pointer leaves. Otherwise it
 remains a hover surface like Side Notch. Hover opens a rail with one large double ring per provider; hover a provider for a detail

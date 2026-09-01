@@ -90,7 +90,7 @@ glance, and the icon alone is the least distracting.
 **Putting the meters at the screen edge.** **Settings → General → Side Notch ·
 Alpha** is a complementary view, not a replacement for the menu bar. Enable it
 and choose **Side Notch** for the small handle halfway down the right edge, or
-**Dock Notch** to put it flush with the bottom of the Dock's display, immediately
+**Dock Notch** to share the Dock's floating bottom baseline, immediately
 left or right of the Dock.
 Turn on **Always show Dock Notch** when the Dock placement should remain a
 compact, horizontal meter rather than collapse between hovers; its detail card

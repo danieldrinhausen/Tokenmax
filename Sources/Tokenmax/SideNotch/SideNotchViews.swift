@@ -103,11 +103,6 @@ struct SideNotchRailView: View {
 
     private var dockRail: some View {
         HStack(spacing: 0) {
-            Capsule()
-                .fill(Color.white.opacity(0.20))
-                .frame(width: 2.5, height: 16)
-                .padding(.horizontal, 9)
-
             ForEach(coordinator.presentations) { presentation in
                 providerButton(presentation, compact: true)
             }

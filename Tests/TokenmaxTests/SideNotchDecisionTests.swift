@@ -83,8 +83,8 @@ struct SideNotchDecisionTests {
 
         #expect(left.maxX == 268)
         #expect(right.minX == 1172)
-        #expect(left.minY == screen.minY)
-        #expect(right.minY == screen.minY)
+        #expect(left.minY == 4)
+        #expect(right.minY == 4)
     }
 
     @Test("Dock geometry cannot move an open rail away from the pointer")

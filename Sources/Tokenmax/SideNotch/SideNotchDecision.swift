@@ -102,6 +102,9 @@ enum SideNotchLayoutDecision {
     // Accessibility reports the icon list, while the Dock's glass extends
     // beyond it. This leaves a visible 14pt gap outside that extra chrome.
     private static let dockGap: CGFloat = 32
+    // The AX list begins above the floating glass. Its lower chrome extends
+    // roughly 6pt farther, leaving the Dock itself about 4pt above the display.
+    private static let dockBottomChrome: CGFloat = 6
     private static let fallbackDockHalfWidth: CGFloat = 420
 
     static func railFrame(
@@ -138,9 +141,9 @@ enum SideNotchLayoutDecision {
                     x = screen.midX + Self.fallbackDockHalfWidth + Self.dockGap
                 }
             }
-            // The Dock itself meets the display edge. Sharing that baseline is
-            // what makes the separate surface read as part of the same shelf.
-            let y = screen.minY
+            let y = dockFrame.map {
+                max(screen.minY, $0.minY - Self.dockBottomChrome)
+            } ?? screen.minY + 4
             return CGRect(
                 x: min(visibleScreen.maxX - size.width, max(visibleScreen.minX, x)),
                 y: y,
