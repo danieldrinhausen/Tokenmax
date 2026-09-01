@@ -289,7 +289,8 @@ final class SideNotchCoordinator: ObservableObject {
                 detailSize: detailSize,
                 providerIndex: index,
                 railHeaderHeight: Self.railHeaderHeight,
-                providerRowHeight: Self.providerRowHeight
+                providerRowHeight: Self.providerRowHeight,
+                providerColumnWidth: Self.providerColumnWidth
             )
             showDetail(frame: detailFrame)
         } else {

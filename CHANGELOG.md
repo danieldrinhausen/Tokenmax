@@ -23,7 +23,8 @@ versions follow [semver](https://semver.org/).
   magnification or transient Dock contents cannot move it out from under the pointer. Placement
   changes now lay out from the newly stored side rather than the pre-change value emitted by
   `@Published`, the rail shares the Dock's floating bottom inset, and the decorative grip that
-  falsely suggested dragging has been removed.
+  falsely suggested dragging has been removed. The detail-card arrow now points at the selected
+  provider rather than the midpoint between provider rings.
 
 ## [0.1.13] - 2026-08-31
 

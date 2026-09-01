@@ -96,6 +96,27 @@ struct SideNotchDecisionTests {
         ))
     }
 
+    @Test("Dock detail arrow follows the selected provider instead of the rail midpoint")
+    func dockDetailFollowsProvider() {
+        let rail = CGRect(x: 900, y: 4, width: 116, height: 54)
+        let visible = CGRect(x: 0, y: 30, width: 1800, height: 970)
+        let detail = CGSize(width: 340, height: 220)
+
+        let claude = SideNotchLayoutDecision.detailFrame(
+            placement: .dock, railFrame: rail, visibleScreen: visible,
+            detailSize: detail, providerIndex: 0,
+            railHeaderHeight: 22, providerRowHeight: 68, providerColumnWidth: 58
+        )
+        let codex = SideNotchLayoutDecision.detailFrame(
+            placement: .dock, railFrame: rail, visibleScreen: visible,
+            detailSize: detail, providerIndex: 1,
+            railHeaderHeight: 22, providerRowHeight: 68, providerColumnWidth: 58
+        )
+
+        #expect(claude.midX == 929)
+        #expect(codex.midX == 987)
+    }
+
     @Test("Screen-edge placement retains the established right-hand centre")
     func sidePlacementFrame() {
         let visible = CGRect(x: 0, y: 0, width: 1200, height: 800)

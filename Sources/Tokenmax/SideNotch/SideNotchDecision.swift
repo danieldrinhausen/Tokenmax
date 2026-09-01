@@ -160,7 +160,8 @@ enum SideNotchLayoutDecision {
         detailSize: CGSize,
         providerIndex: Int,
         railHeaderHeight: CGFloat,
-        providerRowHeight: CGFloat
+        providerRowHeight: CGFloat,
+        providerColumnWidth: CGFloat
     ) -> CGRect {
         switch placement {
         case .side:
@@ -179,10 +180,12 @@ enum SideNotchLayoutDecision {
             )
 
         case .dock:
+            let providerCenterX = railFrame.minX
+                + (CGFloat(providerIndex) + 0.5) * providerColumnWidth
             return CGRect(
                 x: min(
                     visibleScreen.maxX - detailSize.width,
-                    max(visibleScreen.minX, railFrame.midX - detailSize.width / 2)
+                    max(visibleScreen.minX, providerCenterX - detailSize.width / 2)
                 ),
                 y: min(visibleScreen.maxY - detailSize.height, railFrame.maxY + 8),
                 width: detailSize.width,
