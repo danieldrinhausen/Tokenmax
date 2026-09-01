@@ -28,6 +28,7 @@ final class SideNotchCoordinator: ObservableObject {
     private var hasStarted = false
     private var refreshSurfaceIsOpen = false
     private var detailDismissalGeneration = 0
+    private var currentDockFrame: CGRect?
 
     /// The collapsed window is wider than what it draws. That invisible margin
     /// buys a humane hover target without turning the edge mark into a tab.
@@ -200,6 +201,11 @@ final class SideNotchCoordinator: ObservableObject {
         }
 
         ensurePanels()
+        if settingsStore.settings.sideNotch.placement == .dock, let currentScreen {
+            currentDockFrame = DockGeometryReader.frame(on: currentScreen)
+        } else {
+            currentDockFrame = nil
+        }
         if settingsStore.settings.sideNotch.placement == .dock,
            settingsStore.settings.sideNotch.dockAlwaysExpanded {
             cancelClose()
@@ -259,6 +265,7 @@ final class SideNotchCoordinator: ObservableObject {
             dockPlacement: settingsStore.settings.sideNotch.dockPlacement,
             screen: screen.frame,
             visibleScreen: screen.visibleFrame,
+            dockFrame: currentDockFrame,
             size: size
         )
 
@@ -371,7 +378,16 @@ final class SideNotchCoordinator: ObservableObject {
     private func startScreenTimer() {
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.state == .peek else { return }
+                guard let self else { return }
+                if self.settingsStore.settings.sideNotch.placement == .dock,
+                   let screen = self.currentScreen {
+                    let dockFrame = DockGeometryReader.frame(on: screen)
+                    if dockFrame != self.currentDockFrame {
+                        self.currentDockFrame = dockFrame
+                        self.applyPanelState()
+                    }
+                }
+                guard self.state == .peek else { return }
                 let screen = self.screenUnderPointer()
                 if !Self.sameScreen(screen, self.currentScreen) {
                     self.currentScreen = screen

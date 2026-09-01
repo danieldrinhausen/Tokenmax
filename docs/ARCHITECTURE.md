@@ -43,9 +43,11 @@ and obvious in a test.
 `SideNotchDecision` reduces pointer events into `peek`, `rail`, or a selected
 provider detail state and names every reason the surface may be suppressed.
 `SideNotchLayoutDecision` turns the Side Notch / Dock Notch setting into panel
-rectangles from supplied screen geometry; it never asks AppKit for a Dock window,
-whose icon bounds are not a stable public contract. Dock positions deliberately
-use the bottom display sides rather than a guessed centre offset.
+rectangles from supplied screen geometry. `DockGeometryReader` supplies the
+Dock's Accessibility list rectangle when permitted, because it includes pinned,
+running and minimized items. Its no-permission fallback reconstructs the centred
+span from Dock preferences and regular running apps rather than assuming an
+alignment or a fixed width.
 `SideNotchDecision` also resolves the persistent Dock Notch choice to its compact
 rail state, so the coordinator does not acquire an untested visibility rule.
 
@@ -468,6 +470,14 @@ rather than to public API: that a status item's click arrives on a window whose
 view tree contains an `NSStatusBarButton`, and that a local event monitor sees it
 before `MenuBarExtra` does. Neither is contractual. If the right-click menu ever
 stops appearing, that is where it went.
+
+Dock Notch placement reads the Dock's `AXList` position and size. This is public
+Accessibility data but may be denied, and its top-left coordinates must be
+converted into AppKit's bottom-left space. `DockGeometryReader` falls back to a
+centred estimate built from `com.apple.dock` tile preferences and regular running
+applications. A schema or permission change therefore degrades spacing rather
+than hiding the surface; pure layout tests still guard how either rectangle maps
+to left and right placement.
 
 ### 9. The GitHub releases API — lowest risk
 

@@ -91,22 +91,17 @@ enum SideNotchDecision {
 /// AppKit. The coordinator supplies the live display rectangles and owns the
 /// panels; this type keeps the placement contract testable.
 enum SideNotchLayoutDecision {
-    /// A Dock's icon span changes with magnification and is not a stable public
-    /// geometry contract. The two choices therefore name the bottom display
-    /// sides flanking the Dock zone, rather than pretending to know its live
-    /// icon bounds.
+    /// Breathing room between two independently rounded surfaces.
     private static let dockEdgeInset: CGFloat = 12
-    /// A bottom Dock's default, start-pinned footprint. Its exact icon bounds
-    /// are unavailable, but this leaves the chosen side close to the Dock
-    /// rather than marooned at the far display edge.
-    private static let dockZoneWidth: CGFloat = 200
     private static let dockGap: CGFloat = 18
+    private static let fallbackDockHalfWidth: CGFloat = 420
 
     static func railFrame(
         placement: SideNotchPlacement,
         dockPlacement: DockNotchPlacement,
         screen: CGRect,
         visibleScreen: CGRect,
+        dockFrame: CGRect?,
         size: CGSize
     ) -> CGRect {
         switch placement {
@@ -120,15 +115,26 @@ enum SideNotchLayoutDecision {
 
         case .dock:
             let x: CGFloat
-            switch dockPlacement {
-            case .left:
-                x = visibleScreen.minX + Self.dockEdgeInset
-            case .right:
-                x = visibleScreen.minX + Self.dockZoneWidth + Self.dockGap
+            if let dockFrame {
+                switch dockPlacement {
+                case .left:
+                    x = dockFrame.minX - Self.dockGap - size.width
+                case .right:
+                    x = dockFrame.maxX + Self.dockGap
+                }
+            } else {
+                switch dockPlacement {
+                case .left:
+                    x = screen.midX - Self.fallbackDockHalfWidth - Self.dockGap - size.width
+                case .right:
+                    x = screen.midX + Self.fallbackDockHalfWidth + Self.dockGap
+                }
             }
+            let y = dockFrame.map { $0.midY - size.height / 2 }
+                ?? screen.minY + Self.dockEdgeInset
             return CGRect(
                 x: min(visibleScreen.maxX - size.width, max(visibleScreen.minX, x)),
-                y: screen.minY + Self.dockEdgeInset,
+                y: y,
                 width: size.width,
                 height: size.height
             )

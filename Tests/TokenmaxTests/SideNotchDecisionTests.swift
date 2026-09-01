@@ -53,25 +53,29 @@ struct SideNotchDecisionTests {
         ) == .peek)
     }
 
-    @Test("Dock placement sits above the reserved Dock edge on either side")
+    @Test("Dock placement follows the live Dock rectangle on either side")
     func dockPlacementFrames() {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         let visible = CGRect(x: 0, y: 80, width: 1440, height: 796)
-        let size = CGSize(width: 76, height: 150)
+        let size = CGSize(width: 158, height: 54)
 
         let left = SideNotchLayoutDecision.railFrame(
             placement: .dock, dockPlacement: .left,
-            screen: screen, visibleScreen: visible, size: size
+            screen: screen, visibleScreen: visible,
+            dockFrame: CGRect(x: 300, y: 10, width: 840, height: 52),
+            size: size
         )
         let right = SideNotchLayoutDecision.railFrame(
             placement: .dock, dockPlacement: .right,
-            screen: screen, visibleScreen: visible, size: size
+            screen: screen, visibleScreen: visible,
+            dockFrame: CGRect(x: 300, y: 10, width: 840, height: 52),
+            size: size
         )
 
-        #expect(left.minX == 12)
-        #expect(right.minX == 218)
-        #expect(left.minY == 12)
-        #expect(right.minY == 12)
+        #expect(left.maxX == 282)
+        #expect(right.minX == 1158)
+        #expect(left.midY == 36)
+        #expect(right.midY == 36)
     }
 
     @Test("Screen-edge placement retains the established right-hand centre")
@@ -79,7 +83,8 @@ struct SideNotchDecisionTests {
         let visible = CGRect(x: 0, y: 0, width: 1200, height: 800)
         let frame = SideNotchLayoutDecision.railFrame(
             placement: .side, dockPlacement: .left,
-            screen: visible, visibleScreen: visible, size: CGSize(width: 16, height: 72)
+            screen: visible, visibleScreen: visible, dockFrame: nil,
+            size: CGSize(width: 16, height: 72)
         )
 
         #expect(frame == CGRect(x: 1184, y: 364, width: 16, height: 72))
