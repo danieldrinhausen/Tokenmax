@@ -48,23 +48,7 @@ struct TokenmaxApp: App {
         let modelCatalog = ModelCatalogStore()
         let codexModelCatalog = CodexModelCatalogStore()
         let updates = UpdateCheckCoordinator(settingsStore: settingsStore)
-        let environment = SharedEnvironment(
-            settingsStore: settingsStore,
-            taskStore: taskStore,
-            usage: usage,
-            notificationManager: notificationManager,
-            notificationCoordinator: notificationCoordinator,
-            sideNotch: sideNotch,
-            resetCelebration: resetCelebration,
-            sessionOpener: sessionOpener,
-            autoRun: autoRun,
-            modelCatalog: modelCatalog,
-            codexModelCatalog: codexModelCatalog,
-            updates: updates
-        )
-        let settingsWindow = SettingsWindowController {
-            NSHostingController(rootView: SettingsView().modifier(environment))
-        }
+        let settingsWindow = SettingsWindowController()
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
         _taskStore = StateObject(wrappedValue: taskStore)
@@ -102,6 +86,14 @@ struct TokenmaxApp: App {
     }
 
     var body: some Scene {
+        // `body` runs even when the menu bar item is intentionally hidden.
+        // That lets a Side-Notch-only launch still open Settings from its own
+        // context menu, using these installed shared objects.
+        let environment = sharedEnvironment
+        let _ = settingsWindow.configure {
+            NSHostingController(rootView: SettingsView().modifier(environment))
+        }
+
         MenuBarExtra(isInserted: menuBarItemBinding) {
             MenuBarPopoverView()
                 .modifier(sharedEnvironment)

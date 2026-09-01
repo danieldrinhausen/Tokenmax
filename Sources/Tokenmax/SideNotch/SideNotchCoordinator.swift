@@ -228,14 +228,20 @@ final class SideNotchCoordinator: ObservableObject {
         suppression = nil
         let providerCount = max(1, presentations.count)
         let expandedHeight = Self.railHeaderHeight + CGFloat(providerCount) * Self.providerRowHeight
-        let size = state == .peek
-            ? Self.peekSize
-            : NSSize(width: Self.railWidth, height: expandedHeight)
-        let railFrame = NSRect(
-            x: screen.visibleFrame.maxX - size.width,
-            y: screen.visibleFrame.midY - size.height / 2,
-            width: size.width,
-            height: size.height
+        let size: NSSize
+        if state == .peek {
+            size = settingsStore.settings.sideNotch.placement == .dock
+                ? NSSize(width: Self.peekSize.height, height: Self.peekSize.width)
+                : Self.peekSize
+        } else {
+            size = NSSize(width: Self.railWidth, height: expandedHeight)
+        }
+        let railFrame = SideNotchLayoutDecision.railFrame(
+            placement: settingsStore.settings.sideNotch.placement,
+            dockPlacement: settingsStore.settings.sideNotch.dockPlacement,
+            screen: screen.frame,
+            visibleScreen: screen.visibleFrame,
+            size: size
         )
 
         if state == .peek {
@@ -245,19 +251,14 @@ final class SideNotchCoordinator: ObservableObject {
             let presentation = presentations[index]
             let dimensions = SideNotchDetailLayout.dimensions(for: presentation)
             let detailSize = NSSize(width: dimensions.width, height: dimensions.height)
-            let cellCenterFromTop = Self.railHeaderHeight
-                + CGFloat(index) * Self.providerRowHeight
-                + Self.providerRowHeight / 2
-            let targetCenterY = railFrame.maxY - cellCenterFromTop
-            let detailY = min(
-                screen.visibleFrame.maxY - detailSize.height,
-                max(screen.visibleFrame.minY, targetCenterY - detailSize.height / 2)
-            )
-            let detailFrame = NSRect(
-                x: railFrame.minX - detailSize.width,
-                y: detailY,
-                width: detailSize.width,
-                height: detailSize.height
+            let detailFrame = SideNotchLayoutDecision.detailFrame(
+                placement: settingsStore.settings.sideNotch.placement,
+                railFrame: railFrame,
+                visibleScreen: screen.visibleFrame,
+                detailSize: detailSize,
+                providerIndex: index,
+                railHeaderHeight: Self.railHeaderHeight,
+                providerRowHeight: Self.providerRowHeight
             )
             showDetail(frame: detailFrame)
         } else {

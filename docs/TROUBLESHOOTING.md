@@ -185,10 +185,11 @@ icon entirely.
 ### The Side Notch does not appear, or appears on the wrong display
 
 It is an Alpha feature and is off by default. Turn on **Settings → General →
-Side Notch · Alpha**. The collapsed handle belongs to the display containing the
-pointer and moves only while collapsed; an open rail stays put so it cannot jump
-away during interaction. Leave the rail and detail card for 400ms, then move the
-pointer to the intended display.
+Side Notch · Alpha**. In **Side Notch** placement, the collapsed handle belongs
+to the display containing the pointer and moves only while collapsed; an open
+rail stays put so it cannot jump away during interaction. **Dock Notch** instead
+stays above the Dock's reserved edge, on the configured left or right side. Leave
+the rail and detail card for 400ms, then move the pointer to the intended display.
 
 Tokenmax deliberately hides the panel while the Mac is locked or asleep, and
 restores it after the session becomes active. It joins every Space and

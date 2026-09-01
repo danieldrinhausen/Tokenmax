@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 
 @testable import Tokenmax
@@ -50,5 +51,37 @@ struct SideNotchDecisionTests {
         #expect(SideNotchDecision.reduce(
             .detail(provider: .codex, locked: true), event: .closeDelayElapsed
         ) == .peek)
+    }
+
+    @Test("Dock placement sits above the reserved Dock edge on either side")
+    func dockPlacementFrames() {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let visible = CGRect(x: 0, y: 80, width: 1440, height: 796)
+        let size = CGSize(width: 76, height: 150)
+
+        let left = SideNotchLayoutDecision.railFrame(
+            placement: .dock, dockPlacement: .left,
+            screen: screen, visibleScreen: visible, size: size
+        )
+        let right = SideNotchLayoutDecision.railFrame(
+            placement: .dock, dockPlacement: .right,
+            screen: screen, visibleScreen: visible, size: size
+        )
+
+        #expect(left.maxX == 608)
+        #expect(right.minX == 832)
+        #expect(left.minY == visible.minY)
+        #expect(right.minY == visible.minY)
+    }
+
+    @Test("Screen-edge placement retains the established right-hand centre")
+    func sidePlacementFrame() {
+        let visible = CGRect(x: 0, y: 0, width: 1200, height: 800)
+        let frame = SideNotchLayoutDecision.railFrame(
+            placement: .side, dockPlacement: .left,
+            screen: visible, visibleScreen: visible, size: CGSize(width: 16, height: 72)
+        )
+
+        #expect(frame == CGRect(x: 1184, y: 364, width: 16, height: 72))
     }
 }

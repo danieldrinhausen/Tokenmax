@@ -9,12 +9,11 @@ import SwiftUI
 /// and key on the active Space.
 @MainActor
 final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelegate {
-    private let makeContentController: () -> NSViewController
+    private var makeContentController: (() -> NSViewController)?
     private var window: NSWindow?
     private var countsAsOpenWindow = false
 
-    init(makeContentController: @escaping () -> NSViewController) {
-        self.makeContentController = makeContentController
+    override init() {
         super.init()
 
         NotificationCenter.default.addObserver(
@@ -25,7 +24,19 @@ final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelega
         )
     }
 
+    /// The App value can be rebuilt by SwiftUI. Configure only after its
+    /// StateObjects are installed, or Settings would retain a parallel set of
+    /// stores whose changes reach disk but not the live coordinators.
+    func configure(makeContentController: @escaping () -> NSViewController) {
+        guard self.makeContentController == nil else { return }
+        self.makeContentController = makeContentController
+    }
+
     func show() {
+        guard makeContentController != nil else {
+            Log.shared.write("window: Settings requested before its content was ready")
+            return
+        }
         let window = window ?? makeWindow()
         if !countsAsOpenWindow {
             countsAsOpenWindow = true
@@ -58,6 +69,7 @@ final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelega
     }
 
     private func makeWindow() -> NSWindow {
+        guard let makeContentController else { preconditionFailure("Settings content was not configured") }
         let window = NSWindow(contentViewController: makeContentController())
         window.title = "Tokenmax Settings"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]

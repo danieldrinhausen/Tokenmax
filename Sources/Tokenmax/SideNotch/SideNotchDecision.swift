@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 enum SideNotchSuppressionReason: Equatable, Sendable {
@@ -71,6 +72,89 @@ enum SideNotchDecision {
 
         case .closeDelayElapsed:
             return .peek
+        }
+    }
+}
+
+/// Maps the stored placement choice to screen coordinates without consulting
+/// AppKit. The coordinator supplies the live display rectangles and owns the
+/// panels; this type keeps the placement contract testable.
+enum SideNotchLayoutDecision {
+    /// A Dock's exact icon span is intentionally not queried: macOS does not
+    /// expose it as stable public geometry. A fixed breathing space about the
+    /// display centre remains predictable as the Dock magnifies or changes
+    /// its contents, while `visibleFrame` keeps the rail above its reserved
+    /// edge.
+    private static let dockCentreGap: CGFloat = 112
+
+    static func railFrame(
+        placement: SideNotchPlacement,
+        dockPlacement: DockNotchPlacement,
+        screen: CGRect,
+        visibleScreen: CGRect,
+        size: CGSize
+    ) -> CGRect {
+        switch placement {
+        case .side:
+            return CGRect(
+                x: visibleScreen.maxX - size.width,
+                y: visibleScreen.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+
+        case .dock:
+            let x: CGFloat
+            switch dockPlacement {
+            case .left:
+                x = screen.midX - Self.dockCentreGap - size.width
+            case .right:
+                x = screen.midX + Self.dockCentreGap
+            }
+            return CGRect(
+                x: min(visibleScreen.maxX - size.width, max(visibleScreen.minX, x)),
+                y: visibleScreen.minY,
+                width: size.width,
+                height: size.height
+            )
+        }
+    }
+
+    static func detailFrame(
+        placement: SideNotchPlacement,
+        railFrame: CGRect,
+        visibleScreen: CGRect,
+        detailSize: CGSize,
+        providerIndex: Int,
+        railHeaderHeight: CGFloat,
+        providerRowHeight: CGFloat
+    ) -> CGRect {
+        switch placement {
+        case .side:
+            let cellCenterFromTop = railHeaderHeight
+                + CGFloat(providerIndex) * providerRowHeight
+                + providerRowHeight / 2
+            let targetCenterY = railFrame.maxY - cellCenterFromTop
+            return CGRect(
+                x: railFrame.minX - detailSize.width,
+                y: min(
+                    visibleScreen.maxY - detailSize.height,
+                    max(visibleScreen.minY, targetCenterY - detailSize.height / 2)
+                ),
+                width: detailSize.width,
+                height: detailSize.height
+            )
+
+        case .dock:
+            return CGRect(
+                x: min(
+                    visibleScreen.maxX - detailSize.width,
+                    max(visibleScreen.minX, railFrame.midX - detailSize.width / 2)
+                ),
+                y: min(visibleScreen.maxY - detailSize.height, railFrame.maxY + 8),
+                width: detailSize.width,
+                height: detailSize.height
+            )
         }
     }
 }

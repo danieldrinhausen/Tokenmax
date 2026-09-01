@@ -41,24 +41,25 @@ struct SideNotchRailView: View {
     }
 
     private var peek: some View {
-        ZStack(alignment: .trailing) {
+        let dockNotch = coordinator.settingsStore.settings.sideNotch.placement == .dock
+        return ZStack(alignment: dockNotch ? .bottom : .trailing) {
             Color.clear
             Capsule()
                 .fill(Color.black.opacity(0.94))
-                .frame(width: 8, height: 50)
-                .overlay(alignment: .leading) {
+                .frame(width: dockNotch ? 50 : 8, height: dockNotch ? 8 : 50)
+                .overlay(alignment: dockNotch ? .top : .leading) {
                     LinearGradient(
                         colors: [.white.opacity(0.34), .white.opacity(0.10)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(width: 1)
+                    .frame(width: dockNotch ? 50 : 1, height: dockNotch ? 1 : 50)
                     .clipShape(Capsule())
                 }
                 .overlay {
                     Capsule()
                         .fill(Color.white.opacity(0.30))
-                        .frame(width: 2, height: 11)
+                        .frame(width: dockNotch ? 11 : 2, height: dockNotch ? 2 : 11)
                 }
         }
         .contentShape(Rectangle())
@@ -103,6 +104,30 @@ struct SideNotchRailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(
+            railBackground
+        )
+        .overlay(alignment: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .top : .leading) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(
+                    width: coordinator.settingsStore.settings.sideNotch.placement == .dock ? nil : 1,
+                    height: coordinator.settingsStore.settings.sideNotch.placement == .dock ? 1 : nil
+                )
+                .padding(coordinator.settingsStore.settings.sideNotch.placement == .dock ? .horizontal : .vertical, 18)
+        }
+    }
+
+    @ViewBuilder
+    private var railBackground: some View {
+        if coordinator.settingsStore.settings.sideNotch.placement == .dock {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 22,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 22
+            )
+            .fill(Color.black.opacity(0.96))
+        } else {
             UnevenRoundedRectangle(
                 topLeadingRadius: 22,
                 bottomLeadingRadius: 22,
@@ -110,9 +135,6 @@ struct SideNotchRailView: View {
                 topTrailingRadius: 0
             )
             .fill(Color.black.opacity(0.96))
-        )
-        .overlay(alignment: .leading) {
-            Rectangle().fill(Color.white.opacity(0.08)).frame(width: 1).padding(.vertical, 18)
         }
     }
 }
