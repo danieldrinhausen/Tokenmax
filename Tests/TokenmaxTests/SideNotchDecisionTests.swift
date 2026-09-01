@@ -68,10 +68,10 @@ struct SideNotchDecisionTests {
             screen: screen, visibleScreen: visible, size: size
         )
 
-        #expect(left.maxX == 608)
-        #expect(right.minX == 832)
-        #expect(left.minY == visible.minY)
-        #expect(right.minY == visible.minY)
+        #expect(left.minX == 12)
+        #expect(right.maxX == 1428)
+        #expect(left.minY == 12)
+        #expect(right.minY == 12)
     }
 
     @Test("Screen-edge placement retains the established right-hand centre")

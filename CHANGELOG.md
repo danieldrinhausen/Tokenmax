@@ -6,8 +6,8 @@ versions follow [semver](https://semver.org/).
 ## [Unreleased]
 
 - **Side Notch can now become a Dock Notch.** Its Alpha settings choose whether the hoverable
-  quota rail belongs at the right display edge or as a horizontal meter above the Dock's reserved
-  edge, to the left or right of the Dock centre. **Always show Dock Notch** keeps that compact
+  quota rail belongs at the right display edge or as a horizontal meter at the bottom of the
+  display, to the left or right of the Dock zone. **Always show Dock Notch** keeps that compact
   meter visible between inspections. The stored setting remains Side Notch for every existing install.
   Settings now receives the running app's shared stores rather than a parallel, unstarted set, so
   changing either placement or enablement takes effect immediately instead of only persisting for

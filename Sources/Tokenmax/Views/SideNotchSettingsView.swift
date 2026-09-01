@@ -39,7 +39,7 @@ struct SideNotchSettingsView: View {
 
                     Toggle("Always show Dock Notch", isOn: dockAlwaysExpandedBinding)
 
-                    Text("Dock Notch rests just above the Dock's reserved edge, on the side you choose. Always show keeps its compact provider rings visible; hover and pin still reveal details without occupying the screen edge.")
+                    Text("Dock Notch sits at the bottom of the display, to the left or right of the Dock zone. Always show keeps its compact provider rings visible; hover and pin still reveal details without occupying the screen edge.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

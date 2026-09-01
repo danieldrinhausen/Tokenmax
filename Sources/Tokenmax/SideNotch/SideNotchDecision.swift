@@ -91,12 +91,11 @@ enum SideNotchDecision {
 /// AppKit. The coordinator supplies the live display rectangles and owns the
 /// panels; this type keeps the placement contract testable.
 enum SideNotchLayoutDecision {
-    /// A Dock's exact icon span is intentionally not queried: macOS does not
-    /// expose it as stable public geometry. A fixed breathing space about the
-    /// display centre remains predictable as the Dock magnifies or changes
-    /// its contents, while `visibleFrame` keeps the rail above its reserved
-    /// edge.
-    private static let dockCentreGap: CGFloat = 112
+    /// A Dock's icon span changes with magnification and is not a stable public
+    /// geometry contract. The two choices therefore name the bottom display
+    /// sides flanking the Dock zone, rather than pretending to know its live
+    /// icon bounds.
+    private static let dockEdgeInset: CGFloat = 12
 
     static func railFrame(
         placement: SideNotchPlacement,
@@ -118,13 +117,13 @@ enum SideNotchLayoutDecision {
             let x: CGFloat
             switch dockPlacement {
             case .left:
-                x = screen.midX - Self.dockCentreGap - size.width
+                x = visibleScreen.minX + Self.dockEdgeInset
             case .right:
-                x = screen.midX + Self.dockCentreGap
+                x = visibleScreen.maxX - size.width - Self.dockEdgeInset
             }
             return CGRect(
                 x: min(visibleScreen.maxX - size.width, max(visibleScreen.minX, x)),
-                y: visibleScreen.minY,
+                y: screen.minY + Self.dockEdgeInset,
                 width: size.width,
                 height: size.height
             )

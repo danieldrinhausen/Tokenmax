@@ -73,8 +73,8 @@ turn the provider back on and your arrangement returns rather than a rebuilt one
 
 **Settings → General → Side Notch · Alpha** adds the same readings as a second, optional surface.
 Off by default, choose **Side Notch** for a narrow handle halfway down the right edge of whichever
-display the pointer is on, or **Dock Notch** to rest it above the Dock's reserved edge, to the left
-or right of its centre. **Always show Dock Notch** keeps its compact horizontal provider rings on
+display the pointer is on, or **Dock Notch** to rest it at the bottom of the display, to the left
+or right of the Dock zone. **Always show Dock Notch** keeps its compact horizontal provider rings on
 screen; otherwise it remains a hover surface like Side Notch. Hover opens a rail with one large double ring per provider; hover a provider for a detail
 card with the same context as the popover: plan and freshness, percentages and reset times, pace
 reserve or deficit, projected empty time, reminder state and Codex reset credits when available.
