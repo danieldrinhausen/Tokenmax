@@ -36,7 +36,7 @@ enum SideNotchEvent: Equatable, Sendable {
     case pointerEnteredRail
     case pointerEnteredProvider(TokenmaxProvider)
     case providerClicked(TokenmaxProvider)
-    case closeDelayElapsed
+    case closeDelayElapsed(keepRailVisible: Bool)
 }
 
 /// The interaction state machine. Timers and tracking areas belong to the
@@ -70,8 +70,8 @@ enum SideNotchDecision {
             }
             return .detail(provider: provider, locked: true)
 
-        case .closeDelayElapsed:
-            return .peek
+        case let .closeDelayElapsed(keepRailVisible):
+            return keepRailVisible ? .rail : .peek
         }
     }
 
@@ -92,7 +92,6 @@ enum SideNotchDecision {
 /// panels; this type keeps the placement contract testable.
 enum SideNotchLayoutDecision {
     /// Breathing room between two independently rounded surfaces.
-    private static let dockEdgeInset: CGFloat = 12
     private static let dockGap: CGFloat = 18
     private static let fallbackDockHalfWidth: CGFloat = 420
 
@@ -130,8 +129,9 @@ enum SideNotchLayoutDecision {
                     x = screen.midX + Self.fallbackDockHalfWidth + Self.dockGap
                 }
             }
-            let y = dockFrame.map { $0.midY - size.height / 2 }
-                ?? screen.minY + Self.dockEdgeInset
+            // The Dock itself meets the display edge. Sharing that baseline is
+            // what makes the separate surface read as part of the same shelf.
+            let y = screen.minY
             return CGRect(
                 x: min(visibleScreen.maxX - size.width, max(visibleScreen.minX, x)),
                 y: y,

@@ -49,8 +49,17 @@ struct SideNotchDecisionTests {
     @Test("The named close delay always collapses and releases selection")
     func delayedCloseCollapses() {
         #expect(SideNotchDecision.reduce(
-            .detail(provider: .codex, locked: true), event: .closeDelayElapsed
+            .detail(provider: .codex, locked: true),
+            event: .closeDelayElapsed(keepRailVisible: false)
         ) == .peek)
+    }
+
+    @Test("A persistent Dock Notch dismisses detail without hiding its rail")
+    func persistentDockCloseKeepsRail() {
+        #expect(SideNotchDecision.reduce(
+            .detail(provider: .codex, locked: false),
+            event: .closeDelayElapsed(keepRailVisible: true)
+        ) == .rail)
     }
 
     @Test("Dock placement follows the live Dock rectangle on either side")
@@ -74,8 +83,8 @@ struct SideNotchDecisionTests {
 
         #expect(left.maxX == 282)
         #expect(right.minX == 1158)
-        #expect(left.midY == 36)
-        #expect(right.midY == 36)
+        #expect(left.minY == screen.minY)
+        #expect(right.minY == screen.minY)
     }
 
     @Test("Screen-edge placement retains the established right-hand centre")

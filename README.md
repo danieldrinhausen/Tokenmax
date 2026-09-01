@@ -73,12 +73,13 @@ turn the provider back on and your arrangement returns rather than a rebuilt one
 
 **Settings → General → Side Notch · Alpha** adds the same readings as a second, optional surface.
 Off by default, choose **Side Notch** for a narrow handle halfway down the right edge of whichever
-display the pointer is on, or **Dock Notch** to rest it at the bottom of the display, immediately
-left or right of the Dock. **Always show Dock Notch** keeps its compact horizontal provider rings on
-screen; otherwise it remains a hover surface like Side Notch. Hover opens a rail with one large double ring per provider; hover a provider for a detail
+display the pointer is on, or **Dock Notch** to rest flush with the bottom of the display that owns
+the Dock, immediately left or right of it. **Always show Dock Notch** keeps its compact horizontal
+provider rings on screen; the detail card still closes after the pointer leaves. Otherwise it
+remains a hover surface like Side Notch. Hover opens a rail with one large double ring per provider; hover a provider for a detail
 card with the same context as the popover: plan and freshness, percentages and reset times, pace
 reserve or deficit, projected empty time, reminder state and Codex reset credits when available.
-Click to pin the card until the next click. Leaving the whole surface collapses it after 400ms,
+Click to pin the card until the next click. Leaving the whole surface closes it after 400ms,
 which is long enough to cross from rail to card without making an always-open shelf. The panels join
 every Space and full-screen app, but cannot become key, so checking quota never takes typing away
 from the app underneath.

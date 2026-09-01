@@ -47,9 +47,12 @@ rectangles from supplied screen geometry. `DockGeometryReader` supplies the
 Dock's Accessibility list rectangle when permitted, because it includes pinned,
 running and minimized items. Its no-permission fallback reconstructs the centred
 span from Dock preferences and regular running apps rather than assuming an
-alignment or a fixed width.
+alignment or a fixed width. It also identifies the Dock-owning display from the
+Accessibility frame, or from the reserved bottom inset when permission is absent,
+so pointer movement cannot move Dock mode between displays.
 `SideNotchDecision` also resolves the persistent Dock Notch choice to its compact
-rail state, so the coordinator does not acquire an untested visibility rule.
+rail state and decides whether a close delay returns to that rail or the tiny
+handle, so the coordinator does not acquire an untested visibility rule.
 
 `TokenmaxApplicationObjects` owns the process-wide reference graph used by every
 SwiftUI scene and the AppKit Settings window. SwiftUI may reconstruct its `App`

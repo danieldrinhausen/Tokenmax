@@ -99,7 +99,9 @@ final class SideNotchCoordinator: ObservableObject {
     func pointerEnteredHandle() {
         pointerInsideRail = true
         cancelClose()
-        currentScreen = screenUnderPointer() ?? currentScreen
+        if settingsStore.settings.sideNotch.placement == .side {
+            currentScreen = screenUnderPointer() ?? currentScreen
+        }
         transition(.pointerEnteredHandle)
     }
 
@@ -162,13 +164,13 @@ final class SideNotchCoordinator: ObservableObject {
 
     private func scheduleCloseIfOutside() {
         guard !pointerInsideRail, !pointerInsideDetail else { return }
-        guard !settingsStore.settings.sideNotch.dockAlwaysExpanded
-            || settingsStore.settings.sideNotch.placement != .dock else { return }
         cancelClose()
+        let keepRailVisible = settingsStore.settings.sideNotch.placement == .dock
+            && settingsStore.settings.sideNotch.dockAlwaysExpanded
         let item = DispatchWorkItem { [weak self] in
             Task { @MainActor in
                 guard let self, !self.pointerInsideRail, !self.pointerInsideDetail else { return }
-                self.transition(.closeDelayElapsed)
+                self.transition(.closeDelayElapsed(keepRailVisible: keepRailVisible))
             }
         }
         closeWorkItem = item
@@ -181,9 +183,12 @@ final class SideNotchCoordinator: ObservableObject {
     }
 
     private func reevaluate() {
-        let screen = screenUnderPointer() ?? NSScreen.main ?? NSScreen.screens.first
+        let screen = settingsStore.settings.sideNotch.placement == .dock
+            ? DockGeometryReader.screenHostingDock()
+            : (screenUnderPointer() ?? NSScreen.main ?? NSScreen.screens.first)
         currentScreen = currentScreen.flatMap { old in
-            NSScreen.screens.first { $0 === old }
+            guard settingsStore.settings.sideNotch.placement == .side else { return nil }
+            return NSScreen.screens.first { $0 === old }
         } ?? screen
         let reason = SideNotchDecision.suppression(
             enabled: settingsStore.settings.sideNotch.enabled,
@@ -205,10 +210,6 @@ final class SideNotchCoordinator: ObservableObject {
             currentDockFrame = DockGeometryReader.frame(on: currentScreen)
         } else {
             currentDockFrame = nil
-        }
-        if settingsStore.settings.sideNotch.placement == .dock,
-           settingsStore.settings.sideNotch.dockAlwaysExpanded {
-            cancelClose()
         }
         state = SideNotchDecision.resolvedState(
             state,

@@ -90,15 +90,16 @@ glance, and the icon alone is the least distracting.
 **Putting the meters at the screen edge.** **Settings → General → Side Notch ·
 Alpha** is a complementary view, not a replacement for the menu bar. Enable it
 and choose **Side Notch** for the small handle halfway down the right edge, or
-**Dock Notch** to put it at the bottom of the display, immediately left or right
-of the Dock.
+**Dock Notch** to put it flush with the bottom of the Dock's display, immediately
+left or right of the Dock.
 Turn on **Always show Dock Notch** when the Dock placement should remain a
-compact, horizontal meter rather than collapse between hovers. Hover opens one double
+compact, horizontal meter rather than collapse between hovers; its detail card
+still closes when the pointer leaves. Hover opens one double
 ring per provider; hover a ring for plan and freshness, the precise quota rows,
 pace reserve or deficit, projected empty time and reminder state. Codex also
 shows banked reset credits when it reports them. Click a ring to keep that card
-open while the pointer moves, and again to release it. The surface follows the
-display under the pointer, appears on every Space and over full-screen apps, and
+open while the pointer moves, and again to release it. Side Notch follows the
+display under the pointer; Dock Notch stays with the Dock. Both appear on every Space and over full-screen apps, and
 does not take keyboard focus.
 
 If Side Notch is the view you actually use, switch off **Show the menu bar

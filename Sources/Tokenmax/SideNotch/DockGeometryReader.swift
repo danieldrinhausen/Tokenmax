@@ -6,11 +6,26 @@ import ApplicationServices
 /// preferences alone cannot describe either, so an item-count estimate drifts.
 @MainActor
 enum DockGeometryReader {
-    static func frame(on screen: NSScreen) -> CGRect? {
-        accessibilityFrame(on: screen) ?? estimatedFrame(on: screen)
+    static func screenHostingDock() -> NSScreen? {
+        if let frame = accessibilityFrame() {
+            return NSScreen.screens.first { $0.frame.intersects(frame) }
+        }
+
+        // A bottom Dock reserves the lower strip of its display. This remains
+        // available when Tokenmax has not been granted Accessibility access.
+        return NSScreen.screens.max { lhs, rhs in
+            bottomInset(of: lhs) < bottomInset(of: rhs)
+        }.flatMap { bottomInset(of: $0) > 0 ? $0 : NSScreen.main }
     }
 
-    private static func accessibilityFrame(on screen: NSScreen) -> CGRect? {
+    static func frame(on screen: NSScreen) -> CGRect? {
+        if let frame = accessibilityFrame(), frame.intersects(screen.frame) {
+            return frame
+        }
+        return estimatedFrame(on: screen)
+    }
+
+    private static func accessibilityFrame() -> CGRect? {
         guard AXIsProcessTrusted(), let pid = NSRunningApplication
                 .runningApplications(withBundleIdentifier: "com.apple.dock")
                 .first?.processIdentifier else { return nil }
@@ -29,7 +44,11 @@ enum DockGeometryReader {
             width: size.width,
             height: size.height
         )
-        return frame.intersects(screen.frame) ? frame : nil
+        return frame
+    }
+
+    private static func bottomInset(of screen: NSScreen) -> CGFloat {
+        max(0, screen.visibleFrame.minY - screen.frame.minY)
     }
 
     /// Accessibility can be unavailable without making Dock placement useless.

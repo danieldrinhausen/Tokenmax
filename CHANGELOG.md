@@ -16,6 +16,9 @@ versions follow [semver](https://semver.org/).
   compact height, has a translucent dark finish, and follows the Dock's live left or right edge.
   The app now owns one stable shared object graph across SwiftUI `App` reconstruction, preventing
   Settings from controlling a persisted copy while the visible panel continues using stale values.
+  Dock placement is pinned to the display that owns the Dock, meets the bottom edge cleanly, and no
+  longer jumps displays during hover. Persistent mode now keeps only the meter visible; its detail
+  card dismisses normally after the pointer leaves.
 
 ## [0.1.13] - 2026-08-31
 
