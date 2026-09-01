@@ -4,6 +4,64 @@ enum TokenmaxWindow {
     static let queue = "tokenmax.queue"
 }
 
+/// SwiftUI may construct the `App` value more than once. The reference graph
+/// must not follow those value lifetimes: a Settings window backed by one graph
+/// and a visible panel backed by another can persist the same file while never
+/// delivering live changes to each other.
+@MainActor
+private final class TokenmaxApplicationObjects {
+    static let shared = TokenmaxApplicationObjects()
+
+    let settingsStore: SettingsStore
+    let taskStore: TaskStore
+    let usage: ProviderUsageCoordinator
+    let notificationManager: NotificationManager
+    let notificationCoordinator: NotificationCoordinator
+    let sideNotch: SideNotchCoordinator
+    let resetCelebration: QuotaResetCelebrationCoordinator
+    let sessionOpener: SessionOpenerCoordinator
+    let autoRun: QueueAutoRunCoordinator
+    let modelCatalog: ModelCatalogStore
+    let codexModelCatalog: CodexModelCatalogStore
+    let updates: UpdateCheckCoordinator
+    let settingsWindow: SettingsWindowController
+
+    private init() {
+        let settingsStore = SettingsStore()
+        let taskStore = TaskStore()
+        let usage = ProviderUsageCoordinator(settingsStore: settingsStore)
+        let notificationManager = NotificationManager()
+        let notificationCoordinator = NotificationCoordinator(
+            manager: notificationManager,
+            usage: usage,
+            taskStore: taskStore,
+            settingsStore: settingsStore
+        )
+
+        self.settingsStore = settingsStore
+        self.taskStore = taskStore
+        self.usage = usage
+        self.notificationManager = notificationManager
+        self.notificationCoordinator = notificationCoordinator
+        sideNotch = SideNotchCoordinator(
+            settingsStore: settingsStore,
+            usage: usage,
+            notifications: notificationCoordinator
+        )
+        resetCelebration = QuotaResetCelebrationCoordinator(usage: usage, settingsStore: settingsStore)
+        sessionOpener = SessionOpenerCoordinator(usage: usage.claude, settingsStore: settingsStore)
+        autoRun = QueueAutoRunCoordinator(
+            usage: usage,
+            taskStore: taskStore,
+            settingsStore: settingsStore
+        )
+        modelCatalog = ModelCatalogStore()
+        codexModelCatalog = CodexModelCatalogStore()
+        updates = UpdateCheckCoordinator(settingsStore: settingsStore)
+        settingsWindow = SettingsWindowController()
+    }
+}
+
 @main
 struct TokenmaxApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -23,46 +81,20 @@ struct TokenmaxApp: App {
     @StateObject private var settingsWindow: SettingsWindowController
 
     init() {
-        let settingsStore = SettingsStore()
-        let taskStore = TaskStore()
-        let usage = ProviderUsageCoordinator(settingsStore: settingsStore)
-        let notificationManager = NotificationManager()
-        let notificationCoordinator = NotificationCoordinator(
-            manager: notificationManager,
-            usage: usage,
-            taskStore: taskStore,
-            settingsStore: settingsStore
-        )
-        let resetCelebration = QuotaResetCelebrationCoordinator(usage: usage, settingsStore: settingsStore)
-        let sideNotch = SideNotchCoordinator(
-            settingsStore: settingsStore,
-            usage: usage,
-            notifications: notificationCoordinator
-        )
-        let sessionOpener = SessionOpenerCoordinator(usage: usage.claude, settingsStore: settingsStore)
-        let autoRun = QueueAutoRunCoordinator(
-            usage: usage,
-            taskStore: taskStore,
-            settingsStore: settingsStore
-        )
-        let modelCatalog = ModelCatalogStore()
-        let codexModelCatalog = CodexModelCatalogStore()
-        let updates = UpdateCheckCoordinator(settingsStore: settingsStore)
-        let settingsWindow = SettingsWindowController()
-
-        _settingsStore = StateObject(wrappedValue: settingsStore)
-        _taskStore = StateObject(wrappedValue: taskStore)
-        _usage = StateObject(wrappedValue: usage)
-        _notificationManager = StateObject(wrappedValue: notificationManager)
-        _notificationCoordinator = StateObject(wrappedValue: notificationCoordinator)
-        _sideNotch = StateObject(wrappedValue: sideNotch)
-        _resetCelebration = StateObject(wrappedValue: resetCelebration)
-        _sessionOpener = StateObject(wrappedValue: sessionOpener)
-        _autoRun = StateObject(wrappedValue: autoRun)
-        _modelCatalog = StateObject(wrappedValue: modelCatalog)
-        _codexModelCatalog = StateObject(wrappedValue: codexModelCatalog)
-        _updates = StateObject(wrappedValue: updates)
-        _settingsWindow = StateObject(wrappedValue: settingsWindow)
+        let objects = TokenmaxApplicationObjects.shared
+        _settingsStore = StateObject(wrappedValue: objects.settingsStore)
+        _taskStore = StateObject(wrappedValue: objects.taskStore)
+        _usage = StateObject(wrappedValue: objects.usage)
+        _notificationManager = StateObject(wrappedValue: objects.notificationManager)
+        _notificationCoordinator = StateObject(wrappedValue: objects.notificationCoordinator)
+        _sideNotch = StateObject(wrappedValue: objects.sideNotch)
+        _resetCelebration = StateObject(wrappedValue: objects.resetCelebration)
+        _sessionOpener = StateObject(wrappedValue: objects.sessionOpener)
+        _autoRun = StateObject(wrappedValue: objects.autoRun)
+        _modelCatalog = StateObject(wrappedValue: objects.modelCatalog)
+        _codexModelCatalog = StateObject(wrappedValue: objects.codexModelCatalog)
+        _updates = StateObject(wrappedValue: objects.updates)
+        _settingsWindow = StateObject(wrappedValue: objects.settingsWindow)
 
         // The status item is optional now, so it can no longer own app
         // startup. Deferred one main-runloop pass to let SwiftUI install the
@@ -71,16 +103,16 @@ struct TokenmaxApp: App {
         // would escape the suite's otherwise isolated fixtures.
         if !RuntimeEnvironment.isTesting {
             Task { @MainActor in
-                usage.start()
-                notificationCoordinator.start()
-                sideNotch.start()
-                resetCelebration.start()
-                sessionOpener.start()
-                autoRun.start()
-                updates.start()
+                objects.usage.start()
+                objects.notificationCoordinator.start()
+                objects.sideNotch.start()
+                objects.resetCelebration.start()
+                objects.sessionOpener.start()
+                objects.autoRun.start()
+                objects.updates.start()
                 // Asked while the user is present, never when an unattended task
                 // first discovers a protected project directory.
-                WorkingDirectoryAccess.requestAccess(for: taskStore.tasks)
+                WorkingDirectoryAccess.requestAccess(for: objects.taskStore.tasks)
             }
         }
     }

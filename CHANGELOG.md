@@ -14,6 +14,8 @@ versions follow [semver](https://semver.org/).
   the next launch. Provider rings now have deliberate headroom inside their cards, so full outer
   arcs do not touch or clip against the selected-state border. The Dock rail now matches the Dock's
   compact height, has a translucent dark finish, and leaves a small gap after the left-aligned Dock.
+  The app now owns one stable shared object graph across SwiftUI `App` reconstruction, preventing
+  Settings from controlling a persisted copy while the visible panel continues using stale values.
 
 ## [0.1.13] - 2026-08-31
 

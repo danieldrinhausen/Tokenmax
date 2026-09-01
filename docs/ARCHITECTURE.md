@@ -48,6 +48,11 @@ whose icon bounds are not a stable public contract. Dock positions deliberately
 use the bottom display sides rather than a guessed centre offset.
 `SideNotchDecision` also resolves the persistent Dock Notch choice to its compact
 rail state, so the coordinator does not acquire an untested visibility rule.
+
+`TokenmaxApplicationObjects` owns the process-wide reference graph used by every
+SwiftUI scene and the AppKit Settings window. SwiftUI may reconstruct its `App`
+value; tying coordinators to that value creates parallel stores that agree on
+disk but cannot deliver live settings changes to one another.
 `SideNotchCoordinator` owns the 400ms close timer, display selection, workspace
 notifications and two non-activating `NSPanel`s. Two panels rather than one
 large transparent window are load-bearing: a transparent bridge would still
