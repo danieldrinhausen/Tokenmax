@@ -194,6 +194,8 @@ edge from the centred Dock's configured tiles and currently running apps. Leave
 the rail and detail card for 400ms, then move the pointer to the intended display.
 With **Always show Dock Notch** enabled, the compact horizontal rail remains
 visible; its detail card still closes 400ms after the pointer leaves both surfaces.
+Dock geometry is frozen while the rail is open, so icon magnification and newly
+appearing Dock items cannot move the hover target during an inspection.
 
 Tokenmax deliberately hides the panel while the Mac is locked or asleep, and
 restores it after the session becomes active. It joins every Space and

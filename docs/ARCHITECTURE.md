@@ -52,7 +52,9 @@ Accessibility frame, or from the reserved bottom inset when permission is absent
 so pointer movement cannot move Dock mode between displays.
 `SideNotchDecision` also resolves the persistent Dock Notch choice to its compact
 rail state and decides whether a close delay returns to that rail or the tiny
-handle, so the coordinator does not acquire an untested visibility rule.
+handle. It permits live Dock geometry refreshes only for the collapsed handle;
+the open rail is frozen so Dock magnification cannot move the hover target. The
+coordinator therefore does not acquire either untested visibility rule.
 
 `TokenmaxApplicationObjects` owns the process-wide reference graph used by every
 SwiftUI scene and the AppKit Settings window. SwiftUI may reconstruct its `App`

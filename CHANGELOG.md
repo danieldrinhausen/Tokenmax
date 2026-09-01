@@ -18,7 +18,9 @@ versions follow [semver](https://semver.org/).
   Settings from controlling a persisted copy while the visible panel continues using stale values.
   Dock placement is pinned to the display that owns the Dock, meets the bottom edge cleanly, and no
   longer jumps displays during hover. Persistent mode now keeps only the meter visible; its detail
-  card dismisses normally after the pointer leaves.
+  card dismisses normally after the pointer leaves. The rail now measures its gap beyond the Dock's
+  outer glass rather than from the inset icon list, and freezes live Dock geometry while open so
+  magnification or transient Dock contents cannot move it out from under the pointer.
 
 ## [0.1.13] - 2026-08-31
 

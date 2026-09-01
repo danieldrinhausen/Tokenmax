@@ -81,10 +81,19 @@ struct SideNotchDecisionTests {
             size: size
         )
 
-        #expect(left.maxX == 282)
-        #expect(right.minX == 1158)
+        #expect(left.maxX == 268)
+        #expect(right.minX == 1172)
         #expect(left.minY == screen.minY)
         #expect(right.minY == screen.minY)
+    }
+
+    @Test("Dock geometry cannot move an open rail away from the pointer")
+    func openDockRailFreezesGeometry() {
+        #expect(SideNotchDecision.shouldRefreshDockGeometry(state: .peek))
+        #expect(!SideNotchDecision.shouldRefreshDockGeometry(state: .rail))
+        #expect(!SideNotchDecision.shouldRefreshDockGeometry(
+            state: .detail(provider: .claudeCode, locked: false)
+        ))
     }
 
     @Test("Screen-edge placement retains the established right-hand centre")

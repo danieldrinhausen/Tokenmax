@@ -381,6 +381,7 @@ final class SideNotchCoordinator: ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 if self.settingsStore.settings.sideNotch.placement == .dock,
+                   SideNotchDecision.shouldRefreshDockGeometry(state: self.state),
                    let screen = self.currentScreen {
                     let dockFrame = DockGeometryReader.frame(on: screen)
                     if dockFrame != self.currentDockFrame {

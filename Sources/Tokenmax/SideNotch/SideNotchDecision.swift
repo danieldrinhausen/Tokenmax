@@ -85,6 +85,13 @@ enum SideNotchDecision {
         guard placement == .dock, dockAlwaysExpanded, state == .peek else { return state }
         return .rail
     }
+
+    /// Dock contents can resize while the pointer magnifies icons or windows
+    /// appear. Refresh only while collapsed so a surface under inspection can
+    /// never move away from the pointer that opened it.
+    static func shouldRefreshDockGeometry(state: SideNotchState) -> Bool {
+        state == .peek
+    }
 }
 
 /// Maps the stored placement choice to screen coordinates without consulting
@@ -92,7 +99,9 @@ enum SideNotchDecision {
 /// panels; this type keeps the placement contract testable.
 enum SideNotchLayoutDecision {
     /// Breathing room between two independently rounded surfaces.
-    private static let dockGap: CGFloat = 18
+    // Accessibility reports the icon list, while the Dock's glass extends
+    // beyond it. This leaves a visible 14pt gap outside that extra chrome.
+    private static let dockGap: CGFloat = 32
     private static let fallbackDockHalfWidth: CGFloat = 420
 
     static func railFrame(
