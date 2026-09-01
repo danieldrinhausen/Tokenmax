@@ -24,7 +24,9 @@ versions follow [semver](https://semver.org/).
   changes now lay out from the newly stored side rather than the pre-change value emitted by
   `@Published`, the rail shares the Dock's floating bottom inset, and the decorative grip that
   falsely suggested dragging has been removed. The detail-card arrow now points at the selected
-  provider rather than the midpoint between provider rings.
+  provider rather than the midpoint between provider rings. Layout-affecting controls also trigger
+  a post-assignment layout directly, so their visible result never depends on a later publisher or
+  pointer event.
 
 ## [0.1.13] - 2026-08-31
 

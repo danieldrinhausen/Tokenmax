@@ -100,21 +100,30 @@ struct SideNotchSettingsView: View {
     private var placementBinding: Binding<SideNotchPlacement> {
         Binding(
             get: { settingsStore.settings.sideNotch.placement },
-            set: { settingsStore.settings.sideNotch.placement = $0 }
+            set: {
+                settingsStore.settings.sideNotch.placement = $0
+                sideNotch.settingsDidChangeLayout()
+            }
         )
     }
 
     private var dockPlacementBinding: Binding<DockNotchPlacement> {
         Binding(
             get: { settingsStore.settings.sideNotch.dockPlacement },
-            set: { settingsStore.settings.sideNotch.dockPlacement = $0 }
+            set: {
+                settingsStore.settings.sideNotch.dockPlacement = $0
+                sideNotch.settingsDidChangeLayout()
+            }
         )
     }
 
     private var dockAlwaysExpandedBinding: Binding<Bool> {
         Binding(
             get: { settingsStore.settings.sideNotch.dockAlwaysExpanded },
-            set: { settingsStore.settings.sideNotch.dockAlwaysExpanded = $0 }
+            set: {
+                settingsStore.settings.sideNotch.dockAlwaysExpanded = $0
+                sideNotch.settingsDidChangeLayout()
+            }
         )
     }
 
@@ -126,6 +135,7 @@ struct SideNotchSettingsView: View {
                     settingsStore.settings.showMenuBarItem = true
                 }
                 settingsStore.settings.sideNotch.enabled = enabled
+                sideNotch.settingsDidChangeLayout()
             }
         )
     }

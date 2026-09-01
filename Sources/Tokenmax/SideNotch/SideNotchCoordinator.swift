@@ -146,6 +146,14 @@ final class SideNotchCoordinator: ObservableObject {
         settingsStore.settings.showMenuBarItem.toggle()
     }
 
+    /// Settings bindings call this after their nested value has been stored.
+    /// `@Published` itself emits before assignment, which is too early for a
+    /// geometry change that must be visible without a later pointer event.
+    func settingsDidChangeLayout() {
+        reevaluate()
+        objectWillChange.send()
+    }
+
     func refreshFromContextMenu() {
         Task {
             await usage.refreshAll(
