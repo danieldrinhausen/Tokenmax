@@ -84,4 +84,14 @@ struct SideNotchDecisionTests {
 
         #expect(frame == CGRect(x: 1184, y: 364, width: 16, height: 72))
     }
+
+    @Test("An always-visible Dock Notch retains the compact rail")
+    func persistentDockNotchStaysExpanded() {
+        #expect(SideNotchDecision.resolvedState(
+            .peek, placement: .dock, dockAlwaysExpanded: true
+        ) == .rail)
+        #expect(SideNotchDecision.resolvedState(
+            .peek, placement: .side, dockAlwaysExpanded: true
+        ) == .peek)
+    }
 }

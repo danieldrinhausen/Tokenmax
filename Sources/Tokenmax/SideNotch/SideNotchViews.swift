@@ -66,46 +66,15 @@ struct SideNotchRailView: View {
     }
 
     private var rail: some View {
-        VStack(spacing: 0) {
-            Capsule()
-                .fill(Color.white.opacity(0.20))
-                .frame(width: 16, height: 2.5)
-                .padding(.top, 9)
-                .padding(.bottom, 6.5)
-
-            ForEach(coordinator.presentations) { presentation in
-                let isSelected = coordinator.state.selectedProvider == presentation.provider
-                Button {
-                    coordinator.providerClicked(presentation.provider)
-                } label: {
-                    SideNotchProviderRing(presentation: presentation)
-                        .frame(width: 62, height: 60)
-                        .background(
-                            RoundedRectangle(cornerRadius: 17, style: .continuous)
-                                .fill(isSelected ? Color.white.opacity(0.075) : .clear)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 17, style: .continuous)
-                                .strokeBorder(
-                                    isSelected ? Color.white.opacity(0.10) : .clear,
-                                    lineWidth: 0.75
-                                )
-                        }
-                        .scaleEffect(isSelected ? 1 : 0.97)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .onHover { inside in
-                    if inside { coordinator.pointerEnteredProvider(presentation.provider) }
-                }
-                .accessibilityLabel("Show \(presentation.provider.displayName) usage")
-                .animation(reduceMotion ? nil : .smooth(duration: 0.18), value: isSelected)
+        Group {
+            if coordinator.settingsStore.settings.sideNotch.placement == .dock {
+                dockRail
+            } else {
+                sideRail
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(
-            railBackground
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(railBackground)
         .overlay(alignment: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .top : .leading) {
             Rectangle()
                 .fill(Color.white.opacity(0.08))
@@ -117,13 +86,71 @@ struct SideNotchRailView: View {
         }
     }
 
+    private var sideRail: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color.white.opacity(0.20))
+                .frame(width: 16, height: 2.5)
+                .padding(.top, 9)
+                .padding(.bottom, 6.5)
+
+            ForEach(coordinator.presentations) { presentation in
+                providerButton(presentation)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var dockRail: some View {
+        HStack(spacing: 0) {
+            Capsule()
+                .fill(Color.white.opacity(0.20))
+                .frame(width: 2.5, height: 16)
+                .padding(.horizontal, 9)
+
+            ForEach(coordinator.presentations) { presentation in
+                providerButton(presentation)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func providerButton(_ presentation: SideNotchProviderPresentation) -> some View {
+        let isSelected = coordinator.state.selectedProvider == presentation.provider
+        return Button {
+            coordinator.providerClicked(presentation.provider)
+        } label: {
+            SideNotchProviderRing(presentation: presentation)
+                .frame(width: 66, height: 66)
+                .background(
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .fill(isSelected ? Color.white.opacity(0.075) : .clear)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                        .strokeBorder(
+                            isSelected ? Color.white.opacity(0.10) : .clear,
+                            lineWidth: 0.75
+                        )
+                }
+                .scaleEffect(isSelected ? 1 : 0.97)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            if inside { coordinator.pointerEnteredProvider(presentation.provider) }
+        }
+        .accessibilityLabel("Show \(presentation.provider.displayName) usage")
+        .animation(reduceMotion ? nil : .smooth(duration: 0.18), value: isSelected)
+    }
+
     @ViewBuilder
     private var railBackground: some View {
         if coordinator.settingsStore.settings.sideNotch.placement == .dock {
             UnevenRoundedRectangle(
                 topLeadingRadius: 22,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
+                bottomLeadingRadius: 18,
+                bottomTrailingRadius: 18,
                 topTrailingRadius: 22
             )
             .fill(Color.black.opacity(0.96))
@@ -146,13 +173,13 @@ private struct SideNotchProviderRing: View {
     var body: some View {
         VStack(spacing: 1) {
             ZStack {
-                meter(presentation.outer, diameter: 46, lineWidth: 4, opacity: 0.78)
-                meter(presentation.inner, diameter: 32, lineWidth: 3, opacity: 1)
+                meter(presentation.outer, diameter: 42, lineWidth: 3.5, opacity: 0.78)
+                meter(presentation.inner, diameter: 30, lineWidth: 3, opacity: 1)
                 Image(systemName: presentation.provider.sideNotchSymbol)
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.92))
             }
-            .frame(width: 47, height: 47)
+            .frame(width: 50, height: 50)
 
             Text(percentText)
                 .font(.system(size: 8.5, weight: .semibold, design: .rounded))
@@ -262,11 +289,15 @@ struct SideNotchDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .foregroundStyle(.white)
         .background(
-            SideNotchDetailBubble()
+            SideNotchDetailBubble(
+                tail: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .bottom : .right
+            )
                 .fill(Color.black.opacity(0.96))
         )
         .overlay {
-            SideNotchDetailBubble()
+            SideNotchDetailBubble(
+                tail: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .bottom : .right
+            )
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         }
         .onHover { inside in
@@ -381,7 +412,21 @@ struct SideNotchDetailView: View {
 /// It gives the two separately hit-tested panels one visual silhouette without
 /// adding a transparent window between them that would swallow desktop clicks.
 private struct SideNotchDetailBubble: Shape {
+    enum Tail: Sendable {
+        case right
+        case bottom
+    }
+
+    let tail: Tail
+
     func path(in rect: CGRect) -> Path {
+        switch tail {
+        case .right: rightTailPath(in: rect)
+        case .bottom: bottomTailPath(in: rect)
+        }
+    }
+
+    private func rightTailPath(in rect: CGRect) -> Path {
         let radius: CGFloat = 16
         let tailWidth: CGFloat = 10
         let tailHalfHeight: CGFloat = 9
@@ -407,6 +452,42 @@ private struct SideNotchDetailBubble: Shape {
         path.addQuadCurve(
             to: CGPoint(x: rect.minX, y: rect.maxY - radius),
             control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + radius, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+        path.closeSubpath()
+        return path
+    }
+
+    private func bottomTailPath(in rect: CGRect) -> Path {
+        let radius: CGFloat = 16
+        let tailHeight: CGFloat = 10
+        let tailHalfWidth: CGFloat = 9
+        let bodyMaxY = rect.maxY - tailHeight
+        let middleX = rect.midX
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: bodyMaxY - radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: bodyMaxY),
+            control: CGPoint(x: rect.maxX, y: bodyMaxY)
+        )
+        path.addLine(to: CGPoint(x: middleX + tailHalfWidth, y: bodyMaxY))
+        path.addLine(to: CGPoint(x: middleX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: middleX - tailHalfWidth, y: bodyMaxY))
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: bodyMaxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: bodyMaxY - radius),
+            control: CGPoint(x: rect.minX, y: bodyMaxY)
         )
         path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
         path.addQuadCurve(

@@ -91,7 +91,8 @@ glance, and the icon alone is the least distracting.
 Alpha** is a complementary view, not a replacement for the menu bar. Enable it
 and choose **Side Notch** for the small handle halfway down the right edge, or
 **Dock Notch** to put it above the Dock's reserved edge on the left or right.
-Hover opens one double
+Turn on **Always show Dock Notch** when the Dock placement should remain a
+compact, horizontal meter rather than collapse between hovers. Hover opens one double
 ring per provider; hover a ring for plan and freshness, the precise quota rows,
 pace reserve or deficit, projected empty time and reminder state. Codex also
 shows banked reset credits when it reports them. Click a ring to keep that card

@@ -87,6 +87,9 @@ struct SideNotchSettings: Codable, Sendable, Equatable {
     var enabled = false
     var placement: SideNotchPlacement = .side
     var dockPlacement: DockNotchPlacement = .left
+    /// Dock placement can serve as a persistent meter without consuming the
+    /// screen edge; keep the more interruptive behaviour opt-in.
+    var dockAlwaysExpanded = false
     var colorSource: SideNotchColorSource = .menuBar
     /// nil until Custom is chosen for the first time. That first choice copies
     /// the current menu bar palette; afterwards switching back and forth keeps
@@ -102,6 +105,8 @@ struct SideNotchSettings: Codable, Sendable, Equatable {
         placement = (try? container.decodeIfPresent(SideNotchPlacement.self, forKey: .placement)) ?? d.placement
         dockPlacement = (try? container.decodeIfPresent(DockNotchPlacement.self, forKey: .dockPlacement))
             ?? d.dockPlacement
+        dockAlwaysExpanded = try container.decodeIfPresent(Bool.self, forKey: .dockAlwaysExpanded)
+            ?? d.dockAlwaysExpanded
         colorSource = (try? container.decodeIfPresent(SideNotchColorSource.self, forKey: .colorSource))
             ?? d.colorSource
         customColors = try? container.decodeIfPresent(SideNotchColorSettings.self, forKey: .customColors)

@@ -37,7 +37,9 @@ struct SideNotchSettingsView: View {
                     .pickerStyle(.segmented)
                     .fixedSize()
 
-                    Text("Dock Notch rests just above the Dock's reserved edge, on the side you choose. It keeps the same hover and pin behaviour without occupying the screen edge.")
+                    Toggle("Always show Dock Notch", isOn: dockAlwaysExpandedBinding)
+
+                    Text("Dock Notch rests just above the Dock's reserved edge, on the side you choose. Always show keeps its compact provider rings visible; hover and pin still reveal details without occupying the screen edge.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -106,6 +108,13 @@ struct SideNotchSettingsView: View {
         Binding(
             get: { settingsStore.settings.sideNotch.dockPlacement },
             set: { settingsStore.settings.sideNotch.dockPlacement = $0 }
+        )
+    }
+
+    private var dockAlwaysExpandedBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.sideNotch.dockAlwaysExpanded },
+            set: { settingsStore.settings.sideNotch.dockAlwaysExpanded = $0 }
         )
     }
 

@@ -34,7 +34,8 @@ final class SideNotchCoordinator: ObservableObject {
     private static let peekSize = NSSize(width: 16, height: 72)
     private static let railWidth: CGFloat = 76
     private static let railHeaderHeight: CGFloat = 22
-    private static let providerRowHeight: CGFloat = 64
+    private static let providerRowHeight: CGFloat = 68
+    private static let providerColumnWidth: CGFloat = 68
     private static let closeDelay: TimeInterval = 0.4
     private static let panelTransitionDuration: TimeInterval = 0.22
 
@@ -159,6 +160,8 @@ final class SideNotchCoordinator: ObservableObject {
 
     private func scheduleCloseIfOutside() {
         guard !pointerInsideRail, !pointerInsideDetail else { return }
+        guard !settingsStore.settings.sideNotch.dockAlwaysExpanded
+            || settingsStore.settings.sideNotch.placement != .dock else { return }
         cancelClose()
         let item = DispatchWorkItem { [weak self] in
             Task { @MainActor in
@@ -196,6 +199,15 @@ final class SideNotchCoordinator: ObservableObject {
         }
 
         ensurePanels()
+        if settingsStore.settings.sideNotch.placement == .dock,
+           settingsStore.settings.sideNotch.dockAlwaysExpanded {
+            cancelClose()
+        }
+        state = SideNotchDecision.resolvedState(
+            state,
+            placement: settingsStore.settings.sideNotch.placement,
+            dockAlwaysExpanded: settingsStore.settings.sideNotch.dockAlwaysExpanded
+        )
         if let selected = state.selectedProvider,
            !presentations.contains(where: { $0.provider == selected }) {
             state = .rail
@@ -233,6 +245,11 @@ final class SideNotchCoordinator: ObservableObject {
             size = settingsStore.settings.sideNotch.placement == .dock
                 ? NSSize(width: Self.peekSize.height, height: Self.peekSize.width)
                 : Self.peekSize
+        } else if settingsStore.settings.sideNotch.placement == .dock {
+            size = NSSize(
+                width: Self.railHeaderHeight + CGFloat(providerCount) * Self.providerColumnWidth,
+                height: Self.railWidth
+            )
         } else {
             size = NSSize(width: Self.railWidth, height: expandedHeight)
         }

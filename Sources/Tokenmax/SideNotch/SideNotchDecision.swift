@@ -74,6 +74,17 @@ enum SideNotchDecision {
             return .peek
         }
     }
+
+    /// A persistent Dock Notch still uses the same provider detail states, but
+    /// never returns to the tiny hover handle between inspections.
+    static func resolvedState(
+        _ state: SideNotchState,
+        placement: SideNotchPlacement,
+        dockAlwaysExpanded: Bool
+    ) -> SideNotchState {
+        guard placement == .dock, dockAlwaysExpanded, state == .peek else { return state }
+        return .rail
+    }
 }
 
 /// Maps the stored placement choice to screen coordinates without consulting

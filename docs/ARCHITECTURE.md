@@ -45,6 +45,8 @@ provider detail state and names every reason the surface may be suppressed.
 `SideNotchLayoutDecision` turns the Side Notch / Dock Notch setting into panel
 rectangles from supplied screen geometry; it never asks AppKit for a Dock window,
 whose icon bounds are not a stable public contract.
+`SideNotchDecision` also resolves the persistent Dock Notch choice to its compact
+rail state, so the coordinator does not acquire an untested visibility rule.
 `SideNotchCoordinator` owns the 400ms close timer, display selection, workspace
 notifications and two non-activating `NSPanel`s. Two panels rather than one
 large transparent window are load-bearing: a transparent bridge would still

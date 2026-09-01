@@ -6,11 +6,13 @@ versions follow [semver](https://semver.org/).
 ## [Unreleased]
 
 - **Side Notch can now become a Dock Notch.** Its Alpha settings choose whether the hoverable
-  quota rail belongs at the right display edge or above the Dock's reserved edge, to the left or
-  right of the Dock centre. The stored setting remains Side Notch for every existing install.
+  quota rail belongs at the right display edge or as a horizontal meter above the Dock's reserved
+  edge, to the left or right of the Dock centre. **Always show Dock Notch** keeps that compact
+  meter visible between inspections. The stored setting remains Side Notch for every existing install.
   Settings now receives the running app's shared stores rather than a parallel, unstarted set, so
   changing either placement or enablement takes effect immediately instead of only persisting for
-  the next launch.
+  the next launch. Provider rings now have deliberate headroom inside their cards, so full outer
+  arcs do not touch or clip against the selected-state border.
 
 ## [0.1.13] - 2026-08-31
 
