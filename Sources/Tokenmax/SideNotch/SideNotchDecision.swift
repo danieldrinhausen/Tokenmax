@@ -96,6 +96,11 @@ enum SideNotchLayoutDecision {
     /// sides flanking the Dock zone, rather than pretending to know its live
     /// icon bounds.
     private static let dockEdgeInset: CGFloat = 12
+    /// A bottom Dock's default, start-pinned footprint. Its exact icon bounds
+    /// are unavailable, but this leaves the chosen side close to the Dock
+    /// rather than marooned at the far display edge.
+    private static let dockZoneWidth: CGFloat = 200
+    private static let dockGap: CGFloat = 18
 
     static func railFrame(
         placement: SideNotchPlacement,
@@ -119,7 +124,7 @@ enum SideNotchLayoutDecision {
             case .left:
                 x = visibleScreen.minX + Self.dockEdgeInset
             case .right:
-                x = visibleScreen.maxX - size.width - Self.dockEdgeInset
+                x = visibleScreen.minX + Self.dockZoneWidth + Self.dockGap
             }
             return CGRect(
                 x: min(visibleScreen.maxX - size.width, max(visibleScreen.minX, x)),

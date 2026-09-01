@@ -69,7 +69,7 @@ struct SideNotchDecisionTests {
         )
 
         #expect(left.minX == 12)
-        #expect(right.maxX == 1428)
+        #expect(right.minX == 218)
         #expect(left.minY == 12)
         #expect(right.minY == 12)
     }

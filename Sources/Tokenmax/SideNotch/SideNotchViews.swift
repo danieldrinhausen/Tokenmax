@@ -95,7 +95,7 @@ struct SideNotchRailView: View {
                 .padding(.bottom, 6.5)
 
             ForEach(coordinator.presentations) { presentation in
-                providerButton(presentation)
+                providerButton(presentation, compact: false)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -109,25 +109,25 @@ struct SideNotchRailView: View {
                 .padding(.horizontal, 9)
 
             ForEach(coordinator.presentations) { presentation in
-                providerButton(presentation)
+                providerButton(presentation, compact: true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
-    private func providerButton(_ presentation: SideNotchProviderPresentation) -> some View {
+    private func providerButton(_ presentation: SideNotchProviderPresentation, compact: Bool) -> some View {
         let isSelected = coordinator.state.selectedProvider == presentation.provider
         return Button {
             coordinator.providerClicked(presentation.provider)
         } label: {
-            SideNotchProviderRing(presentation: presentation)
-                .frame(width: 66, height: 66)
+            SideNotchProviderRing(presentation: presentation, compact: compact)
+                .frame(width: compact ? 58 : 66, height: compact ? 50 : 66)
                 .background(
-                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    RoundedRectangle(cornerRadius: compact ? 15 : 19, style: .continuous)
                         .fill(isSelected ? Color.white.opacity(0.075) : .clear)
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    RoundedRectangle(cornerRadius: compact ? 15 : 19, style: .continuous)
                         .strokeBorder(
                             isSelected ? Color.white.opacity(0.10) : .clear,
                             lineWidth: 0.75
@@ -153,7 +153,7 @@ struct SideNotchRailView: View {
                 bottomTrailingRadius: 18,
                 topTrailingRadius: 22
             )
-            .fill(Color.black.opacity(0.96))
+            .fill(Color.black.opacity(0.78))
         } else {
             UnevenRoundedRectangle(
                 topLeadingRadius: 22,
@@ -161,28 +161,39 @@ struct SideNotchRailView: View {
                 bottomTrailingRadius: 0,
                 topTrailingRadius: 0
             )
-            .fill(Color.black.opacity(0.96))
+            .fill(Color.black.opacity(0.78))
         }
     }
 }
 
 private struct SideNotchProviderRing: View {
     let presentation: SideNotchProviderPresentation
+    let compact: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 1) {
             ZStack {
-                meter(presentation.outer, diameter: 42, lineWidth: 3.5, opacity: 0.78)
-                meter(presentation.inner, diameter: 30, lineWidth: 3, opacity: 1)
+                meter(
+                    presentation.outer,
+                    diameter: compact ? 34 : 42,
+                    lineWidth: compact ? 3 : 3.5,
+                    opacity: 0.78
+                )
+                meter(
+                    presentation.inner,
+                    diameter: compact ? 24 : 30,
+                    lineWidth: compact ? 2.5 : 3,
+                    opacity: 1
+                )
                 Image(systemName: presentation.provider.sideNotchSymbol)
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: compact ? 9 : 10.5, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.92))
             }
-            .frame(width: 50, height: 50)
+            .frame(width: compact ? 40 : 50, height: compact ? 40 : 50)
 
             Text(percentText)
-                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                .font(.system(size: compact ? 8 : 8.5, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white.opacity(0.82))
         }
@@ -292,7 +303,7 @@ struct SideNotchDetailView: View {
             SideNotchDetailBubble(
                 tail: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .bottom : .right
             )
-                .fill(Color.black.opacity(0.96))
+                .fill(Color.black.opacity(0.86))
         )
         .overlay {
             SideNotchDetailBubble(

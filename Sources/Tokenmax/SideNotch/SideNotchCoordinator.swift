@@ -33,6 +33,7 @@ final class SideNotchCoordinator: ObservableObject {
     /// buys a humane hover target without turning the edge mark into a tab.
     private static let peekSize = NSSize(width: 16, height: 72)
     private static let railWidth: CGFloat = 76
+    private static let dockRailHeight: CGFloat = 54
     private static let railHeaderHeight: CGFloat = 22
     private static let providerRowHeight: CGFloat = 68
     private static let providerColumnWidth: CGFloat = 68
@@ -248,7 +249,7 @@ final class SideNotchCoordinator: ObservableObject {
         } else if settingsStore.settings.sideNotch.placement == .dock {
             size = NSSize(
                 width: Self.railHeaderHeight + CGFloat(providerCount) * Self.providerColumnWidth,
-                height: Self.railWidth
+                height: Self.dockRailHeight
             )
         } else {
             size = NSSize(width: Self.railWidth, height: expandedHeight)

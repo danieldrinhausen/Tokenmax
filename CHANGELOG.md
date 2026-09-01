@@ -12,7 +12,8 @@ versions follow [semver](https://semver.org/).
   Settings now receives the running app's shared stores rather than a parallel, unstarted set, so
   changing either placement or enablement takes effect immediately instead of only persisting for
   the next launch. Provider rings now have deliberate headroom inside their cards, so full outer
-  arcs do not touch or clip against the selected-state border.
+  arcs do not touch or clip against the selected-state border. The Dock rail now matches the Dock's
+  compact height, has a translucent dark finish, and leaves a small gap after the left-aligned Dock.
 
 ## [0.1.13] - 2026-08-31
 
