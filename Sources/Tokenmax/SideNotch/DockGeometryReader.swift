@@ -47,6 +47,49 @@ enum DockGeometryReader {
         return frame
     }
 
+    /// The running regular apps the Dock would show a tile for, recomputed only
+    /// when that set can actually have changed.
+    ///
+    /// `estimatedFrame` is called from the Side Notch's half-second geometry
+    /// poll, so this enumerated every running application twice a second, for
+    /// the life of the app, to answer a question whose answer changes when you
+    /// launch or quit something — about 1% of a core, permanently. AppKit
+    /// already announces every event that can move it.
+    ///
+    /// Activation is observed too because an app may switch activation policy
+    /// after launch, which is otherwise invisible here and used to be caught by
+    /// the poll. The cache and its observers live for the life of the process,
+    /// which is the life of the Dock reader.
+    private static var cachedRunningRegularApps: Set<String>?
+    private static var runningAppObservers: [NSObjectProtocol] = []
+
+    private static func runningRegularApps() -> Set<String> {
+        if let cachedRunningRegularApps { return cachedRunningRegularApps }
+
+        if runningAppObservers.isEmpty {
+            let workspace = NSWorkspace.shared.notificationCenter
+            for name: NSNotification.Name in [
+                NSWorkspace.didLaunchApplicationNotification,
+                NSWorkspace.didTerminateApplicationNotification,
+                NSWorkspace.didActivateApplicationNotification,
+            ] {
+                runningAppObservers.append(
+                    workspace.addObserver(forName: name, object: nil, queue: .main) { _ in
+                        Task { @MainActor in cachedRunningRegularApps = nil }
+                    }
+                )
+            }
+        }
+
+        let apps = Set(
+            NSWorkspace.shared.runningApplications.compactMap { application in
+                application.activationPolicy == .regular ? application.bundleIdentifier : nil
+            }
+        )
+        cachedRunningRegularApps = apps
+        return apps
+    }
+
     private static func bottomInset(of screen: NSScreen) -> CGFloat {
         max(0, screen.visibleFrame.minY - screen.frame.minY)
     }
@@ -62,14 +105,9 @@ enum DockGeometryReader {
             let data = entry["tile-data"] as? [String: Any]
             return data?["bundle-identifier"] as? String
         })
-        let runningExtras = defaults.bool(forKey: "static-only") ? 0 : Set<String>(
-            NSWorkspace.shared.runningApplications.compactMap { application in
-                guard application.activationPolicy == .regular,
-                      let identifier = application.bundleIdentifier,
-                      !persistentIdentifiers.contains(identifier) else { return nil }
-                return identifier
-            }
-        ).count
+        let runningExtras = defaults.bool(forKey: "static-only")
+            ? 0
+            : runningRegularApps().subtracting(persistentIdentifiers).count
         let apps = persistentApps.count + runningExtras
         let others = defaults.array(forKey: "persistent-others")?.count ?? 0
         let recent = defaults.bool(forKey: "show-recents")

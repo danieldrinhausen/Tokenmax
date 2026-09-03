@@ -5,6 +5,11 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **The Dock Notch no longer enumerates every running application twice a second.** Its
+  half-second geometry poll needs a tally of the apps the Dock shows a tile for; that tally
+  is now recomputed when an app launches, quits or activates, which are the only events that
+  can change it, rather than on every poll.
+
 - **`make install` now builds Release.** It followed the default `CONFIG`, which is Debug, so
   the copy in `/Applications` — the one that runs all day — was unoptimised with assertions
   live unless the flag was remembered. `make dmg` had already been forced for the same reason
