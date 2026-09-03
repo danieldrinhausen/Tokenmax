@@ -49,7 +49,9 @@ private final class TokenmaxApplicationObjects {
             notifications: notificationCoordinator
         )
         resetCelebration = QuotaResetCelebrationCoordinator(usage: usage, settingsStore: settingsStore)
-        sessionOpener = SessionOpenerCoordinator(usage: usage.claude, settingsStore: settingsStore)
+        sessionOpener = SessionOpenerCoordinator(
+            usage: usage.claude, clock: usage.clock, settingsStore: settingsStore
+        )
         autoRun = QueueAutoRunCoordinator(
             usage: usage,
             taskStore: taskStore,
@@ -69,6 +71,9 @@ struct TokenmaxApp: App {
     @StateObject private var settingsStore: SettingsStore
     @StateObject private var taskStore: TaskStore
     @StateObject private var usage: ProviderUsageCoordinator
+    /// The menu bar label draws a countdown and re-reads staleness each second,
+    /// so this scene observes the clock directly.
+    @StateObject private var clock: CountdownClock
     @StateObject private var notificationManager: NotificationManager
     @StateObject private var notificationCoordinator: NotificationCoordinator
     @StateObject private var sideNotch: SideNotchCoordinator
@@ -85,6 +90,7 @@ struct TokenmaxApp: App {
         _settingsStore = StateObject(wrappedValue: objects.settingsStore)
         _taskStore = StateObject(wrappedValue: objects.taskStore)
         _usage = StateObject(wrappedValue: objects.usage)
+        _clock = StateObject(wrappedValue: objects.usage.clock)
         _notificationManager = StateObject(wrappedValue: objects.notificationManager)
         _notificationCoordinator = StateObject(wrappedValue: objects.notificationCoordinator)
         _sideNotch = StateObject(wrappedValue: objects.sideNotch)
@@ -144,7 +150,7 @@ struct TokenmaxApp: App {
                     alerting: notificationCoordinator.alertingSources,
                     ready: usage.readySources
                 ),
-                now: usage.tick,
+                now: clock.now,
                 isHighlighted: usage.burnOpportunity != nil,
                 highlight: settingsStore.settings.menuBarHighlightColor,
                 glow: settingsStore.settings.menuBarHighlightGlow,
@@ -226,6 +232,10 @@ struct SharedEnvironment: ViewModifier {
             .environmentObject(settingsStore)
             .environmentObject(taskStore)
             .environmentObject(usage)
+            // Injected separately from `usage` on purpose: a view that counts
+            // down observes this, and a view that does not is left alone once a
+            // second. See `CountdownClock`.
+            .environmentObject(usage.clock)
             // Claude-only opener settings deliberately keep their narrowly
             // typed dependency while the rest of the app uses both providers.
             .environmentObject(usage.claude)
@@ -246,7 +256,7 @@ struct SharedEnvironment: ViewModifier {
 private struct MenuBarLabel: View {
     let mode: MenuBarDisplayMode
     let model: MenuBarIconModel
-    /// `usage.tick` — advances every second so the countdown stays live.
+    /// `CountdownClock.now` — advances every second so the countdown stays live.
     let now: Date
     let isHighlighted: Bool
     let highlight: HighlightColor

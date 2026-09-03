@@ -164,6 +164,20 @@ Tokenmax is a menu bar app with no dock icon by default. Look in the menu bar,
 not the Dock. If the bar is crowded, macOS may have hidden it — try widening the
 bar by quitting another menu bar app, or check with a menu bar manager.
 
+### Tokenmax is slow to respond, or the fan spins up
+
+Fixed after 0.1.13; update if you are on that build or earlier. The countdown
+clock shared an observable object with the quota readings, so every second it
+rebuilt every view that held one — including settings panes with no countdown in
+them. Opening **Settings → General** was the expensive case, and the app could
+sit at a full CPU core for as long as the window stayed open, which is felt as a
+delay on every click rather than as a stuck window.
+
+If a current build still does this, it is worth reporting with a sample: hold
+Option, open Activity Monitor, select Tokenmax and choose **Sample Process**. A
+main thread parked in SwiftUI layout is this class of bug; one parked in a
+network call is not.
+
 ### The icon got wider and pushed my other menu bar items along
 
 You switched the icon to **Rings**. Two rings need about 35pt where two bars

@@ -142,6 +142,20 @@ map](#the-drift-map) below has a small footprint.
                   MenuBarIcon           SideNotch          Notifications SessionOpener AutoRun
 ```
 
+`CountdownClock` is deliberately *not* on that diagram's `UsageRefreshCoordinator`
+node. It is a separate observable holding nothing but `now`, and the split is
+load-bearing rather than tidiness: `ObservableObject` invalidates per object, so
+a property that changes every second rebuilds every view observing whatever
+object carries it. While the tick sat beside the readings, `GeneralSettingsView`
+— which holds `usage` only to call `previewBurnGlow()` from a button — relaid out
+a several-hundred-row `Form` on every tick, and the app ran at a pinned core.
+
+The rule that follows: **observe `CountdownClock` only where a label counts
+down.** Anything wanting a reading observes the usage coordinator and pays
+nothing for the clock. `ProviderUsageCoordinator` still forwards its children's
+`objectWillChange` — a new reading *is* news to the views — but the clock must
+never travel through that forward. `CountdownClockTests` pins both halves.
+
 The menu-bar popover and Side Notch register independently as active usage
 surfaces. `UsageRefreshCoordinator` keeps a set rather than a Boolean, so
 closing one cannot return polling to background cadence while the other remains

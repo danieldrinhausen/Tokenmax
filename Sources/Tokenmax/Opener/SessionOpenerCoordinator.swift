@@ -32,6 +32,10 @@ final class SessionOpenerCoordinator: ObservableObject {
     var isRunning: Bool { activity != .idle }
 
     private let usage: UsageRefreshCoordinator
+    /// Passed in rather than reached through `usage`: this coordinator is
+    /// deliberately handed the Claude reader alone, and the clock is shared by
+    /// both providers.
+    private let clock: CountdownClock
     private let settingsStore: SettingsStore
 
     private var state: SessionOpenerState
@@ -61,8 +65,9 @@ final class SessionOpenerCoordinator: ObservableObject {
     /// comfortably.
     private static let maxVerifyAttempts = 3
 
-    init(usage: UsageRefreshCoordinator, settingsStore: SettingsStore) {
+    init(usage: UsageRefreshCoordinator, clock: CountdownClock, settingsStore: SettingsStore) {
         self.usage = usage
+        self.clock = clock
         self.settingsStore = settingsStore
         state = JSONStore.load(SessionOpenerState.self, from: FileLocations.sessionOpenerStateFile)
             ?? SessionOpenerState()
@@ -87,7 +92,7 @@ final class SessionOpenerCoordinator: ObservableObject {
         // 60s delay after reset — so the decision is re-evaluated on the same
         // one-second tick that drives the countdown. Every guard is a
         // comparison; nothing spawns or connects until they all pass.
-        usage.$tick
+        clock.$now
             .sink { [weak self] _ in
                 Task { @MainActor in await self?.evaluate() }
             }

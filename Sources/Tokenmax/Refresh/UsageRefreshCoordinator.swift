@@ -12,9 +12,11 @@ import Foundation
 final class UsageRefreshCoordinator: ObservableObject {
     @Published private(set) var state: UsageState = .loading
     @Published private(set) var isRefreshing = false
-    /// Bumped every second so countdown labels re-render without each view
-    /// owning its own timer.
-    @Published private(set) var tick = Date()
+    /// The latest clock reading, fed in by `CountdownClock` through
+    /// `ProviderUsageCoordinator`. Deliberately *not* `@Published`: a value
+    /// that changes every second must not invalidate every view observing this
+    /// coordinator. Views that want a live clock observe `CountdownClock`.
+    private var now = Date()
 
     /// Non-nil while the session window is in its "spend it now" stretch.
     /// The pulse animation itself lives in the menubar view — see `MenuBarLabel`.
@@ -27,7 +29,6 @@ final class UsageRefreshCoordinator: ObservableObject {
     private let snapshotURL: URL
 
     private var refreshTimer: Timer?
-    private var tickTimer: Timer?
     /// Held so `stop()` can deregister it. Discarding the token would leave a
     /// wake observer running for a provider the user switched off.
     private var wakeObserver: NSObjectProtocol?
@@ -65,7 +66,6 @@ final class UsageRefreshCoordinator: ObservableObject {
         hasStarted = true
 
         observeWake()
-        startTickTimer()
         scheduleRefreshTimer()
         kickOffRefresh(reason: "launch")
     }
@@ -85,8 +85,6 @@ final class UsageRefreshCoordinator: ObservableObject {
 
         refreshTimer?.invalidate()
         refreshTimer = nil
-        tickTimer?.invalidate()
-        tickTimer = nil
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil
@@ -138,16 +136,13 @@ final class UsageRefreshCoordinator: ObservableObject {
 
     // MARK: - Timers
 
-    private func startTickTimer() {
-        tickTimer?.invalidate()
-        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.tick = Date()
-                self?.updateBurnOpportunity()
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        tickTimer = timer
+    /// One second of the shared clock. Driven rather than self-timed so a
+    /// provider the user switched off costs nothing, exactly as the old
+    /// per-coordinator timer did when `stop()` invalidated it.
+    func advance(to now: Date) {
+        guard hasStarted else { return }
+        self.now = now
+        updateBurnOpportunity()
     }
 
     /// Forces the opportunity on briefly so the glow can be seen and tuned
@@ -178,7 +173,7 @@ final class UsageRefreshCoordinator: ObservableObject {
             snapshot: state.snapshot,
             settings: settingsStore.settings,
             isStale: isStale,
-            now: tick
+            now: now
         )
 
         guard opportunity != burnOpportunity else { return }
@@ -364,7 +359,7 @@ final class UsageRefreshCoordinator: ObservableObject {
     /// "projected empty" countdown stay live between readings.
     func projection(for window: UsageWindow) -> UsageProjection? {
         guard settingsStore.settings.showProjections else { return nil }
-        return UsageProjection.make(window: window, now: tick)
+        return UsageProjection.make(window: window, now: now)
     }
 
     /// When a refresh would next reach the network rather than replay the OAuth
@@ -383,7 +378,7 @@ final class UsageRefreshCoordinator: ObservableObject {
     var isStale: Bool {
         guard let snapshot = state.snapshot else { return true }
         if case .unavailable = state { return true }
-        return snapshot.isStale(now: tick, threshold: settingsStore.settings.staleAfterSeconds)
+        return snapshot.isStale(now: now, threshold: settingsStore.settings.staleAfterSeconds)
     }
 
     /// True while the only thing wrong is an access token Claude Code has yet to
@@ -414,7 +409,7 @@ final class UsageRefreshCoordinator: ObservableObject {
 
     var lastUpdatedText: String {
         guard let snapshot = state.snapshot else { return "Never updated" }
-        let elapsed = tick.timeIntervalSince(snapshot.fetchedAt)
+        let elapsed = now.timeIntervalSince(snapshot.fetchedAt)
         return "Updated \(RelativeTime.short(elapsed)) ago"
     }
 }

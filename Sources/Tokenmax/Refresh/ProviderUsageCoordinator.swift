@@ -5,7 +5,11 @@ import Foundation
 /// providers are polled at all.
 @MainActor
 final class ProviderUsageCoordinator: ObservableObject {
-    @Published private(set) var tick = Date()
+    /// The shared one-second clock. Held here so there is one of them, and
+    /// exposed so a view that genuinely counts down can observe it *instead of*
+    /// this coordinator — see `CountdownClock` for why that distinction is the
+    /// difference between an idle app and a saturated one.
+    let clock = CountdownClock()
     let claude: UsageRefreshCoordinator
     let codex: UsageRefreshCoordinator
     private let settingsStore: SettingsStore
@@ -21,15 +25,14 @@ final class ProviderUsageCoordinator: ObservableObject {
             snapshotURL: FileLocations.codexUsageSnapshotFile
         )
 
+        // A reading on either child is a change to what this object reports,
+        // so it has to reach the views. This forward used to carry the
+        // per-second tick as well, which is what made a settings pane rebuild
+        // four times a second — twice per provider, once for the forwarded
+        // change and once for the mirrored `@Published tick`. With the clock
+        // out of the children this fires only on real state changes.
         claude.objectWillChange.merge(with: codex.objectWillChange)
             .sink { [weak self] _ in self?.objectWillChange.send() }
-            .store(in: &cancellables)
-        // Merged, not Claude's alone. This tick drives auto-run evaluation, the
-        // session opener, and every countdown label in the app — sourcing it
-        // from one provider means disabling that provider freezes all of them,
-        // leaving an app that looks alive and is not.
-        claude.$tick.merge(with: codex.$tick)
-            .sink { [weak self] value in self?.tick = value }
             .store(in: &cancellables)
     }
 
@@ -98,6 +101,20 @@ final class ProviderUsageCoordinator: ObservableObject {
     func start() {
         guard !hasStarted else { return }
         hasStarted = true
+
+        // One clock for both providers. Sourcing it from a provider would mean
+        // that disabling that provider froze every countdown in the app, plus
+        // auto-run and the session opener, leaving something that looks alive
+        // and is not.
+        clock.start()
+        clock.$now
+            .sink { [weak self] now in
+                guard let self else { return }
+                for provider in TokenmaxProvider.allCases {
+                    self.coordinator(for: provider).advance(to: now)
+                }
+            }
+            .store(in: &cancellables)
 
         // No `.dropFirst()` here, unlike `NotificationCoordinator`: `@Published`
         // republishes its current value on subscribe, and that first delivery

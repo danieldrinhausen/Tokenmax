@@ -4,6 +4,8 @@ import SwiftUI
 struct QueueView: View {
     @EnvironmentObject private var taskStore: TaskStore
     @EnvironmentObject private var usage: ProviderUsageCoordinator
+    /// This view counts down, so it observes the clock as well as the reading.
+    @EnvironmentObject private var clock: CountdownClock
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
 
@@ -33,7 +35,7 @@ struct QueueView: View {
         VStack(alignment: .leading, spacing: 0) {
             QueueHeaderView(
                 quotas: providerQuotas,
-                now: usage.tick,
+                now: clock.now,
                 tasks: taskStore.tasks,
                 burnOpportunity: usage.burnOpportunity,
                 highlight: settingsStore.settings.menuBarHighlightColor.color,
@@ -149,7 +151,7 @@ struct QueueView: View {
             progressText: autoRun.progressText,
             isPausedAfterFailure: autoRun.isPausedAfterFailure,
             awaitingFreshUsage: autoRun.awaitingFreshUsage,
-            now: usage.tick,
+            now: clock.now,
             onStartNow: { autoRun.startPendingNow() },
             onCancelPending: { autoRun.cancelPending() },
             onStop: { autoRun.stop() },
@@ -277,12 +279,12 @@ struct QueueView: View {
         return TaskCardView(
             task: task,
             autoRunBlock: eligibility[task.id],
-            directoryExists: directories.exists(task, now: usage.tick),
+            directoryExists: directories.exists(task, now: clock.now),
             showsProvider: showsProviderOnCards,
             isRunningHere: isRunningHere,
             runProgress: progress,
             lastRun: autoRun.lastRun(forTask: task.id),
-            now: usage.tick,
+            now: clock.now,
             canReorder: canReorder,
             onEdit: { editingTask = task },
             onCopy: { ManualRunService.copyPrompt(task) },

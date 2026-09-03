@@ -111,7 +111,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // The countdown needs a second-resolution clock, and the refresh cadence
         // is 300s in the background — far too coarse. Every guard is a
         // comparison; nothing spawns until they all pass.
-        usage.$tick
+        usage.clock.$now
             .sink { [weak self] _ in
                 Task { @MainActor in self?.evaluate() }
             }

@@ -71,6 +71,17 @@ final class SideNotchCoordinator: ObservableObject {
         usage.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        // Only while the notch is actually open. The rail is on screen for the
+        // life of the app and shows meters, not countdowns — redrawing it every
+        // second bought nothing and cost a hosting-view relayout each time.
+        // Same condition as `updateRefreshSurface`: this is what "a usage
+        // surface is open" means here.
+        usage.clock.$now
+            .sink { [weak self] _ in
+                guard let self, self.state != .peek else { return }
+                self.objectWillChange.send()
+            }
+            .store(in: &cancellables)
         notifications.objectWillChange
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
@@ -90,7 +101,7 @@ final class SideNotchCoordinator: ObservableObject {
             alerting: notifications.alertingSources,
             ready: usage.readySources,
             colors: settings.effectiveSideNotchColors,
-            now: usage.tick,
+            now: usage.clock.now,
             projection: { usage.projection(for: $0) },
             reminderStatus: { notifications.status(for: $0, kind: $1) }
         )

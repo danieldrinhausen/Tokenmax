@@ -5,6 +5,8 @@ struct QueueAutomationSettingsView: View {
     @EnvironmentObject private var modelCatalog: ModelCatalogStore
     @EnvironmentObject private var codexModelCatalog: CodexModelCatalogStore
     @EnvironmentObject private var usage: ProviderUsageCoordinator
+    /// This view counts down, so it observes the clock as well as the reading.
+    @EnvironmentObject private var clock: CountdownClock
     @EnvironmentObject private var taskStore: TaskStore
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
 
@@ -413,7 +415,7 @@ struct QueueAutomationSettingsView: View {
     private func previewLines(_ task: TokenmaxTask) -> [String] {
         var lines: [String] = []
         if let resetAt = usage.state.snapshot?.sessionWindow?.resetAt {
-            lines.append("Session resets in \(RelativeTime.countdown(resetAt.timeIntervalSince(usage.tick)))")
+            lines.append("Session resets in \(RelativeTime.countdown(resetAt.timeIntervalSince(clock.now)))")
         }
         if let estimate = task.estimatedMinutes {
             lines.append("Estimated \(estimate) min · limit \(task.maximumRuntimeMinutes) min")
@@ -475,7 +477,7 @@ struct QueueAutomationSettingsView: View {
             return "Running \(run.taskTitle)… \(autoRun.progressText ?? "")"
         }
         if let pending = autoRun.pendingRun {
-            return "Starting \(pending.taskTitle) in \(pending.secondsRemaining(now: usage.tick))s."
+            return "Starting \(pending.taskTitle) in \(pending.secondsRemaining(now: clock.now))s."
         }
         if autoRun.awaitingFreshUsage {
             return "Waiting for a fresh quota reading after the last task."

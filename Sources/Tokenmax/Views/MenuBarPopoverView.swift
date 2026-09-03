@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MenuBarPopoverView: View {
     @EnvironmentObject private var usage: ProviderUsageCoordinator
+    /// This view counts down, so it observes the clock as well as the reading.
+    @EnvironmentObject private var clock: CountdownClock
     @EnvironmentObject private var taskStore: TaskStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var notifications: NotificationCoordinator
@@ -122,7 +124,7 @@ struct MenuBarPopoverView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Good time to spend quota")
                     .font(.system(size: 11, weight: .semibold))
-                Text("\(Int(opportunity.remainingPercent.rounded()))% left, resetting in \(RelativeTime.countdown(opportunity.timeUntilReset(now: usage.tick)))")
+                Text("\(Int(opportunity.remainingPercent.rounded()))% left, resetting in \(RelativeTime.countdown(opportunity.timeUntilReset(now: clock.now)))")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -238,7 +240,7 @@ struct MenuBarPopoverView: View {
                     UsageWindowView(
                         window: session,
                         isStale: forceStale,
-                        now: usage.tick,
+                        now: clock.now,
                         projection: projection(for: session, forceStale: forceStale)
                     )
                     reminderLine(for: .session, provider: provider)
@@ -250,14 +252,14 @@ struct MenuBarPopoverView: View {
                     UsageWindowView(
                         window: weekly,
                         isStale: forceStale,
-                        now: usage.tick,
+                        now: clock.now,
                         projection: projection(for: weekly, forceStale: forceStale)
                     )
                     reminderLine(for: .weekly, provider: provider)
                 }
             }
             if provider == .codex,
-               let resetText = UsageWindowPresentation.availableResetText(for: snapshot, now: usage.tick) {
+               let resetText = UsageWindowPresentation.availableResetText(for: snapshot, now: clock.now) {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.counterclockwise.circle")
                         .font(.system(size: 10))
@@ -291,7 +293,7 @@ struct MenuBarPopoverView: View {
             HStack(spacing: 4) {
                 Image(systemName: status.isSuppressed ? "bell.slash" : "bell")
                     .font(.system(size: 9))
-                Text(status.summary(now: usage.tick))
+                Text(status.summary(now: clock.now))
                     .font(.system(size: 10))
             }
             .foregroundStyle(status.isNoteworthy ? Color.orange : Color.secondary)
@@ -440,7 +442,7 @@ struct MenuBarPopoverView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.orange)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Starting a task in \(pending.secondsRemaining(now: usage.tick))s")
+                        Text("Starting a task in \(pending.secondsRemaining(now: clock.now))s")
                             .font(.system(size: 11, weight: .semibold))
                         Text(pending.taskTitle)
                             .font(.system(size: 10))

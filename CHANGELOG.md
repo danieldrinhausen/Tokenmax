@@ -5,6 +5,18 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Tokenmax no longer pins a CPU core, and Settings opens promptly.** The one-second
+  countdown clock lived on the same observable object as the quota readings, and SwiftUI
+  invalidates per object rather than per property — so every view holding that object was
+  rebuilt once a second, including settings panes that show no countdown and keep the
+  reference only to drive a button. Two providers, each publishing a tick that was both
+  forwarded and mirrored, made that four full rebuilds a second; **General** answered each
+  one with a relayout of a several-hundred-row `Form`, which on its own saturated the main
+  thread and left every click queued behind a layout pass. The clock is now its own object,
+  observed only where a label actually counts down, and the always-visible Side Notch rail
+  redraws on the clock only while it is open. Countdowns, auto-run and the session opener
+  keep their one-second resolution.
+
 - **Side Notch can now become a Dock Notch.** Its Alpha settings choose whether the hoverable
   quota rail belongs at the right display edge or as a horizontal meter at the bottom of the
   display, to the left or right of the Dock zone. **Always show Dock Notch** keeps that compact

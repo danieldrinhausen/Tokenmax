@@ -361,7 +361,7 @@ struct SideNotchDetailView: View {
                 HStack(spacing: 4) {
                     Image(systemName: status.isSuppressed ? "bell.slash" : "bell")
                         .font(.system(size: 8))
-                    Text(status.summary(now: coordinator.usage.tick))
+                    Text(status.summary(now: coordinator.usage.clock.now))
                         .font(.system(size: 9))
                         .lineLimit(1)
                 }
@@ -381,14 +381,14 @@ struct SideNotchDetailView: View {
         return UsageWindowPresentation.resetText(
             for: window,
             isStale: meter.isStale,
-            now: coordinator.usage.tick
+            now: coordinator.usage.clock.now
         )
     }
 
     private func projectionLine(_ projection: UsageProjection) -> some View {
         let presentation = UsageWindowPresentation.projectionLine(
             for: projection,
-            now: coordinator.usage.tick
+            now: coordinator.usage.clock.now
         )
 
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
