@@ -29,7 +29,7 @@ DMG        := $(DIST_DIR)/$(APP)-$(VERSION).dmg
 SIGN_ID ?= $(shell security find-identity -v -p codesigning 2>/dev/null \
 	| grep -q '"Tokenmax Dev"' && echo "Tokenmax Dev" || echo "-")
 
-.PHONY: all generate build sign install run stop test doctor dmg dmg-image clean logs
+.PHONY: all generate build sign install install-app run stop test doctor dmg dmg-image clean logs
 
 all: install
 
@@ -55,7 +55,18 @@ sign: build
 	@codesign --force --deep --sign "$(SIGN_ID)" "$(APP_PATH)"
 	@codesign --verify --verbose=1 "$(APP_PATH)" 2>&1 | tail -2
 
-install: stop sign
+# Always Release, never whatever `CONFIG` happens to be — the same trap `dmg`
+# closed one release earlier, and for the same reason. 0.1.13 was installed as
+# an unoptimised Debug build with assertions live, because the default is Debug
+# and `make install CONFIG=Release` is a flag you have to remember. It is the
+# copy that runs all day, so it is the last one that should be the slow one.
+#
+# `make build` and `make test` stay on `CONFIG` for fast iteration; only what
+# lands in /Applications is forced.
+install:
+	@$(MAKE) --no-print-directory install-app CONFIG=Release
+
+install-app: stop sign
 	@rm -rf "$(INSTALL_TO)"
 	@cp -R "$(APP_PATH)" "$(INSTALL_TO)"
 	@# Nudge Launch Services so the bundle ID is registered for notifications.

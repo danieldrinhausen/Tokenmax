@@ -5,6 +5,11 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **`make install` now builds Release.** It followed the default `CONFIG`, which is Debug, so
+  the copy in `/Applications` — the one that runs all day — was unoptimised with assertions
+  live unless the flag was remembered. `make dmg` had already been forced for the same reason
+  one release earlier; `make build` and `make test` are unchanged.
+
 - **Tokenmax no longer pins a CPU core, and Settings opens promptly.** The one-second
   countdown clock lived on the same observable object as the quota readings, and SwiftUI
   invalidates per object rather than per property — so every view holding that object was

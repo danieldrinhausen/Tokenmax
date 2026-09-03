@@ -9,7 +9,7 @@ Thanks for looking. Tokenmax is a small personal tool, so the bar here is
 brew install xcodegen
 make test       # full suite, no network, no side effects
 make doctor     # check the upstream surfaces this app does not own
-make install    # build, sign, install to /Applications
+make install    # build Release, sign, install to /Applications
 ```
 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is worth reading before a first

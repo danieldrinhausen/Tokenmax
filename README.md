@@ -825,7 +825,7 @@ Anthropic's terms for your account. The software is provided as is, without warr
 make build     # compile
 make test      # full suite, no network, no side effects
 make doctor    # check everything Tokenmax depends on but does not own
-make install   # build, sign, install to /Applications
+make install   # build Release, sign, install to /Applications
 make dmg       # build a distributable disk image
 make logs      # tail the log
 make clean
