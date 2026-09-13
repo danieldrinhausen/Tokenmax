@@ -15,37 +15,6 @@ enum SideNotchColorSource: String, Codable, Sendable, CaseIterable, Identifiable
     }
 }
 
-/// The surface can stay at the display edge or move down beside the Dock.
-/// Keeping this separate from the side choice makes an old settings file mean
-/// exactly what it meant before: the right-hand screen edge.
-enum SideNotchPlacement: String, Codable, Sendable, CaseIterable, Identifiable {
-    case side
-    case dock
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .side: "Side Notch"
-        case .dock: "Dock Notch"
-        }
-    }
-}
-
-enum DockNotchPlacement: String, Codable, Sendable, CaseIterable, Identifiable {
-    case left
-    case right
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .left: "Left of Dock"
-        case .right: "Right of Dock"
-        }
-    }
-}
-
 /// One complete palette for the side notch.
 ///
 /// The types are shared with the menu bar because a percentage threshold must
@@ -85,11 +54,6 @@ struct SideNotchColorSettings: Codable, Sendable, Equatable {
 /// an upgrade must never place a new always-on surface over somebody's work.
 struct SideNotchSettings: Codable, Sendable, Equatable {
     var enabled = false
-    var placement: SideNotchPlacement = .side
-    var dockPlacement: DockNotchPlacement = .left
-    /// Dock placement can serve as a persistent meter without consuming the
-    /// screen edge; keep the more interruptive behaviour opt-in.
-    var dockAlwaysExpanded = false
     var colorSource: SideNotchColorSource = .menuBar
     /// nil until Custom is chosen for the first time. That first choice copies
     /// the current menu bar palette; afterwards switching back and forth keeps
@@ -102,11 +66,6 @@ struct SideNotchSettings: Codable, Sendable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = SideNotchSettings()
         enabled = (try? container.decodeIfPresent(Bool.self, forKey: .enabled)) ?? d.enabled
-        placement = (try? container.decodeIfPresent(SideNotchPlacement.self, forKey: .placement)) ?? d.placement
-        dockPlacement = (try? container.decodeIfPresent(DockNotchPlacement.self, forKey: .dockPlacement))
-            ?? d.dockPlacement
-        dockAlwaysExpanded = try container.decodeIfPresent(Bool.self, forKey: .dockAlwaysExpanded)
-            ?? d.dockAlwaysExpanded
         colorSource = (try? container.decodeIfPresent(SideNotchColorSource.self, forKey: .colorSource))
             ?? d.colorSource
         customColors = try? container.decodeIfPresent(SideNotchColorSettings.self, forKey: .customColors)

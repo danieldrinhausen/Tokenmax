@@ -28,16 +28,13 @@ final class SideNotchCoordinator: ObservableObject {
     private var hasStarted = false
     private var refreshSurfaceIsOpen = false
     private var detailDismissalGeneration = 0
-    private var currentDockFrame: CGRect?
 
     /// The collapsed window is wider than what it draws. That invisible margin
     /// buys a humane hover target without turning the edge mark into a tab.
     private static let peekSize = NSSize(width: 16, height: 72)
     private static let railWidth: CGFloat = 76
-    private static let dockRailHeight: CGFloat = 54
     private static let railHeaderHeight: CGFloat = 22
     private static let providerRowHeight: CGFloat = 68
-    private static let providerColumnWidth: CGFloat = 58
     private static let closeDelay: TimeInterval = 0.4
     private static let panelTransitionDuration: TimeInterval = 0.22
 
@@ -115,9 +112,7 @@ final class SideNotchCoordinator: ObservableObject {
     func pointerEnteredHandle() {
         pointerInsideRail = true
         cancelClose()
-        if settingsStore.settings.sideNotch.placement == .side {
-            currentScreen = screenUnderPointer() ?? currentScreen
-        }
+        currentScreen = screenUnderPointer() ?? currentScreen
         transition(.pointerEnteredHandle)
     }
 
@@ -189,12 +184,10 @@ final class SideNotchCoordinator: ObservableObject {
     private func scheduleCloseIfOutside() {
         guard !pointerInsideRail, !pointerInsideDetail else { return }
         cancelClose()
-        let keepRailVisible = settingsStore.settings.sideNotch.placement == .dock
-            && settingsStore.settings.sideNotch.dockAlwaysExpanded
         let item = DispatchWorkItem { [weak self] in
             Task { @MainActor in
                 guard let self, !self.pointerInsideRail, !self.pointerInsideDetail else { return }
-                self.transition(.closeDelayElapsed(keepRailVisible: keepRailVisible))
+                self.transition(.closeDelayElapsed)
             }
         }
         closeWorkItem = item
@@ -207,12 +200,9 @@ final class SideNotchCoordinator: ObservableObject {
     }
 
     private func reevaluate() {
-        let screen = settingsStore.settings.sideNotch.placement == .dock
-            ? DockGeometryReader.screenHostingDock()
-            : (screenUnderPointer() ?? NSScreen.main ?? NSScreen.screens.first)
+        let screen = screenUnderPointer() ?? NSScreen.main ?? NSScreen.screens.first
         currentScreen = currentScreen.flatMap { old in
-            guard settingsStore.settings.sideNotch.placement == .side else { return nil }
-            return NSScreen.screens.first { $0 === old }
+            NSScreen.screens.first { $0 === old }
         } ?? screen
         let reason = SideNotchDecision.suppression(
             enabled: settingsStore.settings.sideNotch.enabled,
@@ -230,16 +220,6 @@ final class SideNotchCoordinator: ObservableObject {
         }
 
         ensurePanels()
-        if settingsStore.settings.sideNotch.placement == .dock, let currentScreen {
-            currentDockFrame = DockGeometryReader.frame(on: currentScreen)
-        } else {
-            currentDockFrame = nil
-        }
-        state = SideNotchDecision.resolvedState(
-            state,
-            placement: settingsStore.settings.sideNotch.placement,
-            dockAlwaysExpanded: settingsStore.settings.sideNotch.dockAlwaysExpanded
-        )
         if let selected = state.selectedProvider,
            !presentations.contains(where: { $0.provider == selected }) {
             state = .rail
@@ -272,25 +252,9 @@ final class SideNotchCoordinator: ObservableObject {
         suppression = nil
         let providerCount = max(1, presentations.count)
         let expandedHeight = Self.railHeaderHeight + CGFloat(providerCount) * Self.providerRowHeight
-        let size: NSSize
-        if state == .peek {
-            size = settingsStore.settings.sideNotch.placement == .dock
-                ? NSSize(width: Self.peekSize.height, height: Self.peekSize.width)
-                : Self.peekSize
-        } else if settingsStore.settings.sideNotch.placement == .dock {
-            size = NSSize(
-                width: CGFloat(providerCount) * Self.providerColumnWidth,
-                height: Self.dockRailHeight
-            )
-        } else {
-            size = NSSize(width: Self.railWidth, height: expandedHeight)
-        }
+        let size = state == .peek ? Self.peekSize : NSSize(width: Self.railWidth, height: expandedHeight)
         let railFrame = SideNotchLayoutDecision.railFrame(
-            placement: settingsStore.settings.sideNotch.placement,
-            dockPlacement: settingsStore.settings.sideNotch.dockPlacement,
-            screen: screen.frame,
             visibleScreen: screen.visibleFrame,
-            dockFrame: currentDockFrame,
             size: size
         )
 
@@ -302,14 +266,12 @@ final class SideNotchCoordinator: ObservableObject {
             let dimensions = SideNotchDetailLayout.dimensions(for: presentation)
             let detailSize = NSSize(width: dimensions.width, height: dimensions.height)
             let detailFrame = SideNotchLayoutDecision.detailFrame(
-                placement: settingsStore.settings.sideNotch.placement,
                 railFrame: railFrame,
                 visibleScreen: screen.visibleFrame,
                 detailSize: detailSize,
                 providerIndex: index,
                 railHeaderHeight: Self.railHeaderHeight,
-                providerRowHeight: Self.providerRowHeight,
-                providerColumnWidth: Self.providerColumnWidth
+                providerRowHeight: Self.providerRowHeight
             )
             showDetail(frame: detailFrame)
         } else {
@@ -405,15 +367,6 @@ final class SideNotchCoordinator: ObservableObject {
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                if self.settingsStore.settings.sideNotch.placement == .dock,
-                   SideNotchDecision.shouldRefreshDockGeometry(state: self.state),
-                   let screen = self.currentScreen {
-                    let dockFrame = DockGeometryReader.frame(on: screen)
-                    if dockFrame != self.currentDockFrame {
-                        self.currentDockFrame = dockFrame
-                        self.applyPanelState()
-                    }
-                }
                 guard self.state == .peek else { return }
                 let screen = self.screenUnderPointer()
                 if !Self.sameScreen(screen, self.currentScreen) {

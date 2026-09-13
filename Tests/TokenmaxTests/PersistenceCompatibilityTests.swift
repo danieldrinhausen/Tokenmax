@@ -110,6 +110,18 @@ struct PersistenceCompatibilityTests {
         #expect(sideNotchOnly.sideNotch.enabled)
     }
 
+    @Test("A settings file from the retired Dock Notch surface still loads")
+    func retiredDockNotchKeysAreIgnored() throws {
+        let settings = try decode(AppSettings.self, """
+        { "sideNotch": { "enabled": true, "placement": "dock", "dockPlacement": "left",
+          "dockAlwaysExpanded": true }, "remindersEnabled": true }
+        """)
+
+        #expect(settings.sideNotch.enabled)
+        // The rest of the file survives rather than resetting to defaults.
+        #expect(settings.remindersEnabled)
+    }
+
     @Test("Independent Side Notch colours survive a round trip")
     func sideNotchColoursRoundTrip() throws {
         var settings = AppSettings()

@@ -41,52 +41,30 @@ struct SideNotchRailView: View {
     }
 
     private var peek: some View {
-        let dockNotch = coordinator.settingsStore.settings.sideNotch.placement == .dock
-        return ZStack(alignment: dockNotch ? .bottom : .trailing) {
+        ZStack(alignment: .trailing) {
             Color.clear
             Capsule()
                 .fill(Color.black.opacity(0.94))
-                .frame(width: dockNotch ? 50 : 8, height: dockNotch ? 8 : 50)
-                .overlay(alignment: dockNotch ? .top : .leading) {
+                .frame(width: 8, height: 50)
+                .overlay(alignment: .leading) {
                     LinearGradient(
                         colors: [.white.opacity(0.34), .white.opacity(0.10)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(width: dockNotch ? 50 : 1, height: dockNotch ? 1 : 50)
+                    .frame(width: 1, height: 50)
                     .clipShape(Capsule())
                 }
                 .overlay {
                     Capsule()
                         .fill(Color.white.opacity(0.30))
-                        .frame(width: dockNotch ? 11 : 2, height: dockNotch ? 2 : 11)
+                        .frame(width: 2, height: 11)
                 }
         }
         .contentShape(Rectangle())
     }
 
     private var rail: some View {
-        Group {
-            if coordinator.settingsStore.settings.sideNotch.placement == .dock {
-                dockRail
-            } else {
-                sideRail
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(railBackground)
-        .overlay(alignment: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .top : .leading) {
-            Rectangle()
-                .fill(Color.white.opacity(0.08))
-                .frame(
-                    width: coordinator.settingsStore.settings.sideNotch.placement == .dock ? nil : 1,
-                    height: coordinator.settingsStore.settings.sideNotch.placement == .dock ? 1 : nil
-                )
-                .padding(coordinator.settingsStore.settings.sideNotch.placement == .dock ? .horizontal : .vertical, 18)
-        }
-    }
-
-    private var sideRail: some View {
         VStack(spacing: 0) {
             Capsule()
                 .fill(Color.white.opacity(0.20))
@@ -95,34 +73,32 @@ struct SideNotchRailView: View {
                 .padding(.bottom, 6.5)
 
             ForEach(coordinator.presentations) { presentation in
-                providerButton(presentation, compact: false)
+                providerButton(presentation)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private var dockRail: some View {
-        HStack(spacing: 0) {
-            ForEach(coordinator.presentations) { presentation in
-                providerButton(presentation, compact: true)
-            }
+        .background(railBackground)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(width: 1)
+                .padding(.vertical, 18)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
-    private func providerButton(_ presentation: SideNotchProviderPresentation, compact: Bool) -> some View {
+    private func providerButton(_ presentation: SideNotchProviderPresentation) -> some View {
         let isSelected = coordinator.state.selectedProvider == presentation.provider
         return Button {
             coordinator.providerClicked(presentation.provider)
         } label: {
-            SideNotchProviderRing(presentation: presentation, compact: compact)
-                .frame(width: compact ? 58 : 66, height: compact ? 50 : 66)
+            SideNotchProviderRing(presentation: presentation)
+                .frame(width: 66, height: 66)
                 .background(
-                    RoundedRectangle(cornerRadius: compact ? 15 : 19, style: .continuous)
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
                         .fill(isSelected ? Color.white.opacity(0.075) : .clear)
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: compact ? 15 : 19, style: .continuous)
+                    RoundedRectangle(cornerRadius: 19, style: .continuous)
                         .strokeBorder(
                             isSelected ? Color.white.opacity(0.10) : .clear,
                             lineWidth: 0.75
@@ -139,56 +115,34 @@ struct SideNotchRailView: View {
         .animation(reduceMotion ? nil : .smooth(duration: 0.18), value: isSelected)
     }
 
-    @ViewBuilder
     private var railBackground: some View {
-        if coordinator.settingsStore.settings.sideNotch.placement == .dock {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 22,
-                bottomLeadingRadius: 18,
-                bottomTrailingRadius: 18,
-                topTrailingRadius: 22
-            )
-            .fill(Color.black.opacity(0.78))
-        } else {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 22,
-                bottomLeadingRadius: 22,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 0
-            )
-            .fill(Color.black.opacity(0.78))
-        }
+        UnevenRoundedRectangle(
+            topLeadingRadius: 22,
+            bottomLeadingRadius: 22,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: 0
+        )
+        .fill(Color.black.opacity(0.78))
     }
 }
 
 private struct SideNotchProviderRing: View {
     let presentation: SideNotchProviderPresentation
-    let compact: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 1) {
             ZStack {
-                meter(
-                    presentation.outer,
-                    diameter: compact ? 34 : 42,
-                    lineWidth: compact ? 3 : 3.5,
-                    opacity: 0.78
-                )
-                meter(
-                    presentation.inner,
-                    diameter: compact ? 24 : 30,
-                    lineWidth: compact ? 2.5 : 3,
-                    opacity: 1
-                )
+                meter(presentation.outer, diameter: 42, lineWidth: 3.5, opacity: 0.78)
+                meter(presentation.inner, diameter: 30, lineWidth: 3, opacity: 1)
                 Image(systemName: presentation.provider.sideNotchSymbol)
-                    .font(.system(size: compact ? 9 : 10.5, weight: .semibold))
+                    .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.92))
             }
-            .frame(width: compact ? 40 : 50, height: compact ? 40 : 50)
+            .frame(width: 50, height: 50)
 
             Text(percentText)
-                .font(.system(size: compact ? 8 : 8.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white.opacity(0.82))
         }
@@ -295,15 +249,11 @@ struct SideNotchDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .foregroundStyle(.white)
         .background(
-            SideNotchDetailBubble(
-                tail: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .bottom : .right
-            )
+            SideNotchDetailBubble()
                 .fill(Color.black.opacity(0.86))
         )
         .overlay {
-            SideNotchDetailBubble(
-                tail: coordinator.settingsStore.settings.sideNotch.placement == .dock ? .bottom : .right
-            )
+            SideNotchDetailBubble()
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         }
         .onHover { inside in
@@ -418,18 +368,8 @@ struct SideNotchDetailView: View {
 /// It gives the two separately hit-tested panels one visual silhouette without
 /// adding a transparent window between them that would swallow desktop clicks.
 private struct SideNotchDetailBubble: Shape {
-    enum Tail: Sendable {
-        case right
-        case bottom
-    }
-
-    let tail: Tail
-
     func path(in rect: CGRect) -> Path {
-        switch tail {
-        case .right: rightTailPath(in: rect)
-        case .bottom: bottomTailPath(in: rect)
-        }
+        rightTailPath(in: rect)
     }
 
     private func rightTailPath(in rect: CGRect) -> Path {
@@ -458,42 +398,6 @@ private struct SideNotchDetailBubble: Shape {
         path.addQuadCurve(
             to: CGPoint(x: rect.minX, y: rect.maxY - radius),
             control: CGPoint(x: rect.minX, y: rect.maxY)
-        )
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX + radius, y: rect.minY),
-            control: CGPoint(x: rect.minX, y: rect.minY)
-        )
-        path.closeSubpath()
-        return path
-    }
-
-    private func bottomTailPath(in rect: CGRect) -> Path {
-        let radius: CGFloat = 16
-        let tailHeight: CGFloat = 10
-        let tailHalfWidth: CGFloat = 9
-        let bodyMaxY = rect.maxY - tailHeight
-        let middleX = rect.midX
-
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX + radius, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
-            control: CGPoint(x: rect.maxX, y: rect.minY)
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: bodyMaxY - radius))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.maxX - radius, y: bodyMaxY),
-            control: CGPoint(x: rect.maxX, y: bodyMaxY)
-        )
-        path.addLine(to: CGPoint(x: middleX + tailHalfWidth, y: bodyMaxY))
-        path.addLine(to: CGPoint(x: middleX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: middleX - tailHalfWidth, y: bodyMaxY))
-        path.addLine(to: CGPoint(x: rect.minX + radius, y: bodyMaxY))
-        path.addQuadCurve(
-            to: CGPoint(x: rect.minX, y: bodyMaxY - radius),
-            control: CGPoint(x: rect.minX, y: bodyMaxY)
         )
         path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
         path.addQuadCurve(

@@ -20,31 +20,6 @@ struct SideNotchSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Picker("Surface", selection: placementBinding) {
-                    ForEach(SideNotchPlacement.allCases) { placement in
-                        Text(placement.displayName).tag(placement)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .fixedSize()
-
-                if settingsStore.settings.sideNotch.placement == .dock {
-                    Picker("Dock placement", selection: dockPlacementBinding) {
-                        ForEach(DockNotchPlacement.allCases) { placement in
-                            Text(placement.displayName).tag(placement)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .fixedSize()
-
-                    Toggle("Always show Dock Notch", isOn: dockAlwaysExpandedBinding)
-
-                    Text("Dock Notch sits at the bottom of the display, immediately beside the Dock edge you choose. Always show keeps its compact provider rings visible; hover and pin still reveal details without occupying the screen edge.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 Picker("Colours", selection: colorSourceBinding) {
                     ForEach(SideNotchColorSource.allCases) { source in
                         Text(source.displayName).tag(source)
@@ -93,36 +68,6 @@ struct SideNotchSettingsView: View {
                     settingsStore.settings.sideNotch.customColors = settingsStore.settings.menuBarColorsForSideNotch
                 }
                 settingsStore.settings.sideNotch.colorSource = source
-            }
-        )
-    }
-
-    private var placementBinding: Binding<SideNotchPlacement> {
-        Binding(
-            get: { settingsStore.settings.sideNotch.placement },
-            set: {
-                settingsStore.settings.sideNotch.placement = $0
-                sideNotch.settingsDidChangeLayout()
-            }
-        )
-    }
-
-    private var dockPlacementBinding: Binding<DockNotchPlacement> {
-        Binding(
-            get: { settingsStore.settings.sideNotch.dockPlacement },
-            set: {
-                settingsStore.settings.sideNotch.dockPlacement = $0
-                sideNotch.settingsDidChangeLayout()
-            }
-        )
-    }
-
-    private var dockAlwaysExpandedBinding: Binding<Bool> {
-        Binding(
-            get: { settingsStore.settings.sideNotch.dockAlwaysExpanded },
-            set: {
-                settingsStore.settings.sideNotch.dockAlwaysExpanded = $0
-                sideNotch.settingsDidChangeLayout()
             }
         )
     }

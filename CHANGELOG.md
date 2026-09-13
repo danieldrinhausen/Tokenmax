@@ -5,11 +5,6 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
-- **The Dock Notch no longer enumerates every running application twice a second.** Its
-  half-second geometry poll needs a tally of the apps the Dock shows a tile for; that tally
-  is now recomputed when an app launches, quits or activates, which are the only events that
-  can change it, rather than on every poll.
-
 - **`make install` now builds Release.** It followed the default `CONFIG`, which is Debug, so
   the copy in `/Applications` — the one that runs all day — was unoptimised with assertions
   live unless the flag was remembered. `make dmg` had already been forced for the same reason
@@ -27,28 +22,21 @@ versions follow [semver](https://semver.org/).
   redraws on the clock only while it is open. Countdowns, auto-run and the session opener
   keep their one-second resolution.
 
-- **Side Notch can now become a Dock Notch.** Its Alpha settings choose whether the hoverable
-  quota rail belongs at the right display edge or as a horizontal meter at the bottom of the
-  display, to the left or right of the Dock zone. **Always show Dock Notch** keeps that compact
-  meter visible between inspections. The stored setting remains Side Notch for every existing install.
-  Settings now receives the running app's shared stores rather than a parallel, unstarted set, so
-  changing either placement or enablement takes effect immediately instead of only persisting for
-  the next launch. Provider rings now have deliberate headroom inside their cards, so full outer
-  arcs do not touch or clip against the selected-state border. The Dock rail now matches the Dock's
-  compact height, has a translucent dark finish, and follows the Dock's live left or right edge.
-  The app now owns one stable shared object graph across SwiftUI `App` reconstruction, preventing
-  Settings from controlling a persisted copy while the visible panel continues using stale values.
-  Dock placement is pinned to the display that owns the Dock, meets the bottom edge cleanly, and no
-  longer jumps displays during hover. Persistent mode now keeps only the meter visible; its detail
-  card dismisses normally after the pointer leaves. The rail now measures its gap beyond the Dock's
-  outer glass rather than from the inset icon list, and freezes live Dock geometry while open so
-  magnification or transient Dock contents cannot move it out from under the pointer. Placement
-  changes now lay out from the newly stored side rather than the pre-change value emitted by
-  `@Published`, the rail shares the Dock's floating bottom inset, and the decorative grip that
-  falsely suggested dragging has been removed. The detail-card arrow now points at the selected
-  provider rather than the midpoint between provider rings. Layout-affecting controls also trigger
-  a post-assignment layout directly, so their visible result never depends on a later publisher or
-  pointer event.
+- **Side Notch settings now apply immediately.** Settings receives the running app's shared
+  stores rather than a parallel, unstarted set, so enabling the notch or changing its colours
+  takes effect right away instead of only persisting for the next launch. The app now owns one
+  stable shared object graph across SwiftUI `App` reconstruction, preventing Settings from
+  controlling a persisted copy while the visible panel continues using stale values.
+  Layout-affecting controls trigger a post-assignment layout directly, so their visible result
+  never depends on a later publisher or pointer event. Provider rings now have deliberate
+  headroom inside their cards, so full outer arcs do not touch or clip against the
+  selected-state border.
+
+- **The Dock Notch surface has been removed.** It was under development only within this
+  Unreleased window — sharing the Dock's floating bottom edge as an alternative to the right
+  screen edge — and never shipped. It added an upstream coupling (reading the Dock's
+  Accessibility geometry and `com.apple.dock` preferences) for a placement that went unused.
+  Side Notch keeps its settings, colours and detail card at the right screen edge.
 
 ## [0.1.13] - 2026-08-31
 

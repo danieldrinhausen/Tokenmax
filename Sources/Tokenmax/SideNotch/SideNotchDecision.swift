@@ -36,7 +36,7 @@ enum SideNotchEvent: Equatable, Sendable {
     case pointerEnteredRail
     case pointerEnteredProvider(TokenmaxProvider)
     case providerClicked(TokenmaxProvider)
-    case closeDelayElapsed(keepRailVisible: Bool)
+    case closeDelayElapsed
 }
 
 /// The interaction state machine. Timers and tracking areas belong to the
@@ -70,127 +70,48 @@ enum SideNotchDecision {
             }
             return .detail(provider: provider, locked: true)
 
-        case let .closeDelayElapsed(keepRailVisible):
-            return keepRailVisible ? .rail : .peek
+        case .closeDelayElapsed:
+            return .peek
         }
-    }
-
-    /// A persistent Dock Notch still uses the same provider detail states, but
-    /// never returns to the tiny hover handle between inspections.
-    static func resolvedState(
-        _ state: SideNotchState,
-        placement: SideNotchPlacement,
-        dockAlwaysExpanded: Bool
-    ) -> SideNotchState {
-        guard placement == .dock, dockAlwaysExpanded, state == .peek else { return state }
-        return .rail
-    }
-
-    /// Dock contents can resize while the pointer magnifies icons or windows
-    /// appear. Refresh only while collapsed so a surface under inspection can
-    /// never move away from the pointer that opened it.
-    static func shouldRefreshDockGeometry(state: SideNotchState) -> Bool {
-        state == .peek
     }
 }
 
-/// Maps the stored placement choice to screen coordinates without consulting
+/// Maps the side edge placement to screen coordinates without consulting
 /// AppKit. The coordinator supplies the live display rectangles and owns the
 /// panels; this type keeps the placement contract testable.
 enum SideNotchLayoutDecision {
-    /// Breathing room between two independently rounded surfaces.
-    // Accessibility reports the icon list, while the Dock's glass extends
-    // beyond it. This leaves a visible 14pt gap outside that extra chrome.
-    private static let dockGap: CGFloat = 32
-    // The AX list begins above the floating glass. Its lower chrome extends
-    // roughly 6pt farther, leaving the Dock itself about 4pt above the display.
-    private static let dockBottomChrome: CGFloat = 6
-    private static let fallbackDockHalfWidth: CGFloat = 420
-
     static func railFrame(
-        placement: SideNotchPlacement,
-        dockPlacement: DockNotchPlacement,
-        screen: CGRect,
         visibleScreen: CGRect,
-        dockFrame: CGRect?,
         size: CGSize
     ) -> CGRect {
-        switch placement {
-        case .side:
-            return CGRect(
-                x: visibleScreen.maxX - size.width,
-                y: visibleScreen.midY - size.height / 2,
-                width: size.width,
-                height: size.height
-            )
-
-        case .dock:
-            let x: CGFloat
-            if let dockFrame {
-                switch dockPlacement {
-                case .left:
-                    x = dockFrame.minX - Self.dockGap - size.width
-                case .right:
-                    x = dockFrame.maxX + Self.dockGap
-                }
-            } else {
-                switch dockPlacement {
-                case .left:
-                    x = screen.midX - Self.fallbackDockHalfWidth - Self.dockGap - size.width
-                case .right:
-                    x = screen.midX + Self.fallbackDockHalfWidth + Self.dockGap
-                }
-            }
-            let y = dockFrame.map {
-                max(screen.minY, $0.minY - Self.dockBottomChrome)
-            } ?? screen.minY + 4
-            return CGRect(
-                x: min(visibleScreen.maxX - size.width, max(visibleScreen.minX, x)),
-                y: y,
-                width: size.width,
-                height: size.height
-            )
-        }
+        CGRect(
+            x: visibleScreen.maxX - size.width,
+            y: visibleScreen.midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
     }
 
     static func detailFrame(
-        placement: SideNotchPlacement,
         railFrame: CGRect,
         visibleScreen: CGRect,
         detailSize: CGSize,
         providerIndex: Int,
         railHeaderHeight: CGFloat,
-        providerRowHeight: CGFloat,
-        providerColumnWidth: CGFloat
+        providerRowHeight: CGFloat
     ) -> CGRect {
-        switch placement {
-        case .side:
-            let cellCenterFromTop = railHeaderHeight
-                + CGFloat(providerIndex) * providerRowHeight
-                + providerRowHeight / 2
-            let targetCenterY = railFrame.maxY - cellCenterFromTop
-            return CGRect(
-                x: railFrame.minX - detailSize.width,
-                y: min(
-                    visibleScreen.maxY - detailSize.height,
-                    max(visibleScreen.minY, targetCenterY - detailSize.height / 2)
-                ),
-                width: detailSize.width,
-                height: detailSize.height
-            )
-
-        case .dock:
-            let providerCenterX = railFrame.minX
-                + (CGFloat(providerIndex) + 0.5) * providerColumnWidth
-            return CGRect(
-                x: min(
-                    visibleScreen.maxX - detailSize.width,
-                    max(visibleScreen.minX, providerCenterX - detailSize.width / 2)
-                ),
-                y: min(visibleScreen.maxY - detailSize.height, railFrame.maxY + 8),
-                width: detailSize.width,
-                height: detailSize.height
-            )
-        }
+        let cellCenterFromTop = railHeaderHeight
+            + CGFloat(providerIndex) * providerRowHeight
+            + providerRowHeight / 2
+        let targetCenterY = railFrame.maxY - cellCenterFromTop
+        return CGRect(
+            x: railFrame.minX - detailSize.width,
+            y: min(
+                visibleScreen.maxY - detailSize.height,
+                max(visibleScreen.minY, targetCenterY - detailSize.height / 2)
+            ),
+            width: detailSize.width,
+            height: detailSize.height
+        )
     }
 }

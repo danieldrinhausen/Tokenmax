@@ -16,9 +16,8 @@ evaporating.
 - **A menu bar icon you configure.** Two or three stacked bars, or nested rings that fit all four
   quotas at once — each position drawing a quota you choose, plus a countdown that can track a
   different window entirely, and optional colour levels as a window runs low.
-- **A Side or Dock Notch when the menu bar is not enough.** An opt-in Alpha handle can live at the
-  right screen edge or beside the Dock, expanding into provider rings on hover without taking
-  keyboard focus.
+- **A Side Notch when the menu bar is not enough.** An opt-in Alpha handle lives at the right
+  screen edge, expanding into provider rings on hover without taking keyboard focus.
 - **Pace, not just remaining.** A marker showing where an even burn would have left you, whether
   you are ahead or in deficit, and when the window empties if you carry on at this rate.
 - **Reminders before quota evaporates.** Per-window lead times and thresholds, quiet hours, and
@@ -71,12 +70,9 @@ can open Settings directly, restore the menu bar item, refresh readings, or quit
 A quota belonging to a provider you have switched off is never drawn, but its slot is remembered —
 turn the provider back on and your arrangement returns rather than a rebuilt one.
 
-**Settings → General → Side Notch · Alpha** adds the same readings as a second, optional surface.
-Off by default, choose **Side Notch** for a narrow handle halfway down the right edge of whichever
-display the pointer is on, or **Dock Notch** to share the floating baseline of the Dock on its display,
-the Dock, immediately left or right of it. **Always show Dock Notch** keeps its compact horizontal
-provider rings on screen; the detail card still closes after the pointer leaves. Otherwise it
-remains a hover surface like Side Notch. Hover opens a rail with one large double ring per provider; hover a provider for a detail
+**Settings → General → Side Notch · Alpha** adds the same readings as a second, optional surface: a
+narrow handle halfway down the right edge of whichever display the pointer is on. Off by default.
+Hover opens a rail with one large double ring per provider; hover a provider for a detail
 card with the same context as the popover: plan and freshness, percentages and reset times, pace
 reserve or deficit, projected empty time, reminder state and Codex reset credits when available.
 Click to pin the card until the next click. Leaving the whole surface closes it after 400ms,

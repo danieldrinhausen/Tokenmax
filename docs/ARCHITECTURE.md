@@ -42,19 +42,9 @@ and obvious in a test.
 
 `SideNotchDecision` reduces pointer events into `peek`, `rail`, or a selected
 provider detail state and names every reason the surface may be suppressed.
-`SideNotchLayoutDecision` turns the Side Notch / Dock Notch setting into panel
-rectangles from supplied screen geometry. `DockGeometryReader` supplies the
-Dock's Accessibility list rectangle when permitted, because it includes pinned,
-running and minimized items. Its no-permission fallback reconstructs the centred
-span from Dock preferences and regular running apps rather than assuming an
-alignment or a fixed width. It also identifies the Dock-owning display from the
-Accessibility frame, or from the reserved bottom inset when permission is absent,
-so pointer movement cannot move Dock mode between displays.
-`SideNotchDecision` also resolves the persistent Dock Notch choice to its compact
-rail state and decides whether a close delay returns to that rail or the tiny
-handle. It permits live Dock geometry refreshes only for the collapsed handle;
-the open rail is frozen so Dock magnification cannot move the hover target. The
-coordinator therefore does not acquire either untested visibility rule.
+`SideNotchLayoutDecision` turns the right-edge placement into panel rectangles
+from supplied screen geometry. The coordinator therefore does not acquire the
+untested visibility rule.
 
 `TokenmaxApplicationObjects` owns the process-wide reference graph used by every
 SwiftUI scene and the AppKit Settings window. SwiftUI may reconstruct its `App`
@@ -489,14 +479,6 @@ rather than to public API: that a status item's click arrives on a window whose
 view tree contains an `NSStatusBarButton`, and that a local event monitor sees it
 before `MenuBarExtra` does. Neither is contractual. If the right-click menu ever
 stops appearing, that is where it went.
-
-Dock Notch placement reads the Dock's `AXList` position and size. This is public
-Accessibility data but may be denied, and its top-left coordinates must be
-converted into AppKit's bottom-left space. `DockGeometryReader` falls back to a
-centred estimate built from `com.apple.dock` tile preferences and regular running
-applications. A schema or permission change therefore degrades spacing rather
-than hiding the surface; pure layout tests still guard how either rectangle maps
-to left and right placement.
 
 ### 9. The GitHub releases API — lowest risk
 
