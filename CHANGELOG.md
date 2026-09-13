@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-09-13
+
 - **`make install` now builds Release.** It followed the default `CONFIG`, which is Debug, so
   the copy in `/Applications` — the one that runs all day — was unoptimised with assertions
   live unless the flag was remembered. `make dmg` had already been forced for the same reason
@@ -31,12 +33,6 @@ versions follow [semver](https://semver.org/).
   never depends on a later publisher or pointer event. Provider rings now have deliberate
   headroom inside their cards, so full outer arcs do not touch or clip against the
   selected-state border.
-
-- **The Dock Notch surface has been removed.** It was under development only within this
-  Unreleased window — sharing the Dock's floating bottom edge as an alternative to the right
-  screen edge — and never shipped. It added an upstream coupling (reading the Dock's
-  Accessibility geometry and `com.apple.dock` preferences) for a placement that went unused.
-  Side Notch keeps its settings, colours and detail card at the right screen edge.
 
 ## [0.1.13] - 2026-08-31
 
