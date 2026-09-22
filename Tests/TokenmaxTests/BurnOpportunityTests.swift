@@ -10,7 +10,8 @@ struct BurnOpportunityTests {
     private func snapshot(
         remaining: Double,
         resetInMinutes: Double?,
-        weeklyRemaining: Double? = nil
+        weeklyRemaining: Double? = nil,
+        providerID: String = "claude-code"
     ) -> UsageSnapshot {
         let weekly = weeklyRemaining.map {
             UsageWindow(
@@ -25,7 +26,7 @@ struct BurnOpportunityTests {
             )
         }
         return UsageSnapshot(
-            providerID: "claude-code",
+            providerID: providerID,
             planName: "Pro",
             windows: [weekly].compactMap { $0 } + [
                 UsageWindow(
@@ -141,5 +142,31 @@ struct BurnOpportunityTests {
         let short = settings(leadMinutes: 15)
         #expect(evaluate(resetInMinutes: 30, settings: short) == nil)
         #expect(evaluate(resetInMinutes: 10, settings: short) != nil)
+    }
+
+    /// Codex's bars used to light on Claude's lead time, which the user had
+    /// only ever chosen for Claude.
+    @Test("A Codex session follows the Codex session rule, not Claude's")
+    func codexFollowsItsOwnRule() {
+        var settings = AppSettings()
+        settings.sessionReminder.leadTimeMinutes = 60
+        settings.codexSessionReminder.leadTimeMinutes = 15
+        let codex = snapshot(remaining: 40, resetInMinutes: 30, providerID: TokenmaxProvider.codex.rawValue)
+        let claude = snapshot(remaining: 40, resetInMinutes: 30)
+
+        #expect(BurnOpportunity.evaluate(snapshot: codex, settings: settings, isStale: false, now: now) == nil)
+        #expect(BurnOpportunity.evaluate(snapshot: claude, settings: settings, isStale: false, now: now) != nil)
+    }
+
+    @Test("A Codex session uses the Codex minimum quota")
+    func codexUsesItsOwnMinimum() {
+        var settings = AppSettings()
+        settings.sessionReminder.leadTimeMinutes = 60
+        settings.sessionReminder.minimumRemainingPercent = 5
+        settings.codexSessionReminder.leadTimeMinutes = 60
+        settings.codexSessionReminder.minimumRemainingPercent = 50
+        let codex = snapshot(remaining: 40, resetInMinutes: 30, providerID: TokenmaxProvider.codex.rawValue)
+
+        #expect(BurnOpportunity.evaluate(snapshot: codex, settings: settings, isStale: false, now: now) == nil)
     }
 }

@@ -109,8 +109,9 @@ coloured at all: unconfirmed data dressed as a measurement is worse than no read
 configured the fixed alert orange steps aside, since the reminder case now has its own rung and two
 competing warm colours on a 2.2pt arc are worse than one.
 
-When the session window is inside your reminder lead time and still holds usable quota, the meters
-light up: "now is a good moment to spend this". The weekly window has to clear the same minimum:
+When a session window is inside its own provider's session reminder lead time and still holds usable
+quota — Claude's rule for Claude, Codex's for Codex, whether or not that reminder is switched on — the
+meters light up: "now is a good moment to spend this". The weekly window has to clear the same minimum:
 a session is a slice of the week rather than quota on top of it, so session quota left inside an
 almost-spent week is not about to be wasted — spending it would only end the week early. Settings → General → **Highlight** picks the
 colour (six presets, or any colour via the system picker), optionally adds a glow, and can switch

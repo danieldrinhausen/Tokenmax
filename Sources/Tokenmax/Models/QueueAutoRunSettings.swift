@@ -59,9 +59,9 @@ enum ResetBoundaryBehavior: String, Codable, Sendable, CaseIterable, Identifiabl
 /// The opt-in queue auto-runner: spend quota that is about to expire by running
 /// a task the user has explicitly approved for automation.
 ///
-/// Deliberately *not* derived from `sessionReminder`, which `BurnOpportunity`
-/// uses. A reminder that fires too early is an annoyance; a task that starts too
-/// early edits files. Changing a notification lead time from 30 to 60 minutes
+/// Deliberately *not* derived from the session reminder rules, which
+/// `BurnOpportunity` uses. A reminder that fires too early is an annoyance; a
+/// task that starts too early edits files. Changing a notification lead time from 30 to 60 minutes
 /// must never change when code runs, so the two carry separate lead times even
 /// though they usually want similar values.
 struct QueueAutoRunSettings: Codable, Sendable, Equatable {

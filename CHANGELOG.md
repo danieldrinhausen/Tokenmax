@@ -5,6 +5,10 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Codex's highlight follows the Codex session rule.** The "good time to spend" highlight read
+  Claude's session lead time and minimum quota for every provider, so Codex's bars lit on
+  timings chosen only for Claude. Each provider now uses its own session reminder rule.
+
 - **Session reminders and the "good time to spend" highlight now check the week.** A session
   with 60% left inside a week with 5% left was announced as quota about to be wasted, though
   the week would run out long before the session did. Both now also require the same

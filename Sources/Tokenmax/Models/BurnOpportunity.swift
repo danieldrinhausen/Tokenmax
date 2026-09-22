@@ -29,7 +29,11 @@ struct BurnOpportunity: Equatable, Sendable {
         guard !isStale, let snapshot else { return nil }
         guard let window = snapshot.sessionWindow, let resetAt = window.resetAt else { return nil }
 
-        let rule = settings.sessionReminder
+        // Each provider's own session rule: reading Claude's for a Codex window
+        // lit Codex's bars on a lead time the user had only chosen for Claude.
+        // An unrecognised provider falls back to Claude's, the pre-Codex shape.
+        let provider = TokenmaxProvider.from(identifier: snapshot.providerID) ?? .claudeCode
+        let rule = settings.reminderRule(for: provider, kind: .session)
         let remaining = window.remainingPercent ?? 0
         let timeUntilReset = resetAt.timeIntervalSince(now)
 
