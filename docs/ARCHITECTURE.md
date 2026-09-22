@@ -84,7 +84,10 @@ user intent and may change the persisted visibility preference.
 
 `NotificationScheduler` evaluates one provider/window rule at a time; a valid
 snapshot that omits that window is the named `.windowUnavailable` suppression,
-not missing or stale data. Delivered requests carry both provider and window in
+not missing or stale data. A session rule also receives the same provider's
+weekly remaining and refuses with `.notEnoughWeeklyQuotaLeft` below the rule's
+minimum; `BurnOpportunity` applies the identical check so the highlight and the
+reminder cannot disagree about whether a session is worth spending. Delivered requests carry both provider and window in
 their metadata. `ReminderRuleSourceResolver` is the pure compatibility boundary
 that recovers those values from older identifiers, so the coordinator records
 the fingerprint of the exact Codex or Claude rule that fired rather than a

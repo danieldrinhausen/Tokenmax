@@ -187,6 +187,7 @@ final class NotificationCoordinator: NSObject, ObservableObject {
                     isStale: stale,
                     queuedTaskCount: queuedCount,
                     queueEnabled: settings.queueEnabled,
+                    weeklyRemainingPercent: kind == .session ? snapshot?.weeklyWindow?.remainingPercent : nil,
                     alreadyFired: alreadyFired,
                     now: Date()
                 ))

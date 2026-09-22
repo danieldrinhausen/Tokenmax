@@ -39,6 +39,12 @@ struct BurnOpportunity: Equatable, Sendable {
         guard timeUntilReset >= NotificationScheduler.minimumUsefulLead else { return nil }
         // …and enough quota left to be worth using.
         guard remaining >= rule.minimumRemainingPercent else { return nil }
+        // …and a week that can still absorb it. The same rule as the
+        // reminder's, so the icon never calls a window worth spending that the
+        // reminder declined to announce.
+        if let weekly = snapshot.weeklyWindow?.remainingPercent {
+            guard weekly >= rule.minimumRemainingPercent else { return nil }
+        }
 
         return BurnOpportunity(kind: window.kind, remainingPercent: remaining, resetAt: resetAt)
     }

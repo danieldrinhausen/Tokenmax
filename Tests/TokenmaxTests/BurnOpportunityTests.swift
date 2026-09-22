@@ -7,11 +7,27 @@ import Testing
 struct BurnOpportunityTests {
     private let now = Date(timeIntervalSince1970: 1_785_500_000)
 
-    private func snapshot(remaining: Double, resetInMinutes: Double?) -> UsageSnapshot {
-        UsageSnapshot(
+    private func snapshot(
+        remaining: Double,
+        resetInMinutes: Double?,
+        weeklyRemaining: Double? = nil
+    ) -> UsageSnapshot {
+        let weekly = weeklyRemaining.map {
+            UsageWindow(
+                id: "claude.weekly",
+                kind: .weekly,
+                label: "Weekly",
+                usedPercent: 100 - $0,
+                resetAt: now.addingTimeInterval(3 * 24 * 3600),
+                observedAt: now,
+                source: .claudeOAuth,
+                confidence: .authoritative
+            )
+        }
+        return UsageSnapshot(
             providerID: "claude-code",
             planName: "Pro",
-            windows: [
+            windows: [weekly].compactMap { $0 } + [
                 UsageWindow(
                     id: "claude.session",
                     kind: .session,
@@ -44,11 +60,12 @@ struct BurnOpportunityTests {
     private func evaluate(
         remaining: Double = 40,
         resetInMinutes: Double? = 30,
+        weeklyRemaining: Double? = nil,
         settings: AppSettings? = nil,
         isStale: Bool = false
     ) -> BurnOpportunity? {
         BurnOpportunity.evaluate(
-            snapshot: snapshot(remaining: remaining, resetInMinutes: resetInMinutes),
+            snapshot: snapshot(remaining: remaining, resetInMinutes: resetInMinutes, weeklyRemaining: weeklyRemaining),
             settings: settings ?? self.settings(),
             isStale: isStale,
             now: now
@@ -78,6 +95,19 @@ struct BurnOpportunityTests {
     @Test("Stays dark when there is not enough quota left to matter")
     func inactiveBelowMinimum() {
         #expect(evaluate(remaining: 5) == nil)
+    }
+
+    /// Session quota the week cannot absorb is not an opportunity; the icon
+    /// must not advertise what the reminder declined to announce.
+    @Test("Stays dark when the week is below the minimum")
+    func inactiveWhenWeekTooLow() {
+        #expect(evaluate(remaining: 60, weeklyRemaining: 5) == nil)
+    }
+
+    @Test("Lights up when the week still has quota, or reports no figure")
+    func activeWithHealthyOrUnknownWeek() {
+        #expect(evaluate(weeklyRemaining: 50) != nil)
+        #expect(evaluate(weeklyRemaining: nil) != nil)
     }
 
     /// The glow is a claim about live quota; making it on stale data would be

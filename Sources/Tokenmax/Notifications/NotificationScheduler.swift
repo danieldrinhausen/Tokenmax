@@ -23,6 +23,9 @@ enum SchedulingDecision: Equatable, Sendable {
         /// Nothing to remind about, and nothing wrong.
         case windowNotStarted
         case notEnoughQuotaLeft
+        /// The session has quota left, but the week it draws from does not.
+        /// Spending the session would only exhaust the week early.
+        case notEnoughWeeklyQuotaLeft
         case queueEmpty
         case alreadyFiredForWindow
         case quietHours
@@ -111,6 +114,10 @@ enum NotificationScheduler {
         /// so `rule.onlyWhenTasksQueued` is ignored rather than silently
         /// suppressing every reminder, and the banner drops the task phrase.
         var queueEnabled: Bool = true
+        /// The same provider's weekly remaining, consulted for a session
+        /// reminder only. nil when the plan reports no week, or reports it
+        /// without a figure — there is then no ceiling to warn against.
+        var weeklyRemainingPercent: Double? = nil
         var alreadyFired: Bool
         var now: Date
     }
@@ -172,6 +179,17 @@ enum NotificationScheduler {
         let remaining = input.window.remainingPercent ?? 0
         guard remaining >= input.rule.minimumRemainingPercent else {
             return .skip(reason: .notEnoughQuotaLeft)
+        }
+
+        // A session is a slice of the week, not extra quota on top of it. "Use
+        // it before it resets" is wrong advice when the week is nearly gone:
+        // the session's unspent share is not being wasted, it was never really
+        // there. The same minimum applies, because it already says what "worth
+        // spending" means to this user.
+        if input.window.kind == .session,
+           let weekly = input.weeklyRemainingPercent,
+           weekly < input.rule.minimumRemainingPercent {
+            return .skip(reason: .notEnoughWeeklyQuotaLeft)
         }
 
         if input.queueEnabled, input.rule.onlyWhenTasksQueued, input.queuedTaskCount == 0 {

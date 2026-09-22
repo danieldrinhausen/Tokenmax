@@ -426,9 +426,15 @@ Reminders are suppressed for named reasons, and every skip is logged. Run
 | unknown reset | No reset timestamp to schedule against |
 | fire time passed | The moment had already gone when scheduling ran |
 | below minimum quota | Less than your configured minimum remained |
+| weekly quota below minimum | Session reminders only: the session had quota, but the week it draws from was below the same minimum |
 | queue empty | You asked to be told only when tasks are queued |
 | already fired | This window already notified |
 | quiet hours | The fire time landed inside them |
+
+If a session reminder says **weekly quota is below your minimum** while the
+session meter shows plenty left, that is deliberate: the week caps what the
+session can actually spend. The "good time to spend" highlight stays dark for the
+same reason. Lower the rule's minimum quota if you still want to hear about it.
 
 If it says **already fired**, Settings shows the delivery time
 ("Already notified at 16:09"). Changing any rule that produced it re-arms the

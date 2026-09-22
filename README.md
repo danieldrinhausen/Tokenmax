@@ -110,7 +110,9 @@ configured the fixed alert orange steps aside, since the reminder case now has i
 competing warm colours on a 2.2pt arc are worse than one.
 
 When the session window is inside your reminder lead time and still holds usable quota, the meters
-light up: "now is a good moment to spend this". Settings → General → **Highlight** picks the
+light up: "now is a good moment to spend this". The weekly window has to clear the same minimum:
+a session is a slice of the week rather than quota on top of it, so session quota left inside an
+almost-spent week is not about to be wasted — spending it would only end the week early. Settings → General → **Highlight** picks the
 colour (six presets, or any colour via the system picker), optionally adds a glow, and can switch
 the whole signal off so the icon stays plain at all times. The colour is shared with the matching
 banner in the popover. Because menu bar contrast follows your *wallpaper* rather than the
@@ -461,6 +463,11 @@ lookup miss and deliver a second banner for the same window.
 Reminders are suppressed when the data is stale, the reset time is unknown, the fire time has
 passed, less than the minimum quota remains, the queue is empty (if configured), the window already
 fired, or the fire time lands inside quiet hours. Every skip is logged with its reason.
+
+A **session** reminder also stays quiet while the same provider's **week** is below the rule's
+minimum quota. "Use it before it resets" is the wrong advice when the week cannot absorb it: the
+session's unspent share was never really available. A plan that reports no weekly figure has no
+ceiling to check, so its session reminders are unaffected.
 
 **"Already notified" respects a rule change.** The fired record stores the lead time, minimum
 quota and queue requirement that produced it. Editing any of them re-arms the current window

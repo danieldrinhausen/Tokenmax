@@ -87,6 +87,7 @@ extension SchedulingDecision.SkipReason {
         case .noResetTime: "No reminder — reset time unknown"
         case .windowNotStarted: "No session running — starts with your next prompt"
         case .notEnoughQuotaLeft: "No reminder — below your minimum quota"
+        case .notEnoughWeeklyQuotaLeft: "No reminder — weekly quota is below your minimum"
         case .queueEmpty: "No reminder — queue is empty"
         case .alreadyFiredForWindow: "Already notified for this window"
         case .quietHours: "No reminder — quiet hours"

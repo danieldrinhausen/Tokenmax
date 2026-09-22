@@ -303,7 +303,9 @@ you have chosen a threshold; weekly-only plans keep the choice for a future plan
 change but cannot schedule it without a reported session window.
 
 Then set **minimum quota** — below this, staying quiet is the right answer. There
-is no point being told that 4% remains.
+is no point being told that 4% remains. For a session rule the floor applies to
+the week too: 60% of a session inside a week with 5% left is not worth an alert,
+because the week runs out long before the session would.
 
 Two behaviours worth knowing before you tune anything:
 

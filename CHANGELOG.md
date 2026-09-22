@@ -5,6 +5,12 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Session reminders and the "good time to spend" highlight now check the week.** A session
+  with 60% left inside a week with 5% left was announced as quota about to be wasted, though
+  the week would run out long before the session did. Both now also require the same
+  provider's weekly window to clear the session rule's minimum quota; a skipped reminder says
+  "weekly quota is below your minimum". Plans that report no weekly figure are unaffected.
+
 - **Sign in to Claude from the popover.** When Tokenmax's saved credential is rejected, or Claude
   Code is signed out, the popover now offers **Sign In with Claude** in place of **Open Terminal +
   Copy Login**. It runs `claude auth login --claudeai` in the background, which opens Claude's

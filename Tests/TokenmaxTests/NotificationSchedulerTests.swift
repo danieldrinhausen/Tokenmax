@@ -33,16 +33,19 @@ struct NotificationSchedulerTests {
         isStale: Bool = false,
         queuedTaskCount: Int = 6,
         queueEnabled: Bool = true,
+        weeklyRemaining: Double? = nil,
+        kind: UsageWindowKind = .session,
         alreadyFired: Bool = false
     ) -> NotificationScheduler.Input {
         .init(
-            window: window(remaining: remaining, resetInMinutes: resetInMinutes),
+            window: window(remaining: remaining, resetInMinutes: resetInMinutes, kind: kind),
             rule: rule,
             remindersEnabled: remindersEnabled,
             quietHours: quietHours,
             isStale: isStale,
             queuedTaskCount: queuedTaskCount,
             queueEnabled: queueEnabled,
+            weeklyRemainingPercent: weeklyRemaining,
             alreadyFired: alreadyFired,
             now: now
         )
@@ -351,6 +354,45 @@ struct NotificationSchedulerTests {
         #expect(NotificationScheduler.decide(input(remaining: 5)) == .skip(reason: .notEnoughQuotaLeft))
     }
 
+    /// A session with 60% left inside a week with 5% left has nothing to
+    /// waste — spending it would only end the week early.
+    @Test("Skips a session reminder when the week is below the minimum")
+    func skipsWhenWeekTooLow() {
+        #expect(
+            NotificationScheduler.decide(input(remaining: 60, weeklyRemaining: 5))
+                == .skip(reason: .notEnoughWeeklyQuotaLeft)
+        )
+    }
+
+    @Test("A week at or above the minimum does not hold back the session reminder")
+    func weekAboveMinimumStillReminds() {
+        guard case .schedule = NotificationScheduler.decide(input(weeklyRemaining: 20)) else {
+            Issue.record("a week exactly at the minimum should not suppress")
+            return
+        }
+    }
+
+    /// Plans that report no week, or a week without a figure, have no ceiling
+    /// to warn against; treating that as empty would silence every reminder.
+    @Test("An unreported week does not hold back the session reminder")
+    func unknownWeekStillReminds() {
+        guard case .schedule = NotificationScheduler.decide(input(weeklyRemaining: nil)) else {
+            Issue.record("expected schedule without a weekly figure")
+            return
+        }
+    }
+
+    @Test("The weekly guard applies to session reminders only")
+    func weeklyGuardIgnoresWeeklyRule() {
+        var rule = ReminderRule.weeklyDefault
+        rule.enabled = true
+        rule.onlyWhenTasksQueued = false
+        let decision = NotificationScheduler.decide(
+            input(resetInMinutes: 600, rule: rule, weeklyRemaining: 5, kind: .weekly)
+        )
+        #expect(decision != .skip(reason: .notEnoughWeeklyQuotaLeft))
+    }
+
     @Test("Skips an empty queue when the rule requires queued tasks")
     func skipsEmptyQueue() {
         #expect(NotificationScheduler.decide(input(queuedTaskCount: 0)) == .skip(reason: .queueEmpty))
@@ -634,7 +676,7 @@ struct PendingRetentionTests {
     @Test("Decisions made from known data do cancel")
     func decidedReasonsCancelPending() {
         for reason: SchedulingDecision.SkipReason in [
-            .remindersDisabled, .ruleDisabled, .notEnoughQuotaLeft,
+            .remindersDisabled, .ruleDisabled, .notEnoughQuotaLeft, .notEnoughWeeklyQuotaLeft,
             .windowUnavailable, .queueEmpty, .alreadyFiredForWindow, .quietHours, .resetTooSoon,
         ] {
             #expect(reason.shouldCancelPending)
