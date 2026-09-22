@@ -21,7 +21,11 @@ notes if you would like it.
 Being explicit, because the answer is the basis of any threat model:
 
 **Credentials.** It reads the `Claude Code-credentials` keychain item to obtain
-an OAuth access token. macOS gates this behind an explicit user grant. The token
+an OAuth access token, through `/usr/bin/security` — the tool Claude Code writes
+the item with, which the item's access control already trusts, so there is no
+consent dialog. That is not a new exposure: any process running as you can issue
+the same command and get the same answer. If you do not want Tokenmax holding
+the token, **Settings → Data Source → Status line only** never reads it. The token
 is held in memory for the lifetime of a request, is **never written to disk**,
 and is **never refreshed** by Tokenmax — refreshing would race Claude Code's own
 refresh. It is sent to exactly one place: `api.anthropic.com`.

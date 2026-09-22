@@ -33,7 +33,7 @@ enum KeychainReadLog {
             case .denied: "read denied"
             case .interactionNotAllowed: "interaction unavailable; no dialog completed"
             case .malformed: "payload malformed"
-            case let .unexpected(status): "failed (OSStatus \(status))"
+            case let .unexpected(status): "failed (security exit \(status))"
             }
         }
     }

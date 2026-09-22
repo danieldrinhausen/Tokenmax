@@ -5,6 +5,15 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **The keychain prompt is gone.** Tokenmax now reads Claude Code's token through Apple's
+  `/usr/bin/security` tool — the one Claude Code writes the item with — instead of from its own
+  process. The item already trusts that tool and keeps trusting it through every token renewal,
+  so there is no dialog on first launch, after an update or rebuild, or the one-or-two-a-day that
+  followed Claude Code rotating its token, which no *Always Allow* or signing certificate could
+  stop. This gives up a consent dialog that protected nothing: any program running as you can read
+  the item the same way. **Status line only** remains for anyone who wants Tokenmax never to read
+  the token. [Why](docs/KEYCHAIN_PROMPT_DECISIONS.md#decision-7--read-through-the-tool-the-owner-already-trusts)
+
 ## [0.1.15] - 2026-09-22
 
 - **Codex's highlight follows the Codex session rule.** The "good time to spend" highlight read

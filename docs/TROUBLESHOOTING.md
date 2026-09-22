@@ -46,37 +46,34 @@ xattr -dr com.apple.quarantine /Applications/Tokenmax.app
 
 ### The keychain prompt comes back every time
 
-**When the prompt is expected, and when it is not.** For someone who answers
-**Always Allow**, these are the usual cases. Claude Code owns the item and its
-storage behaviour has changed between versions, so a prompt outside the table
-is worth reporting with the log evidence below, not declaring impossible:
+**It should not appear at all any more.** Tokenmax used to read the
+`Claude Code-credentials` item from its own process, and macOS keyed that grant
+to the app's code hash: it asked once per version you installed, once per build
+you compiled, and — the part nobody could fix with a button — again every time
+Claude Code renewed its token, because Claude Code's write to the item evicted
+Tokenmax's entry. That was the "one or two prompts a day at random moments".
 
-| Moment | Prompt expected? | Why |
-|---|---|---|
-| First launch ever | **Yes, once** | macOS has never seen this app read the item |
-| After installing a new version | **Yes, once** | The grant is keyed to the binary's code hash; a new version is a new hash |
-| After rebuilding it yourself | **Yes, once per build** | Same reason — every compile produces a new hash |
-| Starting the app (same binary and item) | No | The recorded grant still matches both |
-| Claude Code updating credentials in place | Normally no | An in-place data update should preserve the item's grant |
-| Claude Code recreating the item or its ACL | **Possibly once** | A replacement can discard third-party grants; this has varied across Claude Code/macOS versions |
-| A new session window starting | No | Window resets never touch the keychain |
-| Idle, sleep/wake, lock/unlock | No | None of these are keychain reads; a locked keychain defers the read, it does not prompt |
-| The endpoint rejecting the saved token | **At most once per renewal** | Tokenmax reads again only after Claude Code writes a new token, not on every tick while it waits |
-| After `claude logout` + login | **Possibly once** | If Claude Code recreates the item rather than updating it, the new item carries no grants |
+Tokenmax now reads the item through `/usr/bin/security`, the tool Claude Code
+itself writes it with. The item's access control already trusts that tool, and
+Claude Code's own writes keep it that way, so no read raises a dialog: not on
+first launch, not after an update or rebuild, not after a token renewal.
 
-Answer with **Allow** instead and the next keychain read asks again, because
-*Allow* covered only the read it was asked for. Tokenmax's memory cache delays
-that read until a relaunch, local expiry or a rejected token that Claude Code
-has since replaced, which makes the resulting prompts look random even though
-the rule is simply one read.
+**If a dialog does appear**, it will name `security` rather than Tokenmax, and
+it means this machine's item does not trust the tool — an unusual setup, such
+as an item created by something other than Claude Code. Answer it as you like:
+*Always Allow* records the grant for good, because the tool's identity never
+changes; *Deny* is taken at its word — Tokenmax remembers the answer for as long
+as it runs, the popover shows **Keychain access denied**, and clicking
+**Refresh** there is what re-opens the question. A denial never brings the
+dialog back on a timer. A dialog left unanswered for a minute is abandoned and
+retried later, never treated as a denial.
 
-**Why a rejected token no longer means a prompt every five minutes.** A refused
+**Why a rejected token does not mean a read every five minutes.** A refused
 credential used to send Tokenmax straight back to the keychain on the next
 tick, which could only return the same refused credential — Claude Code had not
-written a new one yet — while costing a dialog each time for anyone who
-answered *Allow*. Tokenmax now records when Claude Code last wrote the item and
+written a new one yet. Tokenmax now records when Claude Code last wrote the item and
 waits for that timestamp to move before reading again. The item's modification
-date is an attribute rather than the secret, so watching it needs no consent.
+date is an attribute rather than the secret, so watching it costs nothing.
 In the log the wait opens with `waiting for Claude Code to rewrite the item
 before reading again` and closes with a read triggered by `Claude Code rewrote
 the item after the token was rejected`. If you would rather not wait,
@@ -86,77 +83,25 @@ the item after the token was rejected`. If you would rather not wait,
 `make logs` (or read `~/Library/Application Support/Tokenmax/logs/tokenmax.log`)
 and look for `keychain:` lines. Each read logs why it happened (`nothing
 cached yet`, `cached token expired`), what came back, how long it took —
-and duration is useful evidence: a read served from a grant normally answers
-in milliseconds and is logged `silent`, while a slow read is logged `likely
-waited on a consent dialog`. Timing cannot prove which system UI appeared, so
-the log deliberately says *likely*. Each line also carries when Claude Code
-last modified the item, and every launch
-logs the binary's `cdhash` — if the hash differs from the previous launch
-line, the next prompt is the expected once-per-build one. When reporting a
-prompt that seems wrong, these lines are exactly what to include.
-
-**First, check which button you pressed.** The macOS dialog offers *Deny*,
-*Allow* and *Always Allow*, and only **Always Allow** writes a grant for the
-current item. *Allow* authorises that one read — Tokenmax holds the result in
-memory, but must consult the item again after a relaunch, local expiry or
-rejected cached token. If the prompt returns a few times a day at seemingly
-random moments, this is the first thing to rule out. Answer the next one with
-**Always Allow**.
-
-*Deny* is taken at its word. Tokenmax remembers the answer for as long as it
-runs and stops asking; the popover shows **Keychain access denied**, and
-clicking **Refresh** there is what re-opens the question. A denial never brings
-the dialog back on a timer.
-
-A wrong answer is merely annoying rather than unusable: nothing is written to
-disk, and a token the endpoint rejects is dropped immediately.
-
-**You build it yourself.** Expect one prompt per build. macOS records the grant
-against the app's **code hash**, which changes every time you compile, so each
-new binary is a program it has never seen. Nothing is wrong; the previous grant
-simply does not apply to the build you just made.
-
-A self-signed certificate does *not* avoid this, despite giving the bundle a
-stable designated requirement. Measured on the live item on a cert-signed build:
-the decrypt ACL for `Claude Code-credentials` held 89 trusted-application
-entries, 87 of them Tokenmax build paths, and the item's partition list held
-exactly `apple-tool:` plus a *single* `cdhash:` — one Tokenmax build and
-nothing else. Note *single*, and note that it need not be the build you are
-running: on the measured machine it named the previously granted binary while a
-newer one was installed, which is precisely why that newer one prompted. The
-reason is visible in `codesign`: a self-signed certificate carries **no Team
-Identifier**, so the only stable-looking thing macOS has to key a grant to is
-the per-build hash. A
-Developer ID-signed app in the same ACL, which does have a Team Identifier, got
-a single entry that has survived its updates.
-
-The certificate is still worth having — it is what keeps macOS *file-access*
-grants from being discarded, the failure that strands an unattended run — but it
-does not stop the keychain re-prompt. A rebuild-heavy session means a prompt per
-rebuild, and it settles as soon as you stop rebuilding.
-
-**You installed a release and it re-prompts.** One prompt per downloaded version
-is normal, for the same reason — a new version is a new binary, with a new hash.
-If it asks again for a version you have already allowed **with Always Allow**,
-that is a bug: check that the bundle identifier has not changed and file an
-issue with your macOS version.
-
-**What would actually end it** is signing with an Apple-anchored certificate
-(Developer ID, which carries a Team Identifier), so the grant can attach to a
-requirement that stays true across versions rather than to a hash that does not.
-That needs the paid Apple Developer Program and has not been done yet; see
-[docs/RELEASING.md](RELEASING.md#deferred-on-purpose).
+and duration is useful evidence: a read the item's access control serves
+answers in milliseconds and is logged `silent`, while a slow read is logged
+`likely waited on a consent dialog`. Timing cannot prove which system UI
+appeared, so the log deliberately says *likely*. Each line also carries when
+Claude Code last modified the item. When reporting a dialog, these lines are
+exactly what to include, along with the output of
+`security find-generic-password -s "Claude Code-credentials" -w >/dev/null && echo ok`
+run in Terminal — if that asks too, the item itself does not trust the tool.
 
 **What not to do:** "Allow all applications to access this item" in Keychain
 Access does silence it, by handing your Claude OAuth refresh token to every
-program on the machine. Do not.
+program on the machine without even the `security` tool in between. Do not.
 
-**If you want the dialog gone regardless of buttons and certificates:**
-**Settings → Data Source → Status line only** never reads the keychain, so
-macOS has nothing to ask about. The trade is real — readings only update while
-a Claude Code session is answering, and the opener and automatic runs pause —
-but for a machine that mostly wants a meter, it is the honest zero-prompt
-option. Install the status-line shim first or the meters will read unknown.
+**If you do not want Tokenmax reading the token at all:**
+**Settings → Data Source → Status line only** never reads the keychain. The
+trade is real — readings only update while a Claude Code session is answering,
+and the opener and automatic runs pause — but for a machine that mostly wants a
+meter, it is an honest option. Install the status-line shim first or the
+meters will read unknown.
 
 ### The app launches but nothing appears
 
@@ -291,10 +236,11 @@ Work through these in order:
 
 1. **Is Claude Code logged in?** Run `claude auth status`. Tokenmax reads the
    token that login stores; without it there is nothing to read.
-2. **Was the keychain prompt declined?** The popover says **Keychain access
-   denied** if so. Tokenmax takes a *Deny* at its word and stops asking — click
-   **Refresh** in the popover to be asked again. Open **Keychain Access** and
-   check Tokenmax under the item's Access Control if it still fails.
+2. **Was a keychain dialog declined?** Normally there is none, but on a machine
+   whose item does not trust `/usr/bin/security` one appears, and the popover
+   says **Keychain access denied** if it was answered *Deny*. Tokenmax takes
+   that at its word and stops asking — click **Refresh** in the popover to be
+   asked again.
 3. **Is the data source set to Status line only, without the shim?** In that
    mode the only source is the file the shim writes; if the shim is not
    installed — or no Claude Code session has answered since — there is nothing
@@ -515,9 +461,9 @@ Folders**.
 keyed to the code signature, and ad-hoc signing produces a new one each time, so
 the permission does not carry over. A
 [self-signed certificate](../README.md#building-a-release) fixes this one, and it
-is the reason to bother with the certificate at all. It does *not* fix the
-keychain prompt, which macOS keys to the code hash regardless — see
-[The keychain prompt comes back every time](#the-keychain-prompt-comes-back-every-time).
+is the reason to bother with the certificate at all. The keychain is not
+affected either way: Tokenmax reads it through `/usr/bin/security`, whose
+identity does not change with your build.
 
 ### Will it keep asking for folder permission?
 

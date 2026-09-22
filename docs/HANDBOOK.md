@@ -21,22 +21,14 @@ launch it, and every other feature is off until you turn it on.
 
 ## The first ten minutes
 
-**1. Launch it and answer the keychain prompt.**
+**1. Launch it.**
 
-macOS asks once for access to the `Claude Code-credentials` keychain item. That
-prompt *is* Tokenmax reading your quota — decline it and the meters stay empty
-(Tokenmax takes the no and stops asking until you click Refresh yourself).
-Choose **Always Allow**, not *Allow*: only *Always Allow* records a grant, and
-*Allow* covers only that read. Tokenmax's in-memory cache delays the next
-question until it must consult the item again, normally after a relaunch,
-expiry or rejected token.
+There is no keychain dialog. Tokenmax reads Claude Code's token through Apple's
+`security` tool, which Claude Code writes the item with and macOS therefore
+already trusts for it — so the meters fill without a question, and stay that
+way across updates, rebuilds and Claude Code's token renewals.
 
-If the prompt returns after every rebuild, that is expected for a locally built
-copy and is not a bug. The README's [Building a
-release](../README.md#building-a-release) section explains the one-time
-certificate fix.
-
-If you would rather never see the dialog at all, there is a
+If you would rather Tokenmax never read the token at all, there is a
 [recipe](#recipes) for that — status-line-only monitoring, at the cost of
 background freshness and automation.
 
@@ -528,10 +520,9 @@ run late.
 Enable the session opener with a delay that lands it before you sit down. Accept
 that the five-hour clock starts when it fires, not when you arrive.
 
-**"I want the meters, and macOS must never show me a keychain dialog."**
+**"I want the meters, but Tokenmax must never read my Claude token."**
 Install the status-line shim from **Settings → Data Source**, then switch the
-data source to **Status line only**. The keychain is never read, so there is
-nothing for macOS to ask about. The trade: readings update only while a Claude
+data source to **Status line only**. The keychain is never read. The trade: readings update only while a Claude
 Code session is answering, the per-model weeklies and plan name disappear, and
 the opener and automatic task runs pause — a mode that cannot poll cannot
 confirm what an unattended run just spent. Running a task by hand still works.

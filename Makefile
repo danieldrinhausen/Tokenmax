@@ -11,11 +11,11 @@ DMG        := $(DIST_DIR)/$(APP)-$(VERSION).dmg
 # A stable signing identity when one exists, ad-hoc otherwise.
 #
 # Ad-hoc means no certificate, so the bundle has no stable designated
-# requirement and both the keychain ACL and the app's TCC grants fall back to
-# the raw cdhash — which changes on every rebuild. macOS then treats each build
-# as a different program: "Always Allow" never sticks for the Claude
-# credentials, and file-access grants are thrown away, which makes an
-# unattended run block on a consent dialog nobody is there to answer.
+# requirement and the app's TCC grants fall back to the raw cdhash — which
+# changes on every rebuild. macOS then treats each build as a different
+# program and throws file-access grants away, which makes an unattended run
+# block on a consent dialog nobody is there to answer. (The Claude credentials
+# are read through /usr/bin/security, so the keychain never sees our hash.)
 #
 # Detected rather than left as a variable you must remember to pass. One
 # forgotten `SIGN_ID=` silently reinstates the whole problem, which is exactly

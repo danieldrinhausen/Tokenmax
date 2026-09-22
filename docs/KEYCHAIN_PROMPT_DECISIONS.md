@@ -80,6 +80,8 @@ picked, with the trade-offs in front of the person picking.
 **Rejected: suppressing the dialog with `kSecUseAuthenticationUISkip` or
 similar.** Reading the item without the possibility of consent is the wrong
 direction entirely; the dialog is the trust boundary, not an obstacle.
+*(Superseded by Decision 7: for this item the dialog was never a boundary,
+because the tool its owner trusts answers anyone who asks.)*
 
 **Why the mode must never touch the keychain, not just usually:** the mode's
 entire value is a promise — "macOS has nothing to ask about". One quiet
@@ -282,6 +284,52 @@ per-build re-ask is a partition-list effect, and mechanism 3's conclusion
 (only Developer ID fixes it) is right for a reason the docs had not identified.
 The lesson worth keeping: the trusted-app list looking healthy says nothing
 about whether reads will prompt, because the two are keyed separately.
+
+## Decision 7 — read through the tool the owner already trusts
+
+**Shipped:** `ClaudeKeychain.performRead` runs
+`/usr/bin/security find-generic-password -s "Claude Code-credentials" -w`
+instead of calling `SecItemCopyMatching` with `kSecReturnData`. Everything
+above it — the cache, the denial memory, the rotation and expiry gates — is
+unchanged.
+
+**Why it works.** The measurements above already contained the answer. Claude
+Code writes this item with `/usr/bin/security`, so the tool is in the decrypt
+ACL and covered by the partition list's `apple-tool:` entry — both put there by
+the owner, and both kept by the owner's own writes, which is precisely what
+Tokenmax's `cdhash:` entry was not. A read from the tool matches entries that
+never churn; a read from our process matched one that every rotation evicted.
+Confirmed on the measuring machine: the command prints the secret with no
+dialog. Monocode (hardbeat920/monocode) reads the item this way and was the
+prompt to look.
+
+**Why this was not done sooner.** Two framings hid it. Every investigation
+asked how to make *Tokenmax's* identity stable — self-signed certificate, Team
+ID, Developer ID canary — and never who else could do the read. And Decision 2
+had ruled that the dialog is a trust boundary, so a route with no dialog looked
+like circumvention and was not examined. It is not circumvention: the ACL is
+the owner's statement of who may read the item, and the owner named this tool.
+Any process running as the user can run it and get the same answer silently,
+which also means the dialog was protecting nothing from anything that could
+already run code as the user.
+
+**What it gives up.** The dialog, and with it the *Deny* choice on a normal
+machine. **Status line only** is the answer for anyone who does not want
+Tokenmax holding the token; it is unchanged and still never reads. The denial
+path stays because an item that does *not* trust the tool — one written by
+something other than Claude Code — makes `security` raise the same dialog,
+and there the old rules apply.
+
+**How the tool's result maps.** `security` reports text on stderr and small
+exit codes, not an `OSStatus`: exit 44 is a missing item; "User canceled" is
+the only answered-dialog signal and the only route to `accessDenied`; "User
+interaction is not allowed" and a tool killed at its 60-second deadline are
+transient, because a dialog nobody answered is not a denial. Anything else is
+`unexpected(exit status)`. The mapping is a pure function with tests.
+
+**Hardening that is not optional.** The tool is launched by absolute path —
+a `PATH` lookup would hand the token to whatever sits earlier on the path —
+with an empty environment and no stdin.
 
 ## What was deliberately not done
 

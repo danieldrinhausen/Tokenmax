@@ -117,7 +117,7 @@ if security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1; 
     blob="$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null || true)"
     if [ -z "$blob" ]; then
         warn "keychain item exists but could not be read without prompting"
-        note "Expected when Tokenmax is ad-hoc signed; see Makefile:12"
+        note "Tokenmax reads the same way, so it will hit a dialog too; the item does not trust /usr/bin/security"
     elif printf '%s' "$blob" | grep -q "claudeAiOauth"; then
         pass "credential item present and still shaped as claudeAiOauth"
         for key in accessToken refreshToken subscriptionType; do

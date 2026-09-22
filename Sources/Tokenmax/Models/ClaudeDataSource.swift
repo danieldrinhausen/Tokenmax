@@ -2,16 +2,17 @@ import Foundation
 
 /// Where the Claude quota numbers come from.
 ///
-/// This choice exists because of the keychain consent dialog. Reading the
-/// OAuth token is the accurate source — pollable any time, exact, and the only
-/// one that reports the per-model weeklies, the plan name and the extra-usage
-/// flag — but the item belongs to another app, so macOS asks, and an *Allow*
-/// answer authorises only that one read. The
-/// status line is the documented source and needs no permission at all; it
-/// just goes quiet whenever Claude Code is not answering.
+/// Reading the OAuth token is the accurate source — pollable any time, exact,
+/// and the only one that reports the per-model weeklies, the plan name and the
+/// extra-usage flag — but it means Tokenmax holds another app's credential.
+/// The choice was born of the keychain consent dialog, which reading through
+/// `/usr/bin/security` has since removed; it stays for anyone who would rather
+/// Tokenmax never held the token. The status line is the documented source and
+/// needs no credential at all; it just goes quiet whenever Claude Code is not
+/// answering.
 enum ClaudeDataSource: String, Codable, Sendable, CaseIterable, Identifiable {
     /// Read the OAuth token from the login keychain and poll the usage
-    /// endpoint. Works in the background; may raise consent dialogs.
+    /// endpoint. Works in the background.
     case keychain
     /// Read only the file the statusline shim writes. Tokenmax never touches
     /// the keychain in this mode — that is the mode's entire promise, which is

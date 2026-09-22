@@ -175,20 +175,30 @@ off the main actor through `ClaudeDataSourceFlag` (the one word of settings
 that has to cross that boundary — `fetchUsage` cannot touch
 `SettingsStore.settings`). Under `statuslineOnly` the keychain is never read —
 by `fetchUsage`, `checkAuthentication` or the model-catalog refresh — because
-the mode's entire promise is that macOS has nothing to ask consent for; a
-quiet fallback to a credential read anywhere would break it. The mode also
+the mode's entire promise is that Tokenmax never holds the token; a quiet
+fallback to a credential read anywhere would break it. The mode also
 adds a named suppression to both spend decisions
 (`statuslineOnlyMonitoring` in `QueueAutoRunDecision` and
 `SessionOpenerDecision`): a source that cannot be polled cannot confirm what
 an unattended run just spent, and ambiguity on a spending path resolves to
 "do not spend".
 
-The keychain read itself sits behind `ClaudeCredentialCache`, which besides
-caching credentials remembers an explicit *Deny* for the rest of the launch —
-`errSecUserCanceled`/`errSecAuthFailed` map to `accessDenied` and are
-replayed without touching the keychain again, while
-`errSecInteractionNotAllowed` (a locked keychain during a background tick)
-stays transient and is retried. A manual Refresh clears the remembered
+The secret itself is read by running `/usr/bin/security find-generic-password
+-w`, not `SecItemCopyMatching`. Claude Code writes the item with that tool, so
+the item's decrypt ACL and its `apple-tool:` partition entry already trust it
+and survive every rewrite; a read from Tokenmax's own process was keyed to a
+per-build cdhash that each Claude Code token rotation evicted, which is why it
+prompted about twice a day. `ClaudeKeychain.credentials(fromSecurityExit:…)`
+maps the tool's exit status and stderr onto the existing errors, as a pure
+function so it is tested without the keychain.
+
+That read sits behind `ClaudeCredentialCache`, which besides caching
+credentials remembers an explicit *Deny* for the rest of the launch — reachable
+only on a machine whose item does not trust the tool, where `security` raises
+the dialog itself. "User canceled" maps to `accessDenied` and is replayed
+without touching the keychain again, while "User interaction is not allowed"
+(a locked keychain during a background tick) and a tool killed after its
+60-second deadline stay transient and are retried. A manual Refresh clears the remembered
 denial; nothing else does. The distinction is load-bearing: caching the
 transient case would switch monitoring off because a screen was locked at the
 wrong moment.
@@ -388,8 +398,13 @@ between network calls.
 (`claudeAiOauth` → `accessToken` / `refreshToken` / `expiresAt` /
 `subscriptionType`).
 
+The secret is read through `/usr/bin/security`, so the tool's output format
+(`-w` printing the stored JSON, exit 44 for a missing item) is part of this
+coupling too; `make doctor` reads it the same way.
+
 Every reader goes through one shared `ClaudeCredentialCache`, because each read
-can raise a consent dialog and there is more than one reader (usage refresh,
+spawns a process — and can raise a consent dialog on a machine whose item does
+not trust the tool — and there is more than one reader (usage refresh,
 model catalog). It caches successes only — never a denial, never a `notFound`,
 which would turn "not logged in yet" into a state only a relaunch clears — hands
 nothing out past its own `expiresAt`, and is dropped when the endpoint answers

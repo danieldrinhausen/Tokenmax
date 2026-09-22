@@ -746,12 +746,12 @@ struct DataSourceSettingsView: View {
                         LabeledContent("Credentials") {
                             Text("macOS Keychain")
                         }
-                        Text("Reads the OAuth token Claude Code already stores in your login keychain, so readings work in the background and include the per-model weeklies, your plan and the usage-credit flag. macOS asks for permission; “Allow” covers one read, while “Always Allow” records a grant for the current item. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
+                        Text("Reads the OAuth token Claude Code already stores in your login keychain, so readings work in the background and include the per-model weeklies, your plan and the usage-credit flag. It is read through Apple’s security tool, which Claude Code stores it with, so macOS does not ask for permission. Nothing is sent anywhere except Anthropic, and no credentials are written to disk by Tokenmax.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Text("Reads only the file the status line shim writes, so Tokenmax never touches the keychain and macOS never asks for anything. Readings update while a Claude Code session is answering and go stale when it is not; the per-model weeklies, the plan name and the usage-credit flag are not reported. The session opener and unattended runs are paused in this mode, because neither can confirm quota without the endpoint. Running a task by hand still works.")
+                        Text("Reads only the file the status line shim writes, so Tokenmax never touches the keychain or holds your Claude token. Readings update while a Claude Code session is answering and go stale when it is not; the per-model weeklies, the plan name and the usage-credit flag are not reported. The session opener and unattended runs are paused in this mode, because neither can confirm quota without the endpoint. Running a task by hand still works.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

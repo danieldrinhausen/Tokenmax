@@ -153,14 +153,12 @@ first launch is refused with *"Apple could not verify…"* because the app is si
 notarized: **System Settings → Privacy & Security → Open Anyway**. Once per version,
 [details below](#install).
 
-**2. Allow the keychain prompt.** macOS asks for the `Claude Code-credentials` item. That
-prompt *is* Tokenmax reading your quota — choose **Always Allow**, not *Allow*. *Allow*
-covers a single read, so the dialog returns when Tokenmax next has to consult the item —
-normally after a relaunch, token expiry or a rejected cached token. **Always Allow** records
-a grant for the current item. Decline it and the meters stay empty —
-and Tokenmax takes the no: it stops asking until you click Refresh yourself. If you would
-rather macOS never asked at all, **Settings → Data Source** has a status-line-only mode
-that never touches the keychain — [the trade-offs](#where-the-quota-data-comes-from).
+**2. There is no keychain prompt.** Tokenmax reads the `Claude Code-credentials` item
+through Apple's `security` tool — the same tool Claude Code writes it with, which macOS
+already trusts for that item — so nothing asks, not on first launch, not after an update,
+not when Claude Code renews its token. If you would rather Tokenmax never read the
+credential at all, **Settings → Data Source** has a status-line-only mode — [the
+trade-offs](#where-the-quota-data-comes-from).
 
 **3. Look at the menu bar.** Out of the box that is two bars — Claude session over Claude
 week — and a countdown to the session reset. It is only a starting point; step 5 changes
@@ -227,13 +225,10 @@ launch is refused with "Apple could not verify … is free of malware". To allow
 
 Terminal equivalent, if you prefer: `xattr -dr com.apple.quarantine /Applications/Tokenmax.app`.
 
-macOS will then prompt once for access to the `Claude Code-credentials` keychain item — that is
-Tokenmax reading your quota. Choose **Always Allow**, which is the only button that records a
-grant for the current item: *Allow* covers one read, and the dialog returns when Tokenmax next
-has to consult the keychain.
-If it is already returning, [The keychain prompt comes back every
-time](docs/TROUBLESHOOTING.md#the-keychain-prompt-comes-back-every-time) explains what to do. See
-also [Where the quota data comes from](#where-the-quota-data-comes-from).
+There is no keychain dialog to answer: Tokenmax reads your quota token without one. If a dialog
+about `Claude Code-credentials` does appear, [The keychain prompt comes back every
+time](docs/TROUBLESHOOTING.md#the-keychain-prompt-comes-back-every-time) explains why. See also
+[Where the quota data comes from](#where-the-quota-data-comes-from).
 
 ### Folder access
 
@@ -284,15 +279,17 @@ state. Tokenmax uses two real sources instead, and **Settings → Data Source** 
 | Status line only | Claude Code `statusLine` hook | Documented | Only during a session | Never touched |
 
 **macOS Keychain** reads the OAuth token Claude Code already stores in your login keychain
-(`Claude Code-credentials`). **macOS prompts once per version** — choose *Always Allow*. The grant
-is bound to the app's code hash, so it asks again for each new binary: once per release you install,
-and once per rebuild if you are compiling it yourself. A code-signing certificate does not change
-this — see [Building a release](#building-a-release). Answer with *Allow* instead and only that read
-is authorised; the in-memory cache delays the next question until a relaunch or expiry. A token the
-endpoint rejects no longer counts: Tokenmax waits for Claude Code to actually write a new one before
-reading again, since until then the keychain holds the same rejected token and the read could only
-cost a dialog. Some Claude Code/macOS versions have also been reported to recreate the item or its
-access control during credential maintenance, which can discard even an *Always Allow* grant.
+(`Claude Code-credentials`), and **macOS does not prompt for it**. The read goes through
+`/usr/bin/security`, the tool Claude Code itself writes the item with, so the item's access control
+already trusts it — and keeps trusting it every time Claude Code renews the token. Earlier versions
+read the item from Tokenmax's own process instead, and macOS keyed that grant to the app's code hash:
+it asked again for every new build, and again every time Claude Code rewrote the item, roughly twice
+a day. No signing certificate could fix the second half; reading the way the owner does removes both.
+This is not a new exposure — any program running as you can run the same command and get the same
+answer — but it does mean there is no dialog to decline. If you do not want Tokenmax reading the
+token at all, use **Status line only** below. Tokenmax still reads rarely: the token is cached in
+memory, and after the endpoint rejects one Tokenmax waits for Claude Code to write a replacement
+rather than re-reading the same rejected token.
 
 Tokenmax never writes credentials to disk, never refreshes the token itself (that would race
 Claude Code's own refresh), and sends nothing anywhere except Anthropic.
@@ -313,9 +310,9 @@ for — the endpoint throttles hard without the exact `User-Agent: claude-code/<
 this keeps well inside safe limits. The popover still ticks every 60s; those ticks are served from
 cache.
 
-**Status line only** exists for people who want the consent dialog gone entirely. It reads nothing
-but the file the shim writes, so the keychain is never touched and macOS has nothing to ask about —
-not once, not per version. The trade is freshness and detail for silence: readings update only
+**Status line only** exists for people who do not want Tokenmax holding their Claude token at all.
+It reads nothing but the file the shim writes, so the keychain is never touched. The trade is
+freshness and detail for that: readings update only
 while a Claude Code session is answering and go stale in between, and the status line does not
 carry the per-model weeklies, the plan name or the usage-credit flag. Because a mode that cannot
 poll also cannot confirm what an unattended run just spent, the **session opener and automatic
@@ -764,15 +761,13 @@ make dmg                        # dist/Tokenmax-<version>.dmg
 Ad-hoc signing is the fallback, and it has one catch worth understanding: with no certificate the
 bundle has no stable *designated requirement*, so macOS identifies it by its raw code hash — which
 changes on every rebuild. Each build therefore looks like a different program, and every permission
-keyed to that identity is discarded:
+keyed to that identity is discarded. The one that matters: **file-access grants are thrown away**,
+so a task in Documents, Desktop or Downloads meets a consent dialog on its next run — and an
+unattended run has nobody to answer it, so it blocks until its runtime limit kills it. (The Claude
+credential is unaffected: Tokenmax reads it through `/usr/bin/security`, whose identity never
+changes.)
 
-- **"Always Allow" never sticks** for the Claude credentials.
-- **File-access grants are thrown away**, so a task in Documents, Desktop or Downloads meets a
-  consent dialog on its next run — and an unattended run has nobody to answer it, so it blocks until
-  its runtime limit kills it.
-
-A self-signed code-signing certificate fixes the second of those — free, and without an Apple
-Developer account:
+A self-signed code-signing certificate fixes this — free, and without an Apple Developer account:
 
 1. **Keychain Access → Certificate Assistant → Create a Certificate…** — name it `Tokenmax Dev`,
    Identity Type **Self Signed Root**, Certificate Type **Code Signing**. Override the defaults to
@@ -780,19 +775,10 @@ Developer account:
 2. Build normally. `make` **detects the identity automatically** — there is no flag to remember,
    because one forgotten `SIGN_ID=` silently reinstates the problem. Without a certificate the build
    falls back to ad-hoc, so a fresh clone still needs no setup. Force it with `make install SIGN_ID=-`.
-3. On the first launch after switching, grant the keychain and folder access once more — the new
-   identity is unknown to the existing grants.
+3. On the first launch after switching, grant folder access once more — the new identity is
+   unknown to the existing grants.
 
-**File-access grants then survive every rebuild. The keychain prompt does not.** Measured on the
-live item on a cert-signed build: 89 trusted-application entries for `Claude Code-credentials`, 87
-of them Tokenmax build paths, and a partition list holding exactly `apple-tool:` plus a *single*
-`cdhash:` — one build, which on the measured machine was not even the installed one, since the most
-recent prompt there had been answered with *Allow*. A self-signed certificate carries **no Team
-Identifier**, so macOS has nothing
-but the per-build hash to key a grant to; a Developer ID-signed app in the same ACL, which does have
-one, kept a single entry across its updates. So expect one keychain prompt per build you compile.
-It is the file-access half that the certificate is really buying, and that is the half an unattended
-run depends on.
+**File-access grants then survive every rebuild**, which is the half an unattended run depends on.
 
 You can confirm it took:
 

@@ -3,19 +3,14 @@ import Security
 
 /// Reads the OAuth credentials Claude Code stores in the login keychain.
 ///
-/// The item is owned by the `claude` binary, so the first read from Tokenmax
-/// triggers a macOS consent prompt. That grant is bound to our code signature,
-/// and because the bundle carries no Team ID macOS can only key it to the raw
-/// cdhash — which changes with every build. So the prompt returns once per
-/// binary: once per rebuild while developing, once per release a user installs.
-/// Only an Apple-anchored certificate would change that; see
-/// `docs/TROUBLESHOOTING.md`.
+/// The secret is read through `/usr/bin/security`, the tool Claude Code itself
+/// writes the item with, so macOS serves it without a consent dialog — see
+/// `performRead` for why reading from our own process could never manage that.
 ///
-/// What *is* fixed here is how often it can be asked. Every read is served
-/// through `ClaudeCredentialCache`, so a user who answers the dialog with
-/// *Allow* rather than *Always Allow* meets it once per launch instead of once
-/// per refresh tick — and a user who answers *Deny* is not asked again until
-/// they click Refresh themselves.
+/// Every read is still served through `ClaudeCredentialCache`, which keeps
+/// reads rare and keeps the denial handling for a machine whose item does not
+/// trust the tool: there `security` raises the dialog, and a user who answers
+/// *Deny* is not asked again until they click Refresh themselves.
 enum ClaudeKeychain {
     static let service = "Claude Code-credentials"
 
@@ -186,31 +181,70 @@ enum ClaudeKeychain {
         return attributes[kSecAttrModificationDate as String] as? Date
     }
 
+    /// Reads the secret through Apple's `security` tool rather than
+    /// `SecItemCopyMatching`, and that choice is the whole reason Tokenmax does
+    /// not prompt.
+    ///
+    /// Claude Code writes this item with `/usr/bin/security` itself, so the
+    /// tool is in the item's decrypt ACL and covered by its `apple-tool:`
+    /// partition entry — both put there by the owner, both kept across every
+    /// rewrite. A read from our own process has neither: its grant is keyed to
+    /// a cdhash that changes with every build, and each Claude Code token
+    /// rotation evicts it (measured: the first read after a rewrite prompted 15
+    /// times out of 15). No certificate fixes the second half; asking through
+    /// the tool the owner already trusts does.
+    ///
+    /// This gives up the consent dialog, which earlier decisions treated as a
+    /// trust boundary. For this item it never was one: any process the user
+    /// runs can issue the same command and get the same answer silently. See
+    /// `docs/KEYCHAIN_PROMPT_DECISIONS.md`, Decision 7.
     private static let performRead: @Sendable () throws -> Credentials = {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: ClaudeKeychain.service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
+        let output = runSecurity(["find-generic-password", "-s", ClaudeKeychain.service, "-w"])
+        return try credentials(fromSecurityExit: output.status, stdout: output.stdout, stderr: output.stderr)
+    }
 
-        var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+    /// Absolute on purpose: a `PATH` lookup would hand the user's token to
+    /// whatever sits earlier on the path.
+    static let securityTool = URL(fileURLWithPath: "/usr/bin/security")
 
-        switch status {
-        case errSecSuccess:
-            break
-        case errSecItemNotFound:
-            throw KeychainError.notFound
-        case errSecUserCanceled, errSecAuthFailed:
-            throw KeychainError.accessDenied
-        case errSecInteractionNotAllowed:
-            throw KeychainError.interactionNotAllowed
-        default:
+    /// How long a read may run before it counts as unanswered. Generous
+    /// because on a machine whose item does not trust the tool, `security`
+    /// raises the same consent dialog and has to wait for a human.
+    static let securityTimeout: TimeInterval = 60
+
+    /// Stands in for an exit status when the tool could not run or had to be
+    /// killed. Outside the 0–255 range a real exit produces, so it cannot
+    /// collide with one.
+    static let securityDidNotFinish: Int32 = -1
+
+    /// Turns the tool's result into credentials or the error the cache already
+    /// understands. Pure, so the mapping is testable without the keychain.
+    ///
+    /// `security` reports failures as text on stderr and a small exit code (44
+    /// for a missing item), not as an `OSStatus`, so the classification reads
+    /// the message. What matters is keeping `accessDenied` to an answered
+    /// dialog — the cache remembers that one — and everything environmental
+    /// out of it.
+    static func credentials(fromSecurityExit status: Int32, stdout: Data, stderr: Data) throws -> Credentials {
+        guard status == 0 else {
+            let message = String(data: stderr, encoding: .utf8) ?? ""
+            if status == 44 || message.contains("could not be found") {
+                throw KeychainError.notFound
+            }
+            if message.contains("User canceled") || message.contains("passphrase you entered is not correct") {
+                throw KeychainError.accessDenied
+            }
+            // A dialog nobody answered is not a denial; retry it like a blip.
+            if status == securityDidNotFinish || message.contains("User interaction is not allowed") {
+                throw KeychainError.interactionNotAllowed
+            }
             throw KeychainError.unexpected(status)
         }
 
-        guard let data = result as? Data else { throw KeychainError.malformed }
+        guard let data = String(data: stdout, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .data(using: .utf8)
+        else { throw KeychainError.malformed }
 
         do {
             let payload = try JSONDecoder().decode(Payload.self, from: data)
@@ -226,4 +260,62 @@ enum ClaudeKeychain {
             throw KeychainError.malformed
         }
     }
+
+    private static func runSecurity(_ arguments: [String]) -> (status: Int32, stdout: Data, stderr: Data) {
+        let process = Process()
+        process.executableURL = securityTool
+        process.arguments = arguments
+        // The tool needs nothing from the environment, and a child that will
+        // print the user's token has no business inheriting ours.
+        process.environment = [:]
+        process.standardInput = FileHandle.nullDevice
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        do {
+            try process.run()
+        } catch {
+            return (securityDidNotFinish, Data(), Data())
+        }
+
+        // Drained concurrently, as in `ClaudeCLIClient.run`: reading one pipe
+        // to EOF first can deadlock a child that fills the other.
+        let group = DispatchGroup()
+        let outputBox = SecurityOutputBox()
+        let errorBox = SecurityOutputBox()
+        group.enter()
+        DispatchQueue.global(qos: .utility).async {
+            outputBox.value = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            group.leave()
+        }
+        group.enter()
+        DispatchQueue.global(qos: .utility).async {
+            errorBox.value = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            group.leave()
+        }
+
+        let deadline = Date().addingTimeInterval(securityTimeout)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        var finished = true
+        if process.isRunning {
+            finished = false
+            process.terminate()
+            Thread.sleep(forTimeInterval: 0.5)
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+        }
+        process.waitUntilExit()
+        group.wait()
+
+        return (finished ? process.terminationStatus : securityDidNotFinish, outputBox.value, errorBox.value)
+    }
+}
+
+/// Carries a pipe's contents out of the worker that drained it.
+private final class SecurityOutputBox: @unchecked Sendable {
+    var value = Data()
 }

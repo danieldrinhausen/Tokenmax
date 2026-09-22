@@ -8,11 +8,11 @@ import Foundation
 /// writes a grant; *Allow* is good for that one read. Without a cache every
 /// refresh tick issued a fresh read — every 60s with the popover open, every
 /// 300s behind it, and twice over when the token looked expired — so anyone who
-/// took the middle button got a dialog a minute, forever. Measured on the live
-/// item: the grant is keyed to the build's cdhash because the bundle carries no
-/// Team ID, which is a separate problem this cannot fix (see
-/// `docs/TROUBLESHOOTING.md`). What it does fix is the *rate*: one read per app
-/// launch instead of one per tick.
+/// took the middle button got a dialog a minute, forever. Reads now go through
+/// `/usr/bin/security`, which the item already trusts, so the dialog is gone
+/// on a normal machine (see `ClaudeKeychain.performRead`); the cache still
+/// keeps reads to one per launch, and still carries the denial handling for an
+/// item that does not trust the tool.
 ///
 /// **What is deliberately not cached.** Failures — with one exception. Caching
 /// a `.notFound` would turn "not logged in when Tokenmax started" into a
