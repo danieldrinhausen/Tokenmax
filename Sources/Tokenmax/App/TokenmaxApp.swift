@@ -239,6 +239,7 @@ struct SharedEnvironment: ViewModifier {
             // Claude-only opener settings deliberately keep their narrowly
             // typed dependency while the rest of the app uses both providers.
             .environmentObject(usage.claude)
+            .environmentObject(usage.claudeSignIn)
             .environmentObject(notificationManager)
             .environmentObject(notificationCoordinator)
             .environmentObject(sideNotch)

@@ -94,6 +94,16 @@ if [ -n "$claude_bin" ]; then
         warn "stream-json not mentioned in --help"
         note "RunTranscript.swift parses this stream; verify before shipping."
     fi
+
+    # ClaudeSignIn.arguments (ClaudeSignIn.swift) pins the subscription login.
+    # Without the flag the sign-in button fails instead of falling back to a
+    # default that could one day mean API billing.
+    if "$claude_bin" auth login --help 2>&1 | grep -q -- "--claudeai"; then
+        pass "auth login still accepts --claudeai"
+    else
+        fail "auth login no longer lists --claudeai"
+        note "Sign In with Claude will fail. Fix ClaudeSignIn.arguments."
+    fi
 else
     warn "skipped — no CLI to ask"
 fi

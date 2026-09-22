@@ -298,8 +298,12 @@ An active Claude Code conversation can keep working while Tokenmax reports that 
 credential was rejected. The conversation may be using an existing connection, whereas Tokenmax
 can only use the credential Claude Code last wrote to the keychain. Tokenmax keeps checking and
 uses the status-line reading when one is available; it recovers automatically when Claude Code
-writes a replacement. If it does not, the popover's **Open Terminal + Copy Login** puts `claude
-login` on the pasteboard for a deliberate re-authentication.
+writes a replacement. If it does not, the popover's **Sign In with Claude** runs Claude Code's own
+`claude auth login`, which opens Claude's login page in your browser and writes the new login to
+the keychain when you approve it. Tokenmax never sees the sign-in or holds the token it produces;
+Claude Code does exactly what it does when you run the command in a terminal. Once the login
+lands, Tokenmax waits out the 180-second request floor below before asking for usage, because a
+request inside the floor would only replay the reading that was just rejected.
 
 Requests are floored at **one every 180 seconds** inside the client regardless of what the UI asks
 for — the endpoint throttles hard without the exact `User-Agent: claude-code/<version>` header, and

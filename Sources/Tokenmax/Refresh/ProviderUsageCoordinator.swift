@@ -12,6 +12,9 @@ final class ProviderUsageCoordinator: ObservableObject {
     let clock = CountdownClock()
     let claude: UsageRefreshCoordinator
     let codex: UsageRefreshCoordinator
+    /// Held here for the same reason as the clock: one instance, outliving any
+    /// popover, injected on its own so only the sign-in controls observe it.
+    let claudeSignIn: ClaudeSignInCoordinator
     private let settingsStore: SettingsStore
     private var cancellables: Set<AnyCancellable> = []
     private var hasStarted = false
@@ -24,6 +27,7 @@ final class ProviderUsageCoordinator: ObservableObject {
             provider: CodexProvider(), settingsStore: settingsStore,
             snapshotURL: FileLocations.codexUsageSnapshotFile
         )
+        claudeSignIn = ClaudeSignInCoordinator(usage: claude)
 
         // A reading on either child is a change to what this object reports,
         // so it has to reach the views. This forward used to carry the

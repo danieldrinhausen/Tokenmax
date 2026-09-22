@@ -319,8 +319,7 @@ labels it. Causes, in order of likelihood:
   credential Tokenmax reads remains old. Tokenmax deliberately never refreshes
   it, because that would race Claude Code's own refresh. It keeps checking and
   uses a status-line reading if one is available. Continue working and refresh;
-  if Claude Code does not write a replacement, choose **Open Terminal + Copy
-  Login** and paste `claude login`.
+  if Claude Code does not write a replacement, choose **Sign In with Claude**.
 - **No network.**
 
 Stale data is deliberately conservative: it suppresses pace projection and
@@ -349,8 +348,24 @@ invalidate each other's credentials.
 
 Keep working and click **Refresh**; Tokenmax also checks automatically and will
 use the status-line quota reading while one is available. If the saved
-credential remains rejected, choose **Open Terminal + Copy Login** in the
-popover, paste the copied `claude login` command, and complete the sign-in.
+credential remains rejected, choose **Sign In with Claude** in the popover and
+approve the login in the browser tab it opens. Tokenmax runs Claude Code's own
+`claude auth login` for this, so the new login belongs to Claude Code exactly
+as if you had typed the command.
+
+After you approve it the popover reads "Signed in. Checking usage at …" for up
+to three minutes. That is the request floor, not a hang: the rejected request
+started it, and asking sooner would only replay the rejected reading.
+
+### I clicked Sign In with Claude and nothing happened
+
+The login page opens in your default browser, which may have appeared behind
+other windows or on another Space. The popover says "Finish signing in in your
+browser…" while Tokenmax is waiting; **Cancel** stops the login, and it gives up
+by itself after ten minutes. If the page never opens, or the popover reports
+that the sign-in did not complete, run `claude auth login` in Terminal — it
+prints the login link and a place to paste a code, which Tokenmax cannot offer
+without a terminal.
 
 ### There is no Codex section at all
 

@@ -5,6 +5,15 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Sign in to Claude from the popover.** When Tokenmax's saved credential is rejected, or Claude
+  Code is signed out, the popover now offers **Sign In with Claude** in place of **Open Terminal +
+  Copy Login**. It runs `claude auth login --claudeai` in the background, which opens Claude's
+  login page in the browser; the popover says it is waiting, offers Cancel, and refreshes usage
+  once the login lands and the 180-second request floor has lifted. Claude Code still performs
+  and stores the login itself, so Tokenmax continues never to obtain or refresh a token of its
+  own. `--claudeai` is passed explicitly so a changed CLI default cannot move the login onto API
+  billing.
+
 ## [0.1.14] - 2026-09-13
 
 - **`make install` now builds Release.** It followed the default `CONFIG`, which is Debug, so

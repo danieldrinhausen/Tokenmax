@@ -90,6 +90,17 @@ that recovers those values from older identifiers, so the coordinator records
 the fingerprint of the exact Codex or Claude rule that fired rather than a
 provider-agnostic approximation.
 
+`ClaudeSignIn` holds the rules behind **Sign In with Claude** — the pinned
+`auth login --claudeai` arguments, the allowlisted environment, how an exit
+status becomes an outcome, and how long to wait before the post-login refresh.
+`ClaudeSignInCoordinator`, owned by `ProviderUsageCoordinator` so the login
+outlives the popover that started it, spawns the CLI and holds the timer. The
+login is Claude Code's, performed and stored by Claude Code: Tokenmax never
+sees the token it produces, so the "never refresh the token" invariant is
+untouched. The refresh waits for `nextNetworkRefreshAllowedAt`, because the
+rejected request started the client's floor and a replay inside it would not
+clear `isAwaitingTokenRenewal`.
+
 **Corollary:** when something decides *not* to act, the reason is a case in an
 enum with human-readable copy — never a bare `return`. The user sees it in
 Settings, it appears in the log, and it is assertable in a test. A new guard
@@ -323,7 +334,7 @@ likely each is to bite.
 ### 1. Claude Code CLI flags — highest risk
 
 `ClaudeTaskRunner.buildArguments` and `ClaudeOpenerRunner.arguments` pass about a
-dozen flags. CLI surfaces churn faster than APIs and carry no deprecation
+dozen flags; `ClaudeSignIn.arguments` passes `auth login --claudeai`. CLI surfaces churn faster than APIs and carry no deprecation
 contract.
 
 - **Failure mode:** every run fails instantly.

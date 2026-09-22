@@ -84,21 +84,15 @@ enum ManualRunService {
         }
     }
 
-    /// Opens the configured terminal at the user's home directory, optionally
-    /// leaving an explicit recovery command on the pasteboard.
+    /// Opens the configured terminal at the user's home directory.
     ///
     /// The recovery action behind "Claude Code is not installed" and friends:
     /// all of those are fixed by running `claude` somewhere, and somewhere is
     /// home. Failures are logged rather than raised — this is offered as a
     /// convenience beside an error message, and a second error on top of the
     /// first would not help anyone.
-    static func openTerminalForRecovery(application: String, commandToPaste: String? = nil) {
+    static func openTerminalForRecovery(application: String) {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        if let commandToPaste {
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            pasteboard.setString(commandToPaste, forType: .string)
-        }
         Task {
             do {
                 try await openTerminal(at: home, application: application)

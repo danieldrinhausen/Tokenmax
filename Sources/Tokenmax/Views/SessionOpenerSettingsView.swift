@@ -189,7 +189,7 @@ struct SessionOpenerSettingsView: View {
         // scheduling problem: an opener cannot safely act on an old weekly
         // number, and the user needs the concrete recovery step.
         if usage.isAwaitingTokenRenewal {
-            return "Claude Code’s access token expired. Open Claude Code or run ‘claude login’, then refresh."
+            return "Claude Code’s access token expired. Open Claude Code, or choose Sign In with Claude in the menu bar popover, then refresh."
         }
         guard let reason = opener.decision.skipReason else {
             return "Ready to open the next window."

@@ -10,6 +10,7 @@ struct MenuBarPopoverView: View {
     @EnvironmentObject private var opener: SessionOpenerCoordinator
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
     @EnvironmentObject private var updates: UpdateCheckCoordinator
+    @EnvironmentObject private var signIn: ClaudeSignInCoordinator
 
     @Environment(\.openWindow) private var openWindow
 
@@ -161,8 +162,10 @@ struct MenuBarPopoverView: View {
             statusBlock(
                 icon: "person.crop.circle.badge.exclamationmark",
                 title: "\(provider.displayName) is not authenticated",
-                message: "Run `\(provider.commandName)` in a terminal and sign in, then refresh.",
-                recovery: [.openTerminal, .refresh],
+                message: provider == .claudeCode
+                    ? "Sign in with your Claude account. Tokenmax runs Claude Code's own login, which opens in your browser."
+                    : "Run `\(provider.commandName)` in a terminal and sign in, then refresh.",
+                recovery: provider == .claudeCode ? [.signIn, .refresh] : [.openTerminal, .refresh],
                 provider: provider
             )
 
@@ -181,8 +184,8 @@ struct MenuBarPopoverView: View {
                 statusBlock(
                     icon: "arrow.clockwise.circle",
                     title: "Tokenmax needs Claude Code to renew its saved credential",
-                    message: "Your active Claude Code session may still work. Tokenmax's saved credential was rejected; it updates when Claude Code renews its login. Keep working, then refresh. If it does not recover, open Terminal and run `claude login`.",
-                    recovery: [.refresh, .openTerminalForLogin],
+                    message: "Your active Claude Code session may still work. Tokenmax's saved credential was rejected; it updates when Claude Code renews its login. Keep working, then refresh. If it does not recover, sign in again — Claude's login page opens in your browser.",
+                    recovery: [.refresh, .signIn],
                     provider: provider
                 )
                 if let lastGood {
@@ -194,9 +197,11 @@ struct MenuBarPopoverView: View {
             statusBlock(
                 icon: "key.slash",
                 title: "\(provider.displayName) needs re-authentication",
-                message: "Run `\(provider.commandName)` and sign in again.",
+                message: provider == .claudeCode
+                    ? "Sign in with your Claude account again. Claude's login page opens in your browser."
+                    : "Run `\(provider.commandName)` and sign in again.",
                 // Refreshing cannot help until the user has signed in again.
-                recovery: [.openTerminal],
+                recovery: provider == .claudeCode ? [.signIn] : [.openTerminal],
                 provider: provider
             )
 
@@ -373,10 +378,14 @@ struct MenuBarPopoverView: View {
                     HStack(spacing: 8) {
                         ForEach(recovery) { action in
                             Button(action.title) { perform(action, provider: provider) }
+                                .disabled(action == .signIn && signIn.isBusy)
                         }
                     }
                     .font(.system(size: 11))
                     .padding(.top, 2)
+                }
+                if recovery.contains(.signIn) {
+                    signInLine
                 }
                 // No age line here: the provider's own header sits directly
                 // above this block and already carries it. Repeating it read as
@@ -389,7 +398,7 @@ struct MenuBarPopoverView: View {
         case refresh
         case retry
         case openTerminal
-        case openTerminalForLogin
+        case signIn
 
         var id: String { rawValue }
 
@@ -398,7 +407,7 @@ struct MenuBarPopoverView: View {
             case .refresh: "Refresh"
             case .retry: "Retry"
             case .openTerminal: "Open Terminal"
-            case .openTerminalForLogin: "Open Terminal + Copy Login"
+            case .signIn: "Sign In with Claude"
             }
         }
     }
@@ -420,11 +429,38 @@ struct MenuBarPopoverView: View {
             ManualRunService.openTerminalForRecovery(
                 application: settingsStore.settings.terminalApplication
             )
-        case .openTerminalForLogin:
-            ManualRunService.openTerminalForRecovery(
-                application: settingsStore.settings.terminalApplication,
-                commandToPaste: "claude login"
-            )
+        case .signIn:
+            signIn.start()
+        }
+    }
+
+    /// The sign-in happens in the browser, out of sight of this popover, so the
+    /// wait has to be said out loud — otherwise the unchanged error above reads
+    /// as a button that did nothing.
+    @ViewBuilder
+    private var signInLine: some View {
+        switch signIn.activity {
+        case .waitingForBrowser:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("Finish signing in in your browser…")
+                Button("Cancel") { signIn.cancel() }
+                    .buttonStyle(.link)
+            }
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
+        case let .waitingForReading(at):
+            // The request floor, not a slow network: see `ClaudeSignIn.refreshDelay`.
+            Text("Signed in. Checking usage at \(at.formatted(date: .omitted, time: .standard)).")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        case .idle:
+            if let message = signIn.lastOutcome?.message {
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
