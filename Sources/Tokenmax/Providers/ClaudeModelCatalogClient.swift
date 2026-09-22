@@ -75,7 +75,8 @@ actor ClaudeModelCatalogClient {
 
         switch http.statusCode {
         case 200: break
-        case 401, 403: throw UsageClientError.unauthorized
+        case 401: throw UsageClientError.unauthorized
+        case 403: throw UsageClientError.forbidden
         case 429: throw UsageClientError.rateLimited
         default: throw UsageClientError.badStatus(http.statusCode)
         }

@@ -231,6 +231,10 @@ final class ClaudeCodeProvider: UsageProvider {
     /// token left to rotate it with. Otherwise Claude Code fixes this by itself
     /// the next time it runs, and telling the user to re-authenticate sends
     /// them through an OAuth flow they did not need.
+    ///
+    /// A 403 is deliberately not one of these: it falls through to
+    /// `underlying` with its own copy, because neither renewal nor the
+    /// rotation wait can change an account's access to usage.
     private static func mapped(_ error: Error, credentials: ClaudeKeychain.Credentials) -> Error {
         if let error = error as? UsageClientError, case .unauthorized = error {
             return credentials.refreshToken == nil

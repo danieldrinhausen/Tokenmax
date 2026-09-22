@@ -164,6 +164,34 @@ struct ProviderFreshnessTests {
         #expect(invalidated.count == 1)
     }
 
+    /// A 403 is refused usage, not an expired login. Treating it as one armed
+    /// the rotation wait and told the user to sign in again — forever, since
+    /// the renewed token is refused the same way.
+    @Test("A 403 keeps the cached credentials and does not ask for a sign-in")
+    func forbiddenIsNotAnExpiredLogin() async {
+        let invalidated = Invalidations()
+        let provider = ClaudeCodeProvider(
+            client: ClaudeOAuthUsageClient(session: stubbedSession(body: "{}", status: 403)),
+            readStatusline: { nil },
+            readCredentials: { self.credentials() },
+            invalidateCredentials: { invalidated.record() },
+            cliInstalled: { true },
+            cliVersion: { "2.1.220" }
+        )
+
+        do {
+            _ = try await provider.fetchUsage()
+            Issue.record("a 403 must not produce a reading")
+        } catch let error as ProviderError {
+            #expect(error != .tokenExpired)
+            #expect(error != .needsReauthentication)
+            #expect(error.localizedDescription.contains("403"))
+        } catch {
+            Issue.record("unexpected error \(error)")
+        }
+        #expect(invalidated.count == 0)
+    }
+
     /// A working request must leave the cache alone — invalidating on success
     /// would restore the dialog-per-refresh this all exists to remove.
     @Test("A successful fetch keeps the cached credentials")

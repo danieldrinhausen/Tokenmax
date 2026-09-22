@@ -246,9 +246,16 @@ Work through these in order:
    installed — or no Claude Code session has answered since — there is nothing
    to show, and unknown is the honest reading. Install the shim from
    **Settings → Data Source**, or switch back to the keychain source.
-4. **Run `make doctor`.** It tells you whether the keychain item still has the
+4. **Does the popover say Anthropic does not report usage for this login (HTTP
+   403)?** The login works, but the usage endpoint refuses it — either the
+   account type does not report usage, or the login lacks usage access. A
+   login made with `claude setup-token` is the usual cause: it only carries
+   the scope for running prompts. `claude auth login` makes a full one.
+   Waiting does not help here, which is why Tokenmax does not show this as an
+   expired login.
+5. **Run `make doctor`.** It tells you whether the keychain item still has the
    shape Tokenmax expects and whether the endpoint answers.
-5. **Check the log** for `usage:` lines. `usage: SCHEMA DRIFT` means the endpoint
+6. **Check the log** for `usage:` lines. `usage: SCHEMA DRIFT` means the endpoint
    changed shape and Tokenmax needs updating — see [When upstream
    changes](#when-upstream-changes).
 

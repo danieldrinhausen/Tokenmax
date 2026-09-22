@@ -14,6 +14,12 @@ versions follow [semver](https://semver.org/).
   the item the same way. **Status line only** remains for anyone who wants Tokenmax never to read
   the token. [Why](docs/KEYCHAIN_PROMPT_DECISIONS.md#decision-7--read-through-the-tool-the-owner-already-trusts)
 
+- **A 403 from the usage endpoint is no longer reported as an expired login.** Tokenmax treated
+  "this login may not see usage" exactly like "this token has expired": it dropped the credential,
+  waited for Claude Code to renew it, and asked you to sign in again — indefinitely, since the
+  renewed token is refused the same way. It now says the account or login does not get usage,
+  keeps the credential, and names the usual cause (a `claude setup-token` login).
+
 ## [0.1.15] - 2026-09-22
 
 - **Codex's highlight follows the Codex session rule.** The "good time to spend" highlight read

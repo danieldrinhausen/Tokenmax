@@ -84,6 +84,13 @@ enum DateNormalizer {
 enum UsageClientError: Error, LocalizedError {
     case rateLimited
     case unauthorized
+    /// A 403: the token was accepted as a login but refused usage — an
+    /// account type the endpoint does not report for, or a token without the
+    /// scope (one from `claude setup-token`, say). Kept apart from
+    /// `unauthorized` because every remedy for that one — waiting for Claude
+    /// Code to renew, re-reading the keychain — hands back a token the endpoint
+    /// refuses in exactly the same way.
+    case forbidden
     case badStatus(Int)
     case transport(String)
     /// A 200 whose body no longer contains any window this app knows how to
@@ -97,6 +104,8 @@ enum UsageClientError: Error, LocalizedError {
         switch self {
         case .rateLimited: "Anthropic rate-limited the usage request."
         case .unauthorized: "Claude Code needs to be re-authenticated."
+        case .forbidden:
+            "Anthropic does not report usage for this Claude login (HTTP 403). The account type may not support it, or the login may lack usage access — signing in again with `claude auth login` restores it for a login made with `claude setup-token`."
         case let .badStatus(code): "Usage request failed with HTTP \(code)."
         case let .transport(message): message
         case let .schemaDrift(keys):
@@ -186,8 +195,10 @@ actor ClaudeOAuthUsageClient {
         switch http.statusCode {
         case 200:
             break
-        case 401, 403:
+        case 401:
             throw UsageClientError.unauthorized
+        case 403:
+            throw UsageClientError.forbidden
         case 429:
             throw UsageClientError.rateLimited
         default:
