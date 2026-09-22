@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-09-22
+
 - **Codex's highlight follows the Codex session rule.** The "good time to spend" highlight read
   Claude's session lead time and minimum quota for every provider, so Codex's bars lit on
   timings chosen only for Claude. Each provider now uses its own session reminder rule.
