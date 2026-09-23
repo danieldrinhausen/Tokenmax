@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-09-23
+
 - **The keychain prompt is gone.** Tokenmax now reads Claude Code's token through Apple's
   `/usr/bin/security` tool — the one Claude Code writes the item with — instead of from its own
   process. The item already trusts that tool and keeps trusting it through every token renewal,
