@@ -99,6 +99,8 @@ final class ClaudeCodeProvider: UsageProvider {
         var planName = credentials.subscriptionType.map(Self.prettyPlanName)
         var windows: [UsageWindow] = []
         var extraUsageEnabled: Bool?
+        var resets: (count: Int, nearestExpiry: Date?)?
+        var oneTimeCredit: OneTimeCredit?
         var primaryError: Error?
 
         do {
@@ -111,6 +113,10 @@ final class ClaudeCodeProvider: UsageProvider {
             // knows nothing about extra usage, and reporting "off" from silence
             // is exactly the mistake that would let the opener spend money.
             extraUsageEnabled = response.extraUsage?.isEnabled
+            // Nil on failure for the same reason: the statusline carries
+            // neither, and a missing credit must not read as a spent one.
+            resets = response.availableResets(now: fetchedAt)
+            oneTimeCredit = response.oneTimeCreditReading
         } catch {
             primaryError = error
             // A rejected token is the one signal that the credentials we hold
@@ -153,7 +159,10 @@ final class ClaudeCodeProvider: UsageProvider {
             planName: planName,
             windows: windows.sorted { $0.kind.sortOrder < $1.kind.sortOrder },
             fetchedAt: observedAt,
-            extraUsageEnabled: extraUsageEnabled
+            extraUsageEnabled: extraUsageEnabled,
+            availableResetCount: resets?.count,
+            availableResetExpiresAt: resets?.nearestExpiry,
+            oneTimeCredit: oneTimeCredit
         )
     }
 

@@ -317,18 +317,30 @@ struct MenuBarPopoverView: View {
                     projection: projection(for: window, forceStale: forceStale)
                 )
             }
-            if provider == .codex,
-               let resetText = UsageWindowPresentation.availableResetText(for: snapshot, now: clock.now) {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.counterclockwise.circle")
-                        .font(.system(size: 10))
-                    Text(resetText)
-                        .font(.system(size: 10))
-                }
-                .foregroundStyle(.secondary)
-                .help("A banked reset refreshes Codex's eligible usage windows. Redeem it from Codex after reviewing its offer details.")
+            if let resetText = UsageWindowPresentation.availableResetText(for: snapshot, now: clock.now) {
+                accountLine(
+                    icon: "arrow.counterclockwise.circle",
+                    text: resetText,
+                    help: UsageWindowPresentation.resetHelpText(for: provider)
+                )
+            }
+            if let creditText = UsageWindowPresentation.oneTimeCreditText(for: snapshot, now: clock.now) {
+                accountLine(icon: "cloud", text: creditText, help: UsageWindowPresentation.oneTimeCreditHelpText)
             }
         }
+    }
+
+    /// A fact about the account rather than either window, so it sits below
+    /// both meters.
+    private func accountLine(icon: String, text: String, help: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10))
+            Text(text)
+                .font(.system(size: 10))
+        }
+        .foregroundStyle(.secondary)
+        .help(help)
     }
 
     /// A projection is a claim about what is happening *now*. Carrying the last

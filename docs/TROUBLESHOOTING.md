@@ -306,6 +306,25 @@ working as described, not drift.
 A gap of a few percent between them is normal. A gap of tens of percent is worth
 an issue.
 
+### I have a Claude reset or cloud credit but Tokenmax doesn't show it
+
+Both come from the same usage request as the meters, so anything that stops
+that request hides them too:
+
+- **Status-line-only mode.** The status line carries neither. Switch
+  **Settings → Data Source** back to the keychain mode.
+- **The usage request failed.** When the meters are running on the status-line
+  fallback, the reset and credit lines drop out rather than show a stale "none".
+  Fix the meters first ("The meters are empty" above).
+- **Anthropic is not offering it to this login.** Resets and credits are granted
+  per account, server-side. If the endpoint reports your account ineligible,
+  Tokenmax shows nothing rather than "0 resets".
+- **It is spent or expired.** Neither line is shown for a reset past its use-by
+  date or a credit with nothing left.
+
+The log (`~/Library/Application Support/Tokenmax/logs`) shows whether the last
+request succeeded.
+
 ### Claude Code works, but Tokenmax says its saved credential was rejected
 
 This does not mean your active Claude Code conversation has stopped working.

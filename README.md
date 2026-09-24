@@ -92,7 +92,7 @@ turn the provider back on and your arrangement returns rather than a rebuilt one
 narrow handle halfway down the right edge of whichever display the pointer is on. Off by default.
 Hover opens a rail with one large double ring per provider; hover a provider for a detail
 card with the same context as the popover: plan and freshness, percentages and reset times, pace
-reserve or deficit, projected empty time, reminder state and Codex reset credits when available.
+reserve or deficit, projected empty time, reminder state, banked resets and Claude's cloud credit when available.
 Click to pin the card until the next click. Leaving the whole surface closes it after 400ms,
 which is long enough to cross from rail to card without making an always-open shelf. The panels join
 every Space and full-screen app, but cannot become key, so checking quota never takes typing away
@@ -355,6 +355,16 @@ the `statusLine` key to uninstall. In keychain mode it is a gap-filler — per-w
 reading is higher-confidence and fresher wins; in status-line-only mode it is the sole source, so
 install it before switching.
 
+Claude's one-time **cloud credit** — the Claude Code and Cowork credit Anthropic granted for cloud
+sessions — shows below Claude's meters as the dollars left and the date it expires, for example
+*Cloud credit · $250 of $250 left · expires Nov 5*. It is a balance, not a window: it never refills,
+so it gets no ring, pace line or reminder, and it disappears once spent or expired. Tokenmax only
+reads it; cloud sessions are what spend it.
+
+The same request also reports Claude's banked limit resets when Anthropic offers them to your
+account, shown as a count and the nearest use-by date. Redeem one with `/limit-reset` in Claude
+Code; Tokenmax never does.
+
 ### Codex
 
 No endpoint and no keychain read. Tokenmax starts a short-lived local `codex app-server` and speaks
@@ -367,8 +377,10 @@ will not start quota-gated automatic Codex tasks against it. Where an account re
 window, you get *"Not reported for this account"* — deliberately distinct from a meter reading zero.
 
 If Codex reports banked promotional resets, Tokenmax shows their available count and nearest expiry
-below the Codex meters. It never redeems one: a reset changes your account allowance, so Codex keeps
-the confirmation and offer details on the surface where you can review them.
+below the Codex meters. Claude's banked limit resets appear the same way below Claude's meters, when
+Anthropic offers them to your account. Tokenmax never redeems either: a reset changes your account
+allowance, so it stays on the surface that shows you the offer and asks you to confirm — Codex's usage
+summary, or `/limit-reset` in Claude Code.
 
 Codex tasks run through that same App Server protocol, under a per-task **read-only** or
 **workspace-write** sandbox. Codex offers Tokenmax no equivalent of Claude's per-run USD cap or its

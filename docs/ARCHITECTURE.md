@@ -56,8 +56,9 @@ large transparent window are load-bearing: a transparent bridge would still
 intercept clicks intended for the app underneath. `SideNotchPresentation`
 separately resolves menu-bar ring slots into provider-grouped rings without
 reading settings or quota on its own. It also carries the selected provider's
-plan, freshness, projections, reminder decisions and banked reset credit into
-the detail card. Projection copy and reset-credit expiry use the same pure
+plan, freshness, projections, reminder decisions, banked reset credit and
+Claude's one-time cloud credit into the detail card. Projection copy, reset-credit
+expiry and the cloud-credit line use the same pure
 `UsageWindowPresentation` functions as the popover, so the two surfaces cannot
 describe one snapshot differently.
 
@@ -315,11 +316,13 @@ cases fall back rather than throw) a newer file open in an older build.
 rather than failing. `PersistenceCompatibilityTests` guards this; if you add a
 field, add a case there.
 
-Codex's App Server may additionally report banked rate-limit resets. Tokenmax
-carries only their available count and nearest expiry to the read-only popover;
-the App Server, not Tokenmax, remains the authority that redeems one. An absent
-field means an older CLI did not report reset credits, never that the account
-has none.
+Codex's App Server and Claude's usage endpoint may additionally report banked
+rate-limit resets. Tokenmax carries only their available count and nearest
+expiry to the read-only surfaces; the provider's own tool, not Tokenmax, redeems
+one. An absent field means the source did not report reset credits, never that
+the account has none. Claude's one-time cloud credit travels beside them as
+`OneTimeCredit` — deliberately not a `UsageWindow`, which would give a balance
+that never refills a ring, a pace projection and reminders.
 
 **Nothing grows without bound.** Run transcripts are deleted when their run falls
 out of the last-40 history; `tokenmax.log` rotates at 1 MB keeping one previous
@@ -460,6 +463,16 @@ with a date-pinned `anthropic-beta` header.
   `"five_hour": null`.
 - **Well-insulated by:** reading `utilization` and `resets_at` off the response
   instead of hardcoding plan limits. New plans need no code change.
+- **Extras, coupled to codenames:** the request adds `?cedar_ember=1`, which
+  returns the banked-reset block `cedar_ember` (`eligible`, `grants[].resets_left`,
+  `grants[].ends_at`). The one-time cloud credit is read from `iguana_necktie`
+  (`limit_dollars`, `remaining_dollars`, `resets_at` as the expiry) with
+  `cinder_cove` (percentage only, what Claude Code's own `/usage` reads) as the
+  fallback. All three are codenames, so expect them to move. Each decodes on its
+  own, so a malformed one drops only itself, never the quota read, and an absent
+  one means "not reported". `skip_spend=1`, which Claude Code sends alongside
+  `cedar_ember=1`, is left off on purpose: it nulls `extra_usage`, and the
+  automation's credit guard reads that field.
 
 Two things here are non-negotiable and enforced inside the client rather than
 left to callers: the `User-Agent: claude-code/<version>` header (without it,

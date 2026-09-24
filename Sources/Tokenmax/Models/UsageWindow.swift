@@ -93,6 +93,22 @@ struct UsageWindow: Codable, Identifiable, Sendable, Equatable {
     }
 }
 
+/// A one-time credit granted to the account, such as Anthropic's Claude Code
+/// and Cowork credit that cloud sessions spend. It belongs to the account
+/// rather than to any window, and deliberately is not a `UsageWindow`: a
+/// window would pick up rings, pace projections and reset reminders, none of
+/// which mean anything for a balance that never refills.
+///
+/// Every field is optional because the two upstream shapes differ: one reports
+/// dollars, the other only a percentage.
+struct OneTimeCredit: Codable, Sendable, Equatable {
+    /// 0–100.
+    let usedPercent: Double?
+    let remainingDollars: Double?
+    let limitDollars: Double?
+    let expiresAt: Date?
+}
+
 struct ProviderUsage: Codable, Sendable {
     let providerID: String
     let planName: String?
@@ -102,10 +118,12 @@ struct ProviderUsage: Codable, Sendable {
     /// `nil` means the source did not say — which is *not* the same as "off",
     /// and anything that decides whether to spend must treat it as unknown.
     let extraUsageEnabled: Bool?
-    /// Promotional, banked Codex resets. `nil` means the source is too old to
-    /// report them; zero is an authoritative "none available".
+    /// Promotional, banked resets — Codex's and Claude's. `nil` means the
+    /// source did not report them; zero is an authoritative "none available".
     let availableResetCount: Int?
     let availableResetExpiresAt: Date?
+    /// Claude's one-time cloud-session credit. `nil` means not reported.
+    let oneTimeCredit: OneTimeCredit?
 
     init(
         providerID: String,
@@ -114,7 +132,8 @@ struct ProviderUsage: Codable, Sendable {
         fetchedAt: Date,
         extraUsageEnabled: Bool? = nil,
         availableResetCount: Int? = nil,
-        availableResetExpiresAt: Date? = nil
+        availableResetExpiresAt: Date? = nil,
+        oneTimeCredit: OneTimeCredit? = nil
     ) {
         self.providerID = providerID
         self.planName = planName
@@ -123,6 +142,7 @@ struct ProviderUsage: Codable, Sendable {
         self.extraUsageEnabled = extraUsageEnabled
         self.availableResetCount = availableResetCount
         self.availableResetExpiresAt = availableResetExpiresAt
+        self.oneTimeCredit = oneTimeCredit
     }
 }
 
@@ -145,6 +165,9 @@ struct UsageSnapshot: Codable, Sendable {
     /// snapshots written before Codex reported reset credits still load.
     let availableResetCount: Int?
     let availableResetExpiresAt: Date?
+    /// Optional for the same reason: snapshots written before the credit was
+    /// read still load.
+    let oneTimeCredit: OneTimeCredit?
 
     init(
         providerID: String,
@@ -155,7 +178,8 @@ struct UsageSnapshot: Codable, Sendable {
         errorMessage: String?,
         extraUsageEnabled: Bool? = nil,
         availableResetCount: Int? = nil,
-        availableResetExpiresAt: Date? = nil
+        availableResetExpiresAt: Date? = nil,
+        oneTimeCredit: OneTimeCredit? = nil
     ) {
         self.providerID = providerID
         self.planName = planName
@@ -166,6 +190,7 @@ struct UsageSnapshot: Codable, Sendable {
         self.extraUsageEnabled = extraUsageEnabled
         self.availableResetCount = availableResetCount
         self.availableResetExpiresAt = availableResetExpiresAt
+        self.oneTimeCredit = oneTimeCredit
     }
 
     func window(_ kind: UsageWindowKind) -> UsageWindow? {

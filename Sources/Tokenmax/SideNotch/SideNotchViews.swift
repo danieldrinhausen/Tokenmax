@@ -231,14 +231,14 @@ struct SideNotchDetailView: View {
                     }
 
                     if let availableResetText = presentation.availableResetText {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.counterclockwise.circle")
-                                .font(.system(size: 9))
-                            Text(availableResetText)
-                                .font(.system(size: 9))
-                        }
-                        .foregroundStyle(.white.opacity(0.62))
-                        .help("A banked reset refreshes Codex's eligible usage windows. Redeem it from Codex after reviewing its offer details.")
+                        accountLine(
+                            icon: "arrow.counterclockwise.circle",
+                            text: availableResetText,
+                            help: UsageWindowPresentation.resetHelpText(for: presentation.provider)
+                        )
+                    }
+                    if let oneTimeCreditText = presentation.oneTimeCreditText {
+                        accountLine(icon: "cloud", text: oneTimeCreditText, help: UsageWindowPresentation.oneTimeCreditHelpText)
                     }
                 }
                 .padding(.leading, 14)
@@ -260,6 +260,17 @@ struct SideNotchDetailView: View {
             if inside { coordinator.pointerEnteredDetail() }
             else { coordinator.pointerExitedDetail() }
         }
+    }
+
+    private func accountLine(icon: String, text: String, help: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 9))
+            Text(text)
+                .font(.system(size: 9))
+        }
+        .foregroundStyle(.white.opacity(0.62))
+        .help(help)
     }
 
     private func detailRow(_ meter: SideNotchMeterPresentation) -> some View {

@@ -5,6 +5,14 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Claude's banked resets and one-time cloud credit.** Below Claude's meters, in the popover
+  and the Side Notch, Tokenmax now shows how many limit resets Anthropic has banked for you and
+  their nearest use-by date, the way it already did for Codex, and the one-time Claude Code and
+  Cowork credit for cloud sessions as dollars left and an expiry date — *Cloud credit · $250 of
+  $250 left · expires Nov 5*. Both are read from the usage request Tokenmax already makes, and
+  both are read-only: redeem a reset with `/limit-reset` in Claude Code, and let cloud sessions
+  spend the credit. An expired or spent one is not shown.
+
 - **Cursor's included usage, if you use Cursor.** Settings → Data Source → **Monitor Cursor
   usage**, off by default, adds Cursor beside Claude Code and Codex: how much of the plan's
   included usage is left this billing cycle, in total and on models picked by name — the one

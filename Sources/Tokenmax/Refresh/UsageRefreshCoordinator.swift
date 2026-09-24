@@ -257,7 +257,8 @@ final class UsageRefreshCoordinator: ObservableObject {
                 errorMessage: nil,
                 extraUsageEnabled: usage.extraUsageEnabled,
                 availableResetCount: usage.availableResetCount,
-                availableResetExpiresAt: usage.availableResetExpiresAt
+                availableResetExpiresAt: usage.availableResetExpiresAt,
+                oneTimeCredit: usage.oneTimeCredit
             )
 
             // `ClaudeOAuthUsageClient` correctly replays its response while

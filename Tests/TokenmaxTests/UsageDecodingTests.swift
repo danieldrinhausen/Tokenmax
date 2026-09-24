@@ -61,6 +61,95 @@ struct OAuthUsageDecodingTests {
         #expect(windows.contains { $0.kind == .modelSpecificWeekly && $0.id == "claude.weekly.opus" })
     }
 
+    // MARK: - Banked resets and the one-time cloud credit
+
+    /// Trimmed from a live `?cedar_ember=1` response, grant ids replaced.
+    private let creditAndResets = """
+    {
+      "five_hour": { "utilization": 29.0, "resets_at": "2026-09-24T08:00:00.128102+00:00",
+                     "limit_dollars": null, "used_dollars": null, "remaining_dollars": null },
+      "iguana_necktie": { "utilization": 12.0, "resets_at": "2026-11-05T07:59:00+00:00",
+                          "limit_dollars": 250, "used_dollars": 30.0, "remaining_dollars": 220.0,
+                          "locked_reason": null },
+      "cinder_cove": null,
+      "cedar_ember": {
+        "eligible": true, "ineligible_reason": null, "at_limit": false, "exhausted": [],
+        "grants": [
+          { "id": "g1", "label": "", "resets_total": 2, "resets_left": 2,
+            "starts_at": null, "ends_at": "2026-10-10T00:00:00Z", "clears": [], "paused": false,
+            "usable_now": true, "use_requires_limit": false, "percent_used": {}, "blocking": [] },
+          { "id": "g2", "label": "", "resets_total": 1, "resets_left": 1,
+            "starts_at": null, "ends_at": "2026-10-01T00:00:00Z", "clears": [], "paused": false,
+            "usable_now": true, "use_requires_limit": false, "percent_used": {}, "blocking": [] },
+          { "id": "g3", "label": "", "resets_total": 4, "resets_left": 4,
+            "starts_at": null, "ends_at": "2026-09-01T00:00:00Z", "clears": [], "paused": false,
+            "usable_now": false, "use_requires_limit": false, "percent_used": {}, "blocking": [] }
+        ],
+        "next_grant_id": "g2", "weekly_resets_at": null, "cooldown_until": null, "event_props": null
+      },
+      "extra_usage": { "is_enabled": false, "utilization": null }
+    }
+    """
+
+    private let september24 = DateNormalizer.fromString("2026-09-24T12:00:00Z")!
+
+    @Test("Resets sum across live grants and report the nearest use-by date")
+    func decodesResets() throws {
+        let response = try decode(creditAndResets)
+        let resets = try #require(response.availableResets(now: september24))
+
+        // g3 expired on September 1 and must not be counted.
+        #expect(resets.count == 3)
+        #expect(resets.nearestExpiry == DateNormalizer.fromString("2026-10-01T00:00:00Z"))
+        #expect(response.extraUsage?.isEnabled == false)
+    }
+
+    @Test("An absent reset block is unknown, an ineligible one is none")
+    func absentAndIneligibleResets() throws {
+        #expect(try decode(#"{ "five_hour": null }"#).availableResets(now: september24) == nil)
+
+        let ineligible = try decode("""
+        { "cedar_ember": { "eligible": false, "ineligible_reason": "surface", "grants": [] } }
+        """).availableResets(now: september24)
+        #expect(ineligible?.count == 0)
+        #expect(ineligible?.nearestExpiry == nil)
+    }
+
+    @Test("A malformed reset block drops only itself")
+    func malformedResetsKeepTheMeters() throws {
+        let response = try decode("""
+        { "five_hour": { "utilization": 10 }, "cedar_ember": { "eligible": true, "grants": "x" } }
+        """)
+
+        #expect(response.fiveHour?.utilization == 10)
+        #expect(response.availableResets(now: september24)?.count == 0)
+    }
+
+    @Test("The dollar credit is read with its expiry")
+    func decodesDollarCredit() throws {
+        let credit = try #require(try decode(creditAndResets).oneTimeCreditReading)
+
+        #expect(credit.remainingDollars == 220)
+        #expect(credit.limitDollars == 250)
+        #expect(credit.usedPercent == 12)
+        #expect(credit.expiresAt == DateNormalizer.fromString("2026-11-05T07:59:00Z"))
+    }
+
+    @Test("The percentage-only credit is the fallback")
+    func decodesPercentCredit() throws {
+        let credit = try #require(try decode("""
+        { "cinder_cove": { "utilization": 40, "resets_at": "2026-10-31T00:00:00Z" } }
+        """).oneTimeCreditReading)
+
+        #expect(credit.usedPercent == 40)
+        #expect(credit.remainingDollars == nil)
+    }
+
+    @Test("No credit block means no credit")
+    func absentCredit() throws {
+        #expect(try decode(#"{ "iguana_necktie": null, "cinder_cove": null }"#).oneTimeCreditReading == nil)
+    }
+
     // MARK: - Schema drift
 
     private func drift(_ json: String) throws -> [String]? {
@@ -101,6 +190,13 @@ struct OAuthUsageDecodingTests {
         // known key is present, this app is still reading the right response.
         #expect(try drift("""
         { "five_hour": null, "thirty_day": { "utilization": 5 } }
+        """) == nil)
+    }
+
+    @Test("A body holding only the credit and resets is not drift")
+    func creditOnlyIsNotDrift() throws {
+        #expect(try drift("""
+        { "iguana_necktie": { "utilization": 0 }, "cedar_ember": { "eligible": false } }
         """) == nil)
     }
 

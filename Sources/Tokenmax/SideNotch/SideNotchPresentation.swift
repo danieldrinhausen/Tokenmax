@@ -34,6 +34,7 @@ struct SideNotchProviderPresentation: Equatable, Identifiable, Sendable {
     let updatedText: String
     let isStale: Bool
     let availableResetText: String?
+    let oneTimeCreditText: String?
     let outer: SideNotchMeterPresentation
     let inner: SideNotchMeterPresentation
 
@@ -68,6 +69,7 @@ enum SideNotchDetailLayout {
         }
 
         if presentation.availableResetText != nil { height += 22 }
+        if presentation.oneTimeCreditText != nil { height += 22 }
         return SideNotchDetailDimensions(width: 340, height: height)
     }
 }
@@ -108,6 +110,9 @@ enum SideNotchPresentation {
                 isStale: stale,
                 availableResetText: current.flatMap {
                     UsageWindowPresentation.availableResetText(for: $0, now: now)
+                },
+                oneTimeCreditText: current.flatMap {
+                    UsageWindowPresentation.oneTimeCreditText(for: $0, now: now)
                 },
                 outer: meter(
                     source: sources[0], snapshot: current, isStale: stale,

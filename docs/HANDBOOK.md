@@ -89,8 +89,8 @@ glance, and the icon alone is the least distracting.
 Alpha** is a complementary view, not a replacement for the menu bar. Enable it
 for a small handle halfway down the right edge. Hover opens one double
 ring per provider; hover a ring for plan and freshness, the precise quota rows,
-pace reserve or deficit, projected empty time and reminder state. Codex also
-shows banked reset credits when it reports them. Click a ring to keep that card
+pace reserve or deficit, projected empty time and reminder state, plus banked
+resets and Claude's cloud credit when they are reported. Click a ring to keep that card
 open while the pointer moves, and again to release it. Side Notch follows the
 display under the pointer, appears on every Space and over full-screen apps,
 and does not take keyboard focus.
@@ -213,6 +213,17 @@ of a window** (dividing by near-zero makes one early prompt look like a runaway)
 and it says nothing when the data is **stale** — carrying a last-good reading
 forward is honest, extrapolating from it is not.
 
+**Banked resets and the cloud credit.** Two account-level facts sit below
+Claude's meters when Anthropic reports them. A *banked reset* refills your usage
+limits once; the line gives how many you hold and the nearest use-by date. Spend
+one with `/limit-reset` in Claude Code — Tokenmax never does, because using it
+early wastes it, and Claude Code is where you see what it would clear. The *cloud
+credit* is the one-time Claude Code and Cowork credit that cloud sessions draw
+on: the line gives the dollars left and the expiry date. Plan cloud work before
+that date, because what is left then is gone. Neither gets a ring or a reminder:
+they are balances that never refill, and the pace and reminder logic is built for
+windows that do.
+
 ---
 
 ## Codex, and where it differs
@@ -230,7 +241,8 @@ drawn in the menu bar like any other — **Settings → General**, drag *Codex w
 onto a bar.
 
 **Banked resets.** If Codex has granted you a promotional reset, Tokenmax shows
-its count and nearest expiry below the Codex meters. Treat it as a one-time
+its count and nearest expiry below the Codex meters, the same way it shows
+Claude's. Treat it as a one-time
 refresh of the eligible quota windows, not money or a larger subscription
 allowance. Tokenmax deliberately does not redeem it; open Codex's usage summary
 to review the offer and confirm it there.

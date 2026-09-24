@@ -130,4 +130,51 @@ enum UsageWindowPresentation {
         }
         return "\(count) available \(noun)"
     }
+
+    /// Where a banked reset is redeemed. Tokenmax only reports one: spending it
+    /// changes the account, so it belongs in the provider's own tool, where the
+    /// user can review it first.
+    static func resetHelpText(for provider: TokenmaxProvider) -> String {
+        switch provider {
+        case .claudeCode:
+            "A banked reset refills Claude's usage limits once. Use it with /limit-reset in Claude Code; Tokenmax only shows it."
+        case .codex, .cursor:
+            "A banked reset refreshes Codex's eligible usage windows. Redeem it from Codex after reviewing its offer details."
+        }
+    }
+
+    /// The one-time cloud credit, in dollars when the source reports them and
+    /// as a share otherwise. Like a reset, an expired or fully spent credit is
+    /// never advertised.
+    static func oneTimeCreditText(for snapshot: UsageSnapshot, now: Date) -> String? {
+        guard let credit = snapshot.oneTimeCredit,
+              credit.expiresAt.map({ $0 > now }) ?? true
+        else { return nil }
+
+        let left: String
+        if let remaining = credit.remainingDollars, let limit = credit.limitDollars, limit > 0 {
+            guard remaining > 0 else { return nil }
+            left = "\(dollars(remaining)) of \(dollars(limit)) left"
+        } else if let used = credit.usedPercent {
+            guard used < 100 else { return nil }
+            left = "\(Int((100 - used).rounded(.down)))% left"
+        } else {
+            return nil
+        }
+
+        if let expiry = credit.expiresAt {
+            return "Cloud credit · \(left) · expires \(expiry.formatted(date: .abbreviated, time: .omitted))"
+        }
+        return "Cloud credit · \(left)"
+    }
+
+    static let oneTimeCreditHelpText =
+        "Anthropic's one-time Claude Code and Cowork credit, spent by cloud sessions. It does not refill, and Tokenmax never spends it."
+
+    /// Whole dollars stay whole ("$250"); a partly spent balance keeps its
+    /// cents. Written out rather than locale-formatted: the credit is granted
+    /// in US dollars, and "250 $" would read as a different currency.
+    private static func dollars(_ value: Double) -> String {
+        value.rounded() == value ? "$\(Int(value))" : String(format: "$%.2f", value)
+    }
 }

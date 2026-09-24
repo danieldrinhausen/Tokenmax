@@ -6,15 +6,23 @@ struct OAuthUsageResponse: Decodable, Sendable {
         /// 0–100.
         let utilization: Double?
         let resetsAt: Date?
+        /// Reported only on dollar-denominated blocks, such as the one-time
+        /// cloud credit; null on the rate-limit windows.
+        let limitDollars: Double?
+        let remainingDollars: Double?
 
         enum CodingKeys: String, CodingKey {
             case utilization
             case resetsAt = "resets_at"
+            case limitDollars = "limit_dollars"
+            case remainingDollars = "remaining_dollars"
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             utilization = try container.decodeIfPresent(Double.self, forKey: .utilization)
+            limitDollars = try? container.decodeIfPresent(Double.self, forKey: .limitDollars)
+            remainingDollars = try? container.decodeIfPresent(Double.self, forKey: .remainingDollars)
 
             // The endpoint has been observed returning both ISO-8601 strings and
             // numeric epochs; accept either rather than breaking on a format change.
@@ -27,9 +35,11 @@ struct OAuthUsageResponse: Decodable, Sendable {
             }
         }
 
-        init(utilization: Double?, resetsAt: Date?) {
+        init(utilization: Double?, resetsAt: Date?, limitDollars: Double? = nil, remainingDollars: Double? = nil) {
             self.utilization = utilization
             self.resetsAt = resetsAt
+            self.limitDollars = limitDollars
+            self.remainingDollars = remainingDollars
         }
     }
 
@@ -43,11 +53,60 @@ struct OAuthUsageResponse: Decodable, Sendable {
         }
     }
 
+    /// Banked limit resets (`cedar_ember`, the block behind Claude Code's reset
+    /// command). Read only: spending one is a separate POST that Tokenmax never
+    /// makes, for the same reason it never redeems a Codex reset.
+    struct LimitResets: Decodable, Sendable {
+        struct Grant: Decodable, Sendable {
+            let resetsLeft: Int?
+            /// The use-by date Claude Code shows as "use by {date}".
+            let endsAt: Date?
+
+            private enum CodingKeys: String, CodingKey {
+                case resetsLeft = "resets_left"
+                case endsAt = "ends_at"
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                resetsLeft = try? container.decodeIfPresent(Int.self, forKey: .resetsLeft)
+                endsAt = (try? container.decodeIfPresent(String.self, forKey: .endsAt))
+                    .flatMap(DateNormalizer.fromString)
+            }
+
+            init(resetsLeft: Int?, endsAt: Date?) {
+                self.resetsLeft = resetsLeft
+                self.endsAt = endsAt
+            }
+        }
+
+        let eligible: Bool?
+        let grants: [Grant]?
+
+        private enum CodingKeys: String, CodingKey {
+            case eligible
+            case grants
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            eligible = try? container.decodeIfPresent(Bool.self, forKey: .eligible)
+            grants = try? container.decodeIfPresent([Grant].self, forKey: .grants)
+        }
+    }
+
     let fiveHour: Window?
     let sevenDay: Window?
     let sevenDayOpus: Window?
     let sevenDaySonnet: Window?
     let extraUsage: ExtraUsage?
+    /// The one-time Claude Code and Cowork credit that cloud sessions spend.
+    /// Two upstream shapes carry it: `iguana_necktie`, in dollars, which is how
+    /// it arrived on accounts at launch, and `cinder_cove`, a bare percentage,
+    /// which is what Claude Code's own `/usage` reads. The dollar block wins
+    /// when both are present, because it is the one that can say "$250 left".
+    let oneTimeCredit: Window?
+    let limitResets: LimitResets?
 
     private enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
@@ -55,6 +114,51 @@ struct OAuthUsageResponse: Decodable, Sendable {
         case sevenDayOpus = "seven_day_opus"
         case sevenDaySonnet = "seven_day_sonnet"
         case extraUsage = "extra_usage"
+        case iguanaNecktie = "iguana_necktie"
+        case cinderCove = "cinder_cove"
+        case cedarEmber = "cedar_ember"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        fiveHour = try container.decodeIfPresent(Window.self, forKey: .fiveHour)
+        sevenDay = try container.decodeIfPresent(Window.self, forKey: .sevenDay)
+        sevenDayOpus = try container.decodeIfPresent(Window.self, forKey: .sevenDayOpus)
+        sevenDaySonnet = try container.decodeIfPresent(Window.self, forKey: .sevenDaySonnet)
+        extraUsage = try container.decodeIfPresent(ExtraUsage.self, forKey: .extraUsage)
+        // The credit and the resets are extras. A malformed block drops just
+        // that block rather than failing the read the quota meters depend on.
+        let dollars = try? container.decodeIfPresent(Window.self, forKey: .iguanaNecktie)
+        let percent = try? container.decodeIfPresent(Window.self, forKey: .cinderCove)
+        oneTimeCredit = dollars ?? percent
+        limitResets = try? container.decodeIfPresent(LimitResets.self, forKey: .cedarEmber)
+    }
+
+    /// Available resets and the nearest use-by date. nil when the block is
+    /// absent — the source did not say, which is not the same as "none". An
+    /// ineligible account, or one with no grants, is an authoritative zero.
+    /// A grant already past its use-by date is not counted even if the
+    /// response still lists it.
+    func availableResets(now: Date) -> (count: Int, nearestExpiry: Date?)? {
+        guard let limitResets else { return nil }
+        guard limitResets.eligible != false else { return (0, nil) }
+
+        let live = (limitResets.grants ?? []).filter { grant in
+            (grant.resetsLeft ?? 0) > 0 && grant.endsAt.map { $0 > now } ?? true
+        }
+        let count = live.reduce(0) { $0 + ($1.resetsLeft ?? 0) }
+        return (count, live.compactMap(\.endsAt).min())
+    }
+
+    /// The credit as the model stores it, or nil when neither block was sent.
+    var oneTimeCreditReading: OneTimeCredit? {
+        guard let oneTimeCredit else { return nil }
+        return OneTimeCredit(
+            usedPercent: oneTimeCredit.utilization,
+            remainingDollars: oneTimeCredit.remainingDollars,
+            limitDollars: oneTimeCredit.limitDollars,
+            expiresAt: oneTimeCredit.resetsAt
+        )
     }
 }
 
@@ -126,7 +230,10 @@ enum UsageClientError: Error, LocalizedError {
 actor ClaudeOAuthUsageClient {
     static let minimumRequestInterval: TimeInterval = 180
 
-    private let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
+    /// `cedar_ember=1` adds the banked-reset block. Claude Code pairs it with
+    /// `skip_spend=1`, but that also nulls `extra_usage` — the one field the
+    /// automation's "never spend credits" guard reads — so it is left off.
+    private let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage?cedar_ember=1")!
     private let session: URLSession
     private let now: @Sendable () -> Date
 
@@ -242,6 +349,7 @@ actor ClaudeOAuthUsageClient {
         let keys = Set((object ?? [:]).keys)
         let known: Set<String> = [
             "five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet", "extra_usage",
+            "iguana_necktie", "cinder_cove", "cedar_ember",
         ]
 
         guard !keys.isEmpty, keys.isDisjoint(with: known) else { return nil }

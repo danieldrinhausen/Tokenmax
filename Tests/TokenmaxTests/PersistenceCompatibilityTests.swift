@@ -880,6 +880,45 @@ struct PersistenceCompatibilityTests {
         #expect(snapshot.extraUsageEnabled == nil)
         #expect(snapshot.availableResetCount == nil)
         #expect(snapshot.availableResetExpiresAt == nil)
+        #expect(snapshot.oneTimeCredit == nil)
+    }
+
+    @Test("A snapshot with Claude's resets and cloud credit survives a round trip")
+    func oneTimeCreditRoundTrips() throws {
+        let snapshot = try decode(UsageSnapshot.self, """
+        {
+          "providerID": "claude-code",
+          "planName": "Max",
+          "windows": [],
+          "fetchedAt": "2026-09-24T12:00:00Z",
+          "fetchDuration": 0.4,
+          "availableResetCount": 2,
+          "availableResetExpiresAt": "2026-10-01T00:00:00Z",
+          "oneTimeCredit": {
+            "usedPercent": 12, "remainingDollars": 220, "limitDollars": 250,
+            "expiresAt": "2026-11-05T07:59:00Z"
+          }
+        }
+        """)
+        let reencoded = try decode(UsageSnapshot.self, String(decoding: JSONStore.makeEncoder().encode(snapshot), as: UTF8.self))
+
+        #expect(reencoded.availableResetCount == 2)
+        #expect(reencoded.oneTimeCredit == snapshot.oneTimeCredit)
+        #expect(reencoded.oneTimeCredit?.remainingDollars == 220)
+    }
+
+    @Test("A credit with only a percentage still loads")
+    func loadsPercentOnlyCredit() throws {
+        let snapshot = try decode(UsageSnapshot.self, """
+        {
+          "providerID": "claude-code", "planName": "Pro", "windows": [],
+          "fetchedAt": "2026-09-24T12:00:00Z", "fetchDuration": 0.4,
+          "oneTimeCredit": { "usedPercent": 40 }
+        }
+        """)
+
+        #expect(snapshot.oneTimeCredit?.usedPercent == 40)
+        #expect(snapshot.oneTimeCredit?.expiresAt == nil)
     }
 
     @Test("A Cursor billing-cycle snapshot survives a round trip")

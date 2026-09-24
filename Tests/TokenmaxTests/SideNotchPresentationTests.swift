@@ -11,6 +11,7 @@ struct SideNotchPresentationTests {
         _ provider: TokenmaxProvider,
         availableResetCount: Int? = nil,
         availableResetExpiresAt: Date? = nil,
+        oneTimeCredit: OneTimeCredit? = nil,
         includeSession: Bool = true
     ) -> UsageSnapshot {
         var windows = [
@@ -39,7 +40,8 @@ struct SideNotchPresentationTests {
             fetchDuration: 0.1,
             errorMessage: nil,
             availableResetCount: availableResetCount,
-            availableResetExpiresAt: availableResetExpiresAt
+            availableResetExpiresAt: availableResetExpiresAt,
+            oneTimeCredit: oneTimeCredit
         )
     }
 
@@ -204,5 +206,64 @@ struct SideNotchPresentationTests {
             SideNotchDetailLayout.dimensions(for: weeklyOnly).height
                 < SideNotchDetailLayout.dimensions(for: full).height
         )
+    }
+
+    @Test("Claude's resets and cloud credit both reach the detail card")
+    func claudeResetsAndCredit() throws {
+        let plain = try #require(make(
+            layout: MenuBarRings([.claudeWeekly, .claudeSession]),
+            enabledProviders: [.claudeCode],
+            snapshot: { snapshot($0) },
+            isStale: { _ in false }
+        ).first)
+        let model = try #require(make(
+            layout: MenuBarRings([.claudeWeekly, .claudeSession]),
+            enabledProviders: [.claudeCode],
+            snapshot: {
+                snapshot(
+                    $0,
+                    availableResetCount: 1,
+                    availableResetExpiresAt: now.addingTimeInterval(86_400),
+                    oneTimeCredit: OneTimeCredit(
+                        usedPercent: 12, remainingDollars: 220, limitDollars: 250,
+                        expiresAt: now.addingTimeInterval(30 * 86_400)
+                    )
+                )
+            },
+            isStale: { _ in false }
+        ).first)
+
+        #expect(model.availableResetText?.hasPrefix("1 available reset · expires") == true)
+        #expect(model.oneTimeCreditText?.hasPrefix("Cloud credit · $220 of $250 left · expires") == true)
+        #expect(
+            SideNotchDetailLayout.dimensions(for: model).height
+                == SideNotchDetailLayout.dimensions(for: plain).height + 44
+        )
+    }
+
+    @Test("An expired or spent cloud credit is not advertised")
+    func spentOrExpiredCreditIsHidden() {
+        let expired = snapshot(.claudeCode, oneTimeCredit: OneTimeCredit(
+            usedPercent: 0, remainingDollars: 250, limitDollars: 250, expiresAt: now.addingTimeInterval(-1)
+        ))
+        let spentDollars = snapshot(.claudeCode, oneTimeCredit: OneTimeCredit(
+            usedPercent: 100, remainingDollars: 0, limitDollars: 250, expiresAt: nil
+        ))
+        let spentPercent = snapshot(.claudeCode, oneTimeCredit: OneTimeCredit(
+            usedPercent: 100, remainingDollars: nil, limitDollars: nil, expiresAt: nil
+        ))
+
+        #expect(UsageWindowPresentation.oneTimeCreditText(for: expired, now: now) == nil)
+        #expect(UsageWindowPresentation.oneTimeCreditText(for: spentDollars, now: now) == nil)
+        #expect(UsageWindowPresentation.oneTimeCreditText(for: spentPercent, now: now) == nil)
+    }
+
+    @Test("A percentage-only credit shows the share left")
+    func percentageCredit() {
+        let credit = snapshot(.claudeCode, oneTimeCredit: OneTimeCredit(
+            usedPercent: 12.5, remainingDollars: nil, limitDollars: nil, expiresAt: nil
+        ))
+
+        #expect(UsageWindowPresentation.oneTimeCreditText(for: credit, now: now) == "Cloud credit · 87% left")
     }
 }
