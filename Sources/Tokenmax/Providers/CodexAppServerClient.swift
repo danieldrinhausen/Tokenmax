@@ -47,6 +47,8 @@ final class CodexAppServerClient: @unchecked Sendable {
     struct RateLimitResetCredits: Sendable, Equatable {
         var availableCount: Int
         var nearestExpiry: Date?
+        /// The available credits one by one, soonest expiry first.
+        var credits: [BankedReset] = []
     }
 
     static let timeout: TimeInterval = 12
@@ -207,13 +209,17 @@ final class CodexAppServerClient: @unchecked Sendable {
               let availableCount = (value["availableCount"] as? NSNumber)?.intValue
         else { return nil }
 
-        let expiries = (value["credits"] as? [[String: Any]] ?? []).compactMap { credit -> Date? in
-            guard credit["status"] as? String == "available",
-                  let seconds = (credit["expiresAt"] as? NSNumber)?.doubleValue
-            else { return nil }
-            return Date(timeIntervalSince1970: seconds)
+        let available = (value["credits"] as? [[String: Any]] ?? []).compactMap { credit -> BankedReset? in
+            guard credit["status"] as? String == "available" else { return nil }
+            let expiry = (credit["expiresAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+            return BankedReset(title: credit["title"] as? String, expiresAt: expiry)
         }
-        return RateLimitResetCredits(availableCount: availableCount, nearestExpiry: expiries.min())
+        .sorted { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }
+        return RateLimitResetCredits(
+            availableCount: availableCount,
+            nearestExpiry: available.compactMap(\.expiresAt).min(),
+            credits: available
+        )
     }
 
     private static func window(_ value: Any?) -> RateLimits.Window? {

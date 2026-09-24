@@ -189,7 +189,7 @@ so that menu is where Tokenmax quits from.
 
 **4. Add Codex, if you use it.** Nothing to configure: if the `codex` CLI is installed and
 signed in, Tokenmax picks it up and adds its section to the popover. A ChatGPT-managed
-login reports quota and, when Codex reports one, a banked reset count and expiry. An API-key login is unmetered and is labelled as billed instead.
+login reports quota and, when Codex reports them, each banked reset with its expiry. An API-key login is unmetered and is labelled as billed instead.
 Don't use Codex? **Settings → Data Source** switches it off and it disappears. Use Cursor?
 The same pane has **Monitor Cursor usage**, off until you turn it on — see
 [Cursor](#cursor) for what that reads.
@@ -362,7 +362,10 @@ so it gets no ring, pace line or reminder, and it disappears once spent or expir
 reads it; cloud sessions are what spend it.
 
 The same request also reports Claude's banked limit resets when Anthropic offers them to your
-account, shown as a count and the nearest use-by date. Redeem one with `/limit-reset` in Claude
+account, shown as a count and the nearest use-by date. A reset offered only on claude.ai — its
+usage page shows it, but Claude Code's endpoint reports the account ineligible — cannot be seen from
+here: the page that lists it accepts only a claude.ai browser session, and Tokenmax does not read
+browser cookies. Redeem one with `/limit-reset` in Claude
 Code; Tokenmax never does.
 
 ### Codex
@@ -376,8 +379,8 @@ there is no window to report: Tokenmax labels it as billed rather than drawing a
 will not start quota-gated automatic Codex tasks against it. Where an account reports no session
 window, you get *"Not reported for this account"* — deliberately distinct from a meter reading zero.
 
-If Codex reports banked promotional resets, Tokenmax shows their available count and nearest expiry
-below the Codex meters. Claude's banked limit resets appear the same way below Claude's meters, when
+If Codex reports banked promotional resets, Tokenmax lists each one below the Codex meters — its
+title and expiry, soonest first, so the one to use next is on top. Claude's banked limit resets appear the same way below Claude's meters, when
 Anthropic offers them to your account. Tokenmax never redeems either: a reset changes your account
 allowance, so it stays on the surface that shows you the offer and asks you to confirm — Codex's usage
 summary, or `/limit-reset` in Claude Code.

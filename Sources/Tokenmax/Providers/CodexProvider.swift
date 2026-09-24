@@ -58,7 +58,8 @@ final class CodexProvider: UsageProvider {
             windows: windows,
             fetchedAt: now,
             availableResetCount: resetCredits?.availableCount,
-            availableResetExpiresAt: resetCredits?.nearestExpiry
+            availableResetExpiresAt: resetCredits?.nearestExpiry,
+            availableResets: resetCredits?.credits
         )
     }
 }

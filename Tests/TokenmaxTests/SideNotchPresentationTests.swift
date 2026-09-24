@@ -165,7 +165,7 @@ struct SideNotchPresentationTests {
         #expect(model.detailMeters.count == 2)
         #expect(model.outer.projection != nil)
         #expect(model.outer.reminderStatus == reminder)
-        #expect(model.availableResetText?.contains("2 available resets") == true)
+        #expect(model.availableResetLines.first?.contains("2 available resets") == true)
     }
 
     @Test("Expired Codex reset credits do not survive into the detail card")
@@ -183,7 +183,7 @@ struct SideNotchPresentationTests {
             isStale: { _ in false }
         ).first)
 
-        #expect(model.availableResetText == nil)
+        #expect(model.availableResetLines.isEmpty)
     }
 
     @Test("A weekly-only plan does not reserve space for an absent session")
@@ -233,7 +233,7 @@ struct SideNotchPresentationTests {
             isStale: { _ in false }
         ).first)
 
-        #expect(model.availableResetText?.hasPrefix("1 available reset · expires") == true)
+        #expect(model.availableResetLines.first?.hasPrefix("1 available reset · expires") == true)
         #expect(model.oneTimeCreditText?.hasPrefix("Cloud credit · $220 of $250 left · expires") == true)
         #expect(
             SideNotchDetailLayout.dimensions(for: model).height
@@ -265,5 +265,44 @@ struct SideNotchPresentationTests {
         ))
 
         #expect(UsageWindowPresentation.oneTimeCreditText(for: credit, now: now) == "Cloud credit · 87% left")
+    }
+
+    @Test("Codex resets listed one by one get a line each, expired ones dropped")
+    func eachResetGetsALine() throws {
+        let resets = [
+            BankedReset(title: "Full reset (Weekly + 5 hr)", expiresAt: now.addingTimeInterval(86_400)),
+            BankedReset(title: "Full reset (Weekly + 5 hr)", expiresAt: now.addingTimeInterval(2 * 86_400)),
+            BankedReset(title: nil, expiresAt: nil),
+            BankedReset(title: "Gone", expiresAt: now.addingTimeInterval(-1)),
+        ]
+        let base = snapshot(.codex, availableResetCount: 3, availableResetExpiresAt: now.addingTimeInterval(86_400))
+        let listed = UsageSnapshot(
+            providerID: base.providerID, planName: base.planName, windows: base.windows,
+            fetchedAt: base.fetchedAt, fetchDuration: 0.1, errorMessage: nil,
+            availableResetCount: 3, availableResetExpiresAt: now.addingTimeInterval(86_400),
+            availableResets: resets
+        )
+
+        let lines = UsageWindowPresentation.availableResetLines(for: listed, now: now)
+        #expect(lines.count == 3)
+        #expect(lines[0].hasPrefix("Full reset (Weekly + 5 hr) · expires"))
+        #expect(lines[2] == "Reset")
+
+        let model = try #require(make(
+            layout: MenuBarRings([.codexWeekly, .codexSession]),
+            enabledProviders: [.codex],
+            snapshot: { _ in listed },
+            isStale: { _ in false }
+        ).first)
+        let summary = try #require(make(
+            layout: MenuBarRings([.codexWeekly, .codexSession]),
+            enabledProviders: [.codex],
+            snapshot: { _ in base },
+            isStale: { _ in false }
+        ).first)
+        #expect(
+            SideNotchDetailLayout.dimensions(for: model).height
+                == SideNotchDetailLayout.dimensions(for: summary).height + 44
+        )
     }
 }

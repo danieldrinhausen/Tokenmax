@@ -881,6 +881,27 @@ struct PersistenceCompatibilityTests {
         #expect(snapshot.availableResetCount == nil)
         #expect(snapshot.availableResetExpiresAt == nil)
         #expect(snapshot.oneTimeCredit == nil)
+        #expect(snapshot.availableResets == nil)
+    }
+
+    @Test("A snapshot listing each Codex reset survives a round trip")
+    func availableResetsRoundTrip() throws {
+        let snapshot = try decode(UsageSnapshot.self, """
+        {
+          "providerID": "codex", "planName": "Plus", "windows": [],
+          "fetchedAt": "2026-09-24T12:00:00Z", "fetchDuration": 2.4,
+          "availableResetCount": 2, "availableResetExpiresAt": "2026-10-04T01:09:36Z",
+          "availableResets": [
+            { "title": "Full reset (Weekly + 5 hr)", "expiresAt": "2026-10-04T01:09:36Z" },
+            { "expiresAt": "2026-10-05T01:08:03Z" }
+          ]
+        }
+        """)
+        let reencoded = try decode(UsageSnapshot.self, String(decoding: JSONStore.makeEncoder().encode(snapshot), as: UTF8.self))
+
+        #expect(reencoded.availableResets == snapshot.availableResets)
+        #expect(reencoded.availableResets?.count == 2)
+        #expect(reencoded.availableResets?.last?.title == nil)
     }
 
     @Test("A snapshot with Claude's resets and cloud credit survives a round trip")

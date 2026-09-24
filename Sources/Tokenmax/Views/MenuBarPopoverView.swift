@@ -317,7 +317,8 @@ struct MenuBarPopoverView: View {
                     projection: projection(for: window, forceStale: forceStale)
                 )
             }
-            if let resetText = UsageWindowPresentation.availableResetText(for: snapshot, now: clock.now) {
+            // By position: two resets granted the same day read identically.
+            ForEach(Array(UsageWindowPresentation.availableResetLines(for: snapshot, now: clock.now).enumerated()), id: \.offset) { _, resetText in
                 accountLine(
                     icon: "arrow.counterclockwise.circle",
                     text: resetText,

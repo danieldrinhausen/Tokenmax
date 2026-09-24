@@ -93,6 +93,14 @@ struct UsageWindow: Codable, Identifiable, Sendable, Equatable {
     }
 }
 
+/// One banked reset, as the provider lists it. Codex reports each credit with
+/// its own title and expiry, and a person holding three wants to see which one
+/// lapses first — not only that three exist.
+struct BankedReset: Codable, Sendable, Equatable {
+    let title: String?
+    let expiresAt: Date?
+}
+
 /// A one-time credit granted to the account, such as Anthropic's Claude Code
 /// and Cowork credit that cloud sessions spend. It belongs to the account
 /// rather than to any window, and deliberately is not a `UsageWindow`: a
@@ -122,6 +130,9 @@ struct ProviderUsage: Codable, Sendable {
     /// source did not report them; zero is an authoritative "none available".
     let availableResetCount: Int?
     let availableResetExpiresAt: Date?
+    /// Each available reset on its own, when the source lists them. `nil`
+    /// when it only reports a count.
+    let availableResets: [BankedReset]?
     /// Claude's one-time cloud-session credit. `nil` means not reported.
     let oneTimeCredit: OneTimeCredit?
 
@@ -133,6 +144,7 @@ struct ProviderUsage: Codable, Sendable {
         extraUsageEnabled: Bool? = nil,
         availableResetCount: Int? = nil,
         availableResetExpiresAt: Date? = nil,
+        availableResets: [BankedReset]? = nil,
         oneTimeCredit: OneTimeCredit? = nil
     ) {
         self.providerID = providerID
@@ -142,6 +154,7 @@ struct ProviderUsage: Codable, Sendable {
         self.extraUsageEnabled = extraUsageEnabled
         self.availableResetCount = availableResetCount
         self.availableResetExpiresAt = availableResetExpiresAt
+        self.availableResets = availableResets
         self.oneTimeCredit = oneTimeCredit
     }
 }
@@ -165,8 +178,9 @@ struct UsageSnapshot: Codable, Sendable {
     /// snapshots written before Codex reported reset credits still load.
     let availableResetCount: Int?
     let availableResetExpiresAt: Date?
-    /// Optional for the same reason: snapshots written before the credit was
-    /// read still load.
+    /// Optional for the same reason: snapshots written before the credit or
+    /// the per-reset list was read still load.
+    let availableResets: [BankedReset]?
     let oneTimeCredit: OneTimeCredit?
 
     init(
@@ -179,6 +193,7 @@ struct UsageSnapshot: Codable, Sendable {
         extraUsageEnabled: Bool? = nil,
         availableResetCount: Int? = nil,
         availableResetExpiresAt: Date? = nil,
+        availableResets: [BankedReset]? = nil,
         oneTimeCredit: OneTimeCredit? = nil
     ) {
         self.providerID = providerID
@@ -190,6 +205,7 @@ struct UsageSnapshot: Codable, Sendable {
         self.extraUsageEnabled = extraUsageEnabled
         self.availableResetCount = availableResetCount
         self.availableResetExpiresAt = availableResetExpiresAt
+        self.availableResets = availableResets
         self.oneTimeCredit = oneTimeCredit
     }
 

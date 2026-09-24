@@ -258,6 +258,7 @@ final class UsageRefreshCoordinator: ObservableObject {
                 extraUsageEnabled: usage.extraUsageEnabled,
                 availableResetCount: usage.availableResetCount,
                 availableResetExpiresAt: usage.availableResetExpiresAt,
+                availableResets: usage.availableResets,
                 oneTimeCredit: usage.oneTimeCredit
             )
 

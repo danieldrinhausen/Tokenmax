@@ -33,7 +33,7 @@ struct SideNotchProviderPresentation: Equatable, Identifiable, Sendable {
     let planName: String?
     let updatedText: String
     let isStale: Bool
-    let availableResetText: String?
+    let availableResetLines: [String]
     let oneTimeCreditText: String?
     let outer: SideNotchMeterPresentation
     let inner: SideNotchMeterPresentation
@@ -68,7 +68,7 @@ enum SideNotchDetailLayout {
             height += Double(max(0, meters.count - 1)) * 9
         }
 
-        if presentation.availableResetText != nil { height += 22 }
+        height += Double(presentation.availableResetLines.count) * 22
         if presentation.oneTimeCreditText != nil { height += 22 }
         return SideNotchDetailDimensions(width: 340, height: height)
     }
@@ -108,9 +108,9 @@ enum SideNotchPresentation {
                     "Updated \(RelativeTime.short(now.timeIntervalSince($0.fetchedAt))) ago"
                 } ?? "Never updated",
                 isStale: stale,
-                availableResetText: current.flatMap {
-                    UsageWindowPresentation.availableResetText(for: $0, now: now)
-                },
+                availableResetLines: current.map {
+                    UsageWindowPresentation.availableResetLines(for: $0, now: now)
+                } ?? [],
                 oneTimeCreditText: current.flatMap {
                     UsageWindowPresentation.oneTimeCreditText(for: $0, now: now)
                 },

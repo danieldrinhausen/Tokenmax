@@ -44,6 +44,25 @@ struct CodexAppServerDecodingTests {
         #expect(credits?.nearestExpiry == Date(timeIntervalSince1970: 1_784_000_000))
     }
 
+    @Test("Lists each available reset with its title, soonest expiry first")
+    func listsEachResetCredit() {
+        let credits = CodexAppServerClient.decodeResetCredits([
+            "rateLimitResetCredits": [
+                "availableCount": 2,
+                "credits": [
+                    ["status": "available", "expiresAt": 1_791_154_083, "title": "Full reset (Weekly + 5 hr)"],
+                    ["status": "used", "expiresAt": 1_785_000_000, "title": "Spent"],
+                    ["status": "available", "expiresAt": 1_791_076_176, "title": "Full reset (Weekly + 5 hr)"],
+                ],
+            ],
+        ])
+
+        #expect(credits?.credits.map(\.expiresAt) == [
+            Date(timeIntervalSince1970: 1_791_076_176), Date(timeIntervalSince1970: 1_791_154_083),
+        ])
+        #expect(credits?.credits.allSatisfy { $0.title == "Full reset (Weekly + 5 hr)" } == true)
+    }
+
     @Test("An older App Server leaves reset-credit availability unknown")
     func ignoresMissingResetCredits() {
         #expect(CodexAppServerClient.decodeResetCredits([:]) == nil)

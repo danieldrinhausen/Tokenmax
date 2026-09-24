@@ -241,8 +241,8 @@ drawn in the menu bar like any other — **Settings → General**, drag *Codex w
 onto a bar.
 
 **Banked resets.** If Codex has granted you a promotional reset, Tokenmax shows
-its count and nearest expiry below the Codex meters, the same way it shows
-Claude's. Treat it as a one-time
+each one below the Codex meters with its title and expiry, soonest first, so
+the one to spend next is on top. Treat it as a one-time
 refresh of the eligible quota windows, not money or a larger subscription
 allowance. Tokenmax deliberately does not redeem it; open Codex's usage summary
 to review the offer and confirm it there.

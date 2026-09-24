@@ -230,10 +230,10 @@ struct SideNotchDetailView: View {
                         }
                     }
 
-                    if let availableResetText = presentation.availableResetText {
+                    ForEach(Array(presentation.availableResetLines.enumerated()), id: \.offset) { _, resetText in
                         accountLine(
                             icon: "arrow.counterclockwise.circle",
-                            text: availableResetText,
+                            text: resetText,
                             help: UsageWindowPresentation.resetHelpText(for: presentation.provider)
                         )
                     }

@@ -117,8 +117,21 @@ enum UsageWindowPresentation {
     }
 
     /// A banked reset belongs to the provider rather than either window, so it
-    /// sits below both in every surface. An expired cached credit is never
-    /// advertised as available.
+    /// sits below both in every surface. One line per reset where the source
+    /// lists them, soonest expiry first, so the one to use next is on top; the
+    /// count summary otherwise. An expired cached credit is never advertised.
+    static func availableResetLines(for snapshot: UsageSnapshot, now: Date) -> [String] {
+        let live = (snapshot.availableResets ?? []).filter { $0.expiresAt.map { $0 > now } ?? true }
+        guard live.isEmpty else {
+            return live.map { reset in
+                let title = reset.title.flatMap { $0.isEmpty ? nil : $0 } ?? "Reset"
+                guard let expiry = reset.expiresAt else { return title }
+                return "\(title) · expires \(expiry.formatted(date: .abbreviated, time: .omitted))"
+            }
+        }
+        return availableResetText(for: snapshot, now: now).map { [$0] } ?? []
+    }
+
     static func availableResetText(for snapshot: UsageSnapshot, now: Date) -> String? {
         guard let count = snapshot.availableResetCount, count > 0,
               snapshot.availableResetExpiresAt.map({ $0 > now }) ?? true

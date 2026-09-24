@@ -11,7 +11,12 @@ versions follow [semver](https://semver.org/).
   Cowork credit for cloud sessions as dollars left and an expiry date — *Cloud credit · $250 of
   $250 left · expires Nov 5*. Both are read from the usage request Tokenmax already makes, and
   both are read-only: redeem a reset with `/limit-reset` in Claude Code, and let cloud sessions
-  spend the credit. An expired or spent one is not shown.
+  spend the credit. An expired or spent one is not shown. A reset offered only on claude.ai is
+  not visible to Tokenmax, which does not read browser cookies.
+
+- **Each Codex reset on its own line.** Instead of "3 available resets · expires Oct 4", the
+  popover and the Side Notch list every banked Codex reset with its title and expiry, soonest
+  first, so you can see which one lapses next.
 
 - **Cursor's included usage, if you use Cursor.** Settings → Data Source → **Monitor Cursor
   usage**, off by default, adds Cursor beside Claude Code and Codex: how much of the plan's

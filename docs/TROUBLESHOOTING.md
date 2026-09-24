@@ -316,9 +316,12 @@ that request hides them too:
 - **The usage request failed.** When the meters are running on the status-line
   fallback, the reset and credit lines drop out rather than show a stale "none".
   Fix the meters first ("The meters are empty" above).
-- **Anthropic is not offering it to this login.** Resets and credits are granted
-  per account, server-side. If the endpoint reports your account ineligible,
-  Tokenmax shows nothing rather than "0 resets".
+- **The reset is offered on claude.ai only.** claude.ai's usage page can show a
+  reset ("Get extra wiggle room to explore …") that the endpoint Tokenmax and
+  Claude Code read reports as not available here (`ineligible_reason:
+  "surface"`). The page that lists it accepts only a claude.ai browser session,
+  and Tokenmax does not read browser cookies, so this one stays on claude.ai.
+  Redeem it there with **Reset for free**.
 - **It is spent or expired.** Neither line is shown for a reset past its use-by
   date or a credit with nothing left.
 
