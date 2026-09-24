@@ -942,4 +942,30 @@ struct PersistenceCompatibilityTests {
         // — compare to the second rather than pretending it round-trips exactly.
         #expect(abs(restored.createdAt.timeIntervalSince(task.createdAt)) < 1)
     }
+
+    @Test("A settings file from before separate menu bar items keeps one combined icon")
+    func menuBarItemLayoutDefaultsToCombined() throws {
+        let settings = try decode(AppSettings.self, """
+        { "remindersEnabled": true }
+        """)
+        #expect(settings.menuBarItemLayout == .combined)
+        #expect(settings.remindersEnabled)
+    }
+
+    @Test("An unknown menu bar item layout falls back without resetting the file")
+    func unknownMenuBarItemLayoutFallsBack() throws {
+        let settings = try decode(AppSettings.self, """
+        { "menuBarItemLayout": "stacked", "remindersEnabled": true }
+        """)
+        #expect(settings.menuBarItemLayout == .combined)
+        #expect(settings.remindersEnabled)
+    }
+
+    @Test("The separate menu bar item layout survives a round trip")
+    func menuBarItemLayoutRoundTrips() throws {
+        var settings = AppSettings()
+        settings.menuBarItemLayout = .separate
+        let data = try JSONEncoder().encode(settings)
+        #expect(try JSONDecoder().decode(AppSettings.self, from: data).menuBarItemLayout == .separate)
+    }
 }

@@ -15,15 +15,37 @@ struct MenuBarPopoverView: View {
 
     @Environment(\.openWindow) private var openWindow
 
+    /// The one provider this popover speaks for, when it belongs to that
+    /// provider's own menu bar item. Nil for the combined item, which shows
+    /// every enabled provider as before.
+    var provider: TokenmaxProvider?
+
+    /// Still filtered through the enabled list: a provider switched off while
+    /// its item is on its way out must not render a section for a coordinator
+    /// that has stopped.
+    private var shownProviders: [TokenmaxProvider] {
+        let enabled = settingsStore.settings.enabledProviders
+        guard let provider else { return enabled }
+        return enabled.filter { $0 == provider }
+    }
+
+    /// The combined popover keeps the selected provider's banner. A provider's
+    /// own popover shows only that provider's: a Claude "spend it now" under the
+    /// Codex icon would be a meter reporting a state that is not its own.
+    private var opportunity: BurnOpportunity? {
+        guard let provider else { return usage.burnOpportunity }
+        return usage.coordinator(for: provider).burnOpportunity
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             appHeader
-            if let opportunity = usage.burnOpportunity {
+            if let opportunity {
                 burnBanner(opportunity)
             }
             // A switched-off provider loses its section *and* the divider above
             // it — leaving the rule behind would read as an empty section.
-            ForEach(settingsStore.settings.enabledProviders) { provider in
+            ForEach(shownProviders) { provider in
                 Divider().padding(.vertical, 10)
                 providerSection(for: provider)
             }

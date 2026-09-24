@@ -57,6 +57,17 @@ the two. Rings are not locked to one provider per ring: if what you actually wat
 windows, put them on the two outer arcs. A preview under the picker shows the icon you have built
 on a light and a dark menu bar.
 
+**Icons** puts each provider in its own menu bar item instead of one combined item. With both
+Claude Code and Codex switched on, **One icon per provider** gives each its own icon, marked with a
+small glyph before the meters — a spark for Claude Code, `>_` for Codex. The glyph stays in the
+neutral menu bar colour even while the meters beside it are lit or escalated, so it can never be
+read as a quota state. Each item draws its provider's session over its week in the shape you
+picked, counts down to that provider's session, and lights only for that provider's "spend it now"
+moment; its popover shows only that provider. The quota slots above keep applying to the combined
+icon, because they lay quotas out *across* providers and filtering them per item could leave an
+item with one bar or none. With only one provider on there is one icon either way, so the setting
+waits until the second is switched back on. ⌘-drag either item to reorder them.
+
 The countdown is chosen separately under **Count down to**, because the most useful deadline is not
 always one the icon has room for, and tying the two would mean changing the icon to change the
 text. The icon can show **the icon only, the countdown only, or both**. The same pane offers

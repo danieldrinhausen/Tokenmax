@@ -5,6 +5,14 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **One menu bar icon per provider.** Settings → General → Menu bar icon → **Icons** can now
+  give Claude Code and Codex their own menu bar items instead of one combined icon. Each is
+  marked with a small glyph — a spark for Claude Code, `>_` for Codex — drawn in the neutral
+  menu bar colour so it never reads as a quota state, shows that provider's session over its
+  week, counts down to its session, lights only for its own "spend it now" moment, and opens a
+  popover with only that provider. The combined icon stays the default and is unchanged. With
+  one provider switched on there is one icon either way.
+
 - **Tokenmax asks Claude Code to renew an expired login instead of asking you to sign in.**
   Claude Code only renews its token when it runs, so a Mac where it sat idle past the expiry
   left Tokenmax on "needs Claude Code to renew" until you clicked Sign In — with a perfectly

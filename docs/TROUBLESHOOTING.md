@@ -123,6 +123,21 @@ Option, open Activity Monitor, select Tokenmax and choose **Sample Process**. A
 main thread parked in SwiftUI layout is this class of bug; one parked in a
 network call is not.
 
+### I chose one icon per provider but still see one icon
+
+**One icon per provider** only applies with both Claude Code and Codex switched
+on under **Settings → Data Source**. With one provider there is one icon either
+way, so Tokenmax keeps the combined icon. The choice is remembered: switching
+the second provider back on brings both items back.
+
+### The second menu bar icon appeared somewhere else
+
+macOS places a newly added menu bar item wherever it has room, and may move
+items after they are removed and added again — switching between one combined
+icon and one icon per provider does exactly that. Hold ⌘ and drag the items
+into the order you want. If they keep jumping after a relaunch, that is macOS's
+placement memory, not a setting in Tokenmax; report it with your macOS version.
+
 ### The icon got wider and pushed my other menu bar items along
 
 You switched the icon to **Rings**. Two rings need about 35pt where two bars

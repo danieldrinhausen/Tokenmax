@@ -16,6 +16,24 @@ enum MenuBarDisplayMode: String, Codable, Sendable, CaseIterable, Identifiable {
     }
 }
 
+/// Whether the menu bar carries one item for every provider or one each.
+///
+/// Combined by default, including on upgrade: a second item appearing unasked
+/// moves everything to its left, and the menu bar is navigated by position.
+enum MenuBarItemLayout: String, Codable, Sendable, CaseIterable, Identifiable {
+    case combined
+    case separate
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .combined: "One combined icon"
+        case .separate: "One icon per provider"
+        }
+    }
+}
+
 /// One reminder rule per usage window. Session and weekly are configured
 /// independently, as the spec requires.
 struct ReminderRule: Codable, Sendable, Equatable {
@@ -303,6 +321,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// only while Side Notch supplies another visible surface.
     var showMenuBarItem = true
 
+    /// One item for every provider, or one per provider. Only takes effect with
+    /// both providers on; see `MenuBarItemDecision.items`.
+    var menuBarItemLayout: MenuBarItemLayout = .combined
+
     /// Which shape the icon is drawn in. See `MenuBarIconStyle` for what each
     /// one is good at.
     ///
@@ -564,6 +586,8 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.menuBarDisplayMode
         showMenuBarItem = (try? container.decodeIfPresent(Bool.self, forKey: .showMenuBarItem))
             ?? d.showMenuBarItem
+        menuBarItemLayout = (try? container.decodeIfPresent(MenuBarItemLayout.self, forKey: .menuBarItemLayout))
+            ?? d.menuBarItemLayout
         menuBarProviderID = try container.decodeIfPresent(String.self, forKey: .menuBarProviderID)
             ?? d.menuBarProviderID
         foregroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .foregroundRefreshSeconds)

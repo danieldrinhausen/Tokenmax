@@ -1,5 +1,28 @@
 import Foundation
 
+/// One menu bar item: the combined one, or a single provider's.
+enum MenuBarItemID: Hashable, Sendable {
+    case combined
+    case provider(TokenmaxProvider)
+
+    /// The identity mark drawn before the meters. The combined item has none —
+    /// it is drawn exactly as it was before separate items existed.
+    var marker: MenuBarIconRenderer.ProviderMarker? {
+        switch self {
+        case .combined: nil
+        case let .provider(provider): MenuBarIconRenderer.ProviderMarker(provider: provider)
+        }
+    }
+
+    /// Read by VoiceOver, since the glyph alone is not a name.
+    var accessibilityName: String {
+        switch self {
+        case .combined: "Tokenmax"
+        case let .provider(provider): "Tokenmax — \(provider.displayName)"
+        }
+    }
+}
+
 enum MenuBarItemSuppressionReason: Equatable, Sendable {
     case sideNotchDisabled
 
@@ -26,6 +49,51 @@ enum MenuBarItemDecision {
     /// `MenuBarExtra` writes its current insertion state while reconciling a
     /// removal. That callback describes the scene SwiftUI is tearing down, not
     /// a user action; accepting it restores the item the user just hid.
+    /// The menu bar items to show, in order.
+    ///
+    /// Separate items only mean something with two providers on: with one,
+    /// "one icon per provider" and "one combined icon" are the same icon, so the
+    /// combined item is kept rather than swapping to a differently drawn one
+    /// that says nothing more. Keeping it also means switching the second
+    /// provider back on restores exactly the layout the user chose.
+    static func items(
+        showMenuBarItem: Bool,
+        layout: MenuBarItemLayout,
+        enabledProviders: [TokenmaxProvider]
+    ) -> [MenuBarItemID] {
+        guard showMenuBarItem else { return [] }
+        let providers = TokenmaxProvider.allCases.filter(enabledProviders.contains)
+        guard layout == .separate, providers.count > 1 else { return [.combined] }
+        return providers.map { .provider($0) }
+    }
+
+    /// What one provider's own item draws: its session over its week, in the
+    /// configured style.
+    ///
+    /// Fixed rather than taken from the bar editor. The editor lays out quotas
+    /// *across* providers, and filtering that layout per provider could leave an
+    /// item with one bar or none; an item that exists to show one provider
+    /// should always show the two windows that provider has.
+    static func layout(for provider: TokenmaxProvider, style: MenuBarIconStyle) -> MenuBarIconLayout {
+        let sources: [MenuBarQuotaSource] = switch provider {
+        case .claudeCode: [.claudeSession, .claudeWeekly]
+        case .codex: [.codexSession, .codexWeekly]
+        }
+        return switch style {
+        case .bars: .bars(MenuBarBars(sources))
+        case .rings: .rings(MenuBarRings(sources))
+        }
+    }
+
+    /// The countdown a provider's own item follows: that provider's session,
+    /// the window the "spend it now" moment is about.
+    static func countdownSource(for provider: TokenmaxProvider) -> MenuBarQuotaSource {
+        switch provider {
+        case .claudeCode: .claudeSession
+        case .codex: .codexSession
+        }
+    }
+
     static func persistedVisibility(
         afterSceneReconciliation _: Bool,
         currentUserChoice: Bool

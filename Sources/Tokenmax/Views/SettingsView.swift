@@ -86,6 +86,16 @@ struct GeneralSettingsView: View {
     /// A plausible reading rather than the live one: the preview is there to
     /// show the *shape*, and a real snapshot can sit at four near-identical
     /// numbers, or at none at all before the first refresh lands.
+    /// Separate items are a real choice only with both providers on and the
+    /// menu bar item showing — see `MenuBarItemDecision.items`.
+    private var canSeparateMenuBarItems: Bool {
+        settingsStore.settings.showMenuBarItem && settingsStore.settings.enabledProviders.count > 1
+    }
+
+    private var showsSeparateMenuBarItems: Bool {
+        canSeparateMenuBarItems && settingsStore.settings.menuBarItemLayout == .separate
+    }
+
     private var previewMeters: [MenuBarIconRenderer.Meter] {
         let sample: [Double] = [39, 100, 74, 39]
         let count = settingsStore.settings.effectiveMenuBarLayout.sources.count
@@ -165,6 +175,27 @@ struct GeneralSettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                Picker("Icons", selection: $settingsStore.settings.menuBarItemLayout) {
+                    ForEach(MenuBarItemLayout.allCases) { layout in
+                        Text(layout.displayName).tag(layout)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .disabled(!canSeparateMenuBarItems)
+
+                if settingsStore.settings.enabledProviders.count < 2 {
+                    Text("One icon per provider needs both Claude Code and Codex switched on. With one provider there is one icon either way.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if showsSeparateMenuBarItems {
+                    Text("Each provider gets its own item, marked with a spark for Claude Code and >_ for Codex, showing its own session over its week. Its popover shows only that provider. ⌘-drag either item to reorder them.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Picker("Style", selection: $settingsStore.settings.menuBarIconStyle) {
                     ForEach(MenuBarIconStyle.allCases) { style in
                         Text(style.displayName).tag(style)
@@ -193,11 +224,18 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if showsSeparateMenuBarItems {
+                    Text("The quotas above apply to the combined icon; each provider icon shows its own session and week.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 MenuBarIconPreview(
                     style: settingsStore.settings.menuBarIconStyle,
                     meters: previewMeters,
-                    highlight: settingsStore.settings.menuBarHighlightColor
+                    highlight: settingsStore.settings.menuBarHighlightColor,
+                    separate: showsSeparateMenuBarItems
                 )
             }
 
@@ -379,6 +417,7 @@ struct MenuBarIconSwatch: View {
     var highlight: HighlightColor = .default
     var glow: Bool = false
     var escalation: MenuBarEscalation?
+    var marker: MenuBarIconRenderer.ProviderMarker?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -397,7 +436,8 @@ struct MenuBarIconSwatch: View {
             isStale: false,
             highlight: highlight,
             glow: glow,
-            escalation: escalation
+            escalation: escalation,
+            marker: marker
         ))
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
@@ -417,10 +457,26 @@ private struct MenuBarIconPreview: View {
     let style: MenuBarIconStyle
     let meters: [MenuBarIconRenderer.Meter]
     let highlight: HighlightColor
+    var separate = false
 
     var body: some View {
         LabeledContent("Preview") {
-            MenuBarIconSwatch(style: style, meters: meters, highlight: highlight)
+            if separate {
+                // Each provider item draws its own session over its week, so
+                // two meters each whatever the layout editor holds.
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach([MenuBarIconRenderer.ProviderMarker.claude, .codex], id: \.self) { marker in
+                        MenuBarIconSwatch(
+                            style: style,
+                            meters: [.init(fraction: 39), .init(fraction: 74)],
+                            highlight: highlight,
+                            marker: marker
+                        )
+                    }
+                }
+            } else {
+                MenuBarIconSwatch(style: style, meters: meters, highlight: highlight)
+            }
         }
     }
 }

@@ -47,4 +47,63 @@ struct MenuBarItemDecisionTests {
             currentUserChoice: true
         ))
     }
+
+    // MARK: - One item or one per provider
+
+    @Test("The combined layout is one item")
+    func combinedIsOneItem() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .combined, enabledProviders: [.claudeCode, .codex]
+        ) == [.combined])
+    }
+
+    @Test("Separate items are one per enabled provider, Claude first")
+    func separateIsOnePerProvider() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .separate, enabledProviders: [.codex, .claudeCode]
+        ) == [.provider(.claudeCode), .provider(.codex)])
+    }
+
+    @Test("With one provider on, separate items fall back to the combined one")
+    func singleProviderStaysCombined() {
+        for provider in TokenmaxProvider.allCases {
+            #expect(MenuBarItemDecision.items(
+                showMenuBarItem: true, layout: .separate, enabledProviders: [provider]
+            ) == [.combined])
+        }
+    }
+
+    @Test("A hidden menu bar item hides every item whatever the layout")
+    func hiddenMeansNone() {
+        for layout in MenuBarItemLayout.allCases {
+            #expect(MenuBarItemDecision.items(
+                showMenuBarItem: false, layout: layout, enabledProviders: [.claudeCode, .codex]
+            ).isEmpty)
+        }
+    }
+
+    @Test("A provider's item draws only that provider's session over its week, in both styles")
+    func providerLayoutIsItsOwn() {
+        for style in MenuBarIconStyle.allCases {
+            #expect(MenuBarItemDecision.layout(for: .claudeCode, style: style).sources
+                == [.claudeSession, .claudeWeekly])
+            #expect(MenuBarItemDecision.layout(for: .codex, style: style).sources
+                == [.codexSession, .codexWeekly])
+            #expect(MenuBarItemDecision.layout(for: .codex, style: style).style == style)
+        }
+    }
+
+    @Test("A provider's item counts down to its own session")
+    func providerCountdownIsItsOwn() {
+        #expect(MenuBarItemDecision.countdownSource(for: .claudeCode) == .claudeSession)
+        #expect(MenuBarItemDecision.countdownSource(for: .codex) == .codexSession)
+    }
+
+    @Test("Only a provider's item carries a marker")
+    func onlyProviderItemsAreMarked() {
+        #expect(MenuBarItemID.combined.marker == nil)
+        #expect(MenuBarItemID.provider(.claudeCode).marker == .claude)
+        #expect(MenuBarItemID.provider(.codex).marker == .codex)
+        #expect(MenuBarItemID.provider(.codex).accessibilityName.contains("Codex"))
+    }
 }

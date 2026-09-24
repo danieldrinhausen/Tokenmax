@@ -65,6 +65,11 @@ onto the slot you want it on; dropping one onto an occupied slot swaps the two.
 to be a window the icon shows. The text can also be switched off, leaving the
 icon alone.
 
+Watching both providers? **Icons → One icon per provider** gives Claude Code and
+Codex their own menu bar items instead of one combined icon, each with its own
+session-over-week meters, its own countdown and a popover for just that
+provider. The spark marks Claude Code's item and `>_` marks Codex's.
+
 Bars are two or three stacked capsules and are the easiest to compare against
 each other. Rings are nested arcs, two per ring: the outer arc encloses the
 inner one, which is how a session sits inside a week. Rings are the only shape
@@ -494,6 +499,14 @@ you move between displays, the collapsed handle follows the pointer
 automatically. Right-click it whenever you need the menu bar item back.
 The same menu opens **Settings…** directly, so every preference remains reachable
 while the menu bar item is hidden.
+
+**"I want Claude and Codex side by side, each a click away."**
+Switch both providers on under **Settings → Data Source**, then choose
+**Settings → General → Menu bar icon → Icons → One icon per provider**. Each
+provider gets its own item — a spark for Claude Code, `>_` for Codex — showing
+its session over its week, counting down to its own session, and opening a
+popover with only that provider in it. ⌘-drag the items into the order you
+want. The right-click menu is the same on both.
 
 **"I want to know when quota is about to be wasted, and nothing else."**
 Enable reminders, set a 45-minute session lead. Leave the queue, automation and

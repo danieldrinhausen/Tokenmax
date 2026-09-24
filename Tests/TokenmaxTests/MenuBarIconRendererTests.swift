@@ -288,4 +288,86 @@ struct MenuBarIconRendererTests {
             resetAt: now.addingTimeInterval(-60), now: now
         ) == "0:00")
     }
+
+    // MARK: - Provider markers
+
+    private let twoMeters: [MenuBarIconRenderer.Meter] = [.init(fraction: 40), .init(fraction: 70)]
+
+    private func bitmap(_ image: NSImage) throws -> NSBitmapImageRep {
+        try #require(image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
+    }
+
+    @Test("A marker widens the icon by its own room and nothing else")
+    func markerWidensCanvas() {
+        for style in MenuBarIconStyle.allCases {
+            let plain = MenuBarIconRenderer.image(style: style, meters: twoMeters, isStale: false)
+            let marked = MenuBarIconRenderer.image(style: style, meters: twoMeters, isStale: false, marker: .claude)
+            let room = MenuBarIconRenderer.ProviderMarker.width + MenuBarIconRenderer.ProviderMarker.gap
+            #expect(marked.size.width == plain.size.width + room)
+            #expect(marked.size.height == plain.size.height)
+        }
+    }
+
+    @Test("No marker draws exactly the icon that shipped before markers existed")
+    func noMarkerIsUnchanged() throws {
+        let plain = try #require(pixels(MenuBarIconRenderer.image(meters: twoMeters, isStale: false)))
+        let unmarked = try #require(pixels(MenuBarIconRenderer.image(meters: twoMeters, isStale: false, marker: nil)))
+        #expect(plain == unmarked)
+        #expect(MenuBarIconRenderer.image(meters: twoMeters, isStale: false, marker: nil).size
+            == MenuBarIconRenderer.barsSize)
+    }
+
+    @Test("A marked icon draws the same meters, shifted past the marker")
+    func markerOnlyShiftsTheMeters() throws {
+        let plainImage = MenuBarIconRenderer.image(meters: twoMeters, isStale: false)
+        let plain = try bitmap(plainImage)
+        let marked = try bitmap(MenuBarIconRenderer.image(meters: twoMeters, isStale: false, marker: .codex))
+        let scale = CGFloat(plain.pixelsWide) / plainImage.size.width
+        let offset = Int((MenuBarIconRenderer.ProviderMarker.width + MenuBarIconRenderer.ProviderMarker.gap) * scale)
+
+        for y in 0 ..< plain.pixelsHigh {
+            for x in 0 ..< plain.pixelsWide {
+                let expected = plain.colorAt(x: x, y: y)?.alphaComponent ?? 0
+                let actual = marked.colorAt(x: x + offset, y: y)?.alphaComponent ?? 0
+                #expect(abs(expected - actual) < 0.01, "pixel \(x),\(y)")
+            }
+        }
+    }
+
+    @Test("Claude and Codex markers look different")
+    func markersDiffer() throws {
+        let claude = try #require(pixels(MenuBarIconRenderer.image(meters: twoMeters, isStale: false, marker: .claude)))
+        let codex = try #require(pixels(MenuBarIconRenderer.image(meters: twoMeters, isStale: false, marker: .codex)))
+        #expect(claude != codex)
+    }
+
+    @Test("A lit icon keeps its marker neutral, so the mark never reads as a quota state")
+    func markerStaysNeutralWhenLit() throws {
+        let image = MenuBarIconRenderer.image(
+            meters: [.init(fraction: 40, isReady: true), .init(fraction: 70, isReady: true)],
+            isStale: false, marker: .claude
+        )
+        let rep = try bitmap(image)
+        let scale = CGFloat(rep.pixelsWide) / image.size.width
+        let markerPixels = Int(MenuBarIconRenderer.ProviderMarker.width * scale)
+        var sawInk = false
+        for y in 0 ..< rep.pixelsHigh {
+            for x in 0 ..< markerPixels {
+                guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                      color.alphaComponent > 0.5
+                else { continue }
+                sawInk = true
+                #expect(abs(color.redComponent - color.greenComponent) < 0.02)
+                #expect(abs(color.greenComponent - color.blueComponent) < 0.02)
+            }
+        }
+        #expect(sawInk)
+    }
+
+    @Test("Two providers with the same reading get different cached images")
+    func cacheSeparatesMarkers() {
+        let claude = MenuBarIconRenderer.cachedImage(meters: twoMeters, isStale: false, marker: .claude)
+        let codex = MenuBarIconRenderer.cachedImage(meters: twoMeters, isStale: false, marker: .codex)
+        #expect(claude !== codex)
+    }
 }

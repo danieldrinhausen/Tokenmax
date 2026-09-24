@@ -254,6 +254,64 @@ struct IconSnapshotDump {
         return output
     }
 
+    /// Each provider's own item, in both shapes, unlit then lit. What this is
+    /// for is judging whether a spark and a `>_` can be told apart at 9pt, and
+    /// that the mark stays neutral beside lit meters.
+    private func markers(scale: CGFloat, background: NSColor) -> NSImage {
+        let brightness = background.usingColorSpace(.deviceRGB)?.brightnessComponent ?? 0.5
+        let appearance = NSAppearance(named: brightness < 0.5 ? .darkAqua : .aqua)!
+
+        var rendered: [NSImage] = []
+        appearance.performAsCurrentDrawingAppearance {
+            for style in MenuBarIconStyle.allCases {
+                for marker in [MenuBarIconRenderer.ProviderMarker.claude, .codex] {
+                    for lit in [false, true] {
+                        rendered.append(MenuBarIconRenderer.image(
+                            style: style,
+                            meters: [.init(fraction: 40, isReady: lit), .init(fraction: 70, isReady: lit)],
+                            isStale: false,
+                            marker: marker
+                        ))
+                    }
+                }
+            }
+        }
+
+        let pad: CGFloat = 12 * scale
+        let height = MenuBarIconRenderer.barsSize.height * scale
+        let widths = rendered.map { $0.size.width * scale }
+        let total = NSSize(
+            width: pad * CGFloat(rendered.count + 1) + widths.reduce(0, +),
+            height: height + pad * 2
+        )
+
+        let output = NSImage(size: total)
+        output.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = scale > 3 ? .none : .high
+        background.setFill()
+        NSRect(origin: .zero, size: total).fill()
+
+        var x = pad
+        for (index, image) in rendered.enumerated() {
+            image.draw(in: NSRect(x: x, y: pad, width: widths[index], height: height))
+            x += widths[index] + pad
+        }
+        output.unlockFocus()
+        return output
+    }
+
+    @Test("Dump provider markers in both shapes")
+    func dumpMarkers() throws {
+        let dark = NSColor(calibratedWhite: 0.13, alpha: 1)
+        let light = NSColor(calibratedWhite: 0.93, alpha: 1)
+
+        try write(markers(scale: 2, background: light), to: "markers-light-2x.png")
+        try write(markers(scale: 8, background: light), to: "markers-light-8x.png")
+        try write(markers(scale: 8, background: dark), to: "markers-dark-8x.png")
+
+        #expect(FileManager.default.fileExists(atPath: "/tmp/tokenmax-icons/markers-light-8x.png"))
+    }
+
     @Test("Dump the escalation ladder in both shapes")
     func dumpEscalation() throws {
         let dark = NSColor(calibratedWhite: 0.13, alpha: 1)

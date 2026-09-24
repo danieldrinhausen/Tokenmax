@@ -51,16 +51,45 @@ enum MenuBarIconRenderer {
         static let outerAlpha: CGFloat = 0.55
     }
 
-    /// The canvas for `meterCount` meters in the given style.
-    static func size(style: MenuBarIconStyle, meterCount: Int) -> NSSize {
+    /// The identity mark a provider's own menu bar item draws before its
+    /// meters, so two items that look alike can be told apart.
+    ///
+    /// Drawn as paths rather than shipped as brand artwork: they have to be
+    /// template-tinted like everything else in the menu bar, and at 9pt a shape
+    /// reads where a logo turns to mush. Always monochrome — in the neutral
+    /// colour even when the meters beside it are lit or escalated — so the mark
+    /// can never be read as a quota state.
+    enum ProviderMarker: Hashable, Sendable {
+        /// A spark of eight rays, after Claude's own mark.
+        case claude
+        /// A `>_` prompt, for the CLI Codex is.
+        case codex
+
+        init(provider: TokenmaxProvider) {
+            switch provider {
+            case .claudeCode: self = .claude
+            case .codex: self = .codex
+            }
+        }
+
+        static let width: CGFloat = 9
+        static let gap: CGFloat = 2
+    }
+
+    /// The canvas for `meterCount` meters in the given style, plus the marker's
+    /// room when there is one.
+    static func size(style: MenuBarIconStyle, meterCount: Int, marker: ProviderMarker? = nil) -> NSSize {
+        let meters: NSSize
         switch style {
         case .bars:
-            return barsSize
+            meters = barsSize
         case .rings:
             let rings = max(1, meterCount / 2)
             let width = CGFloat(rings) * Ring.cell + CGFloat(rings - 1) * Ring.gap
-            return NSSize(width: width, height: barsSize.height)
+            meters = NSSize(width: width, height: barsSize.height)
         }
+        guard marker != nil else { return meters }
+        return NSSize(width: meters.width + ProviderMarker.width + ProviderMarker.gap, height: meters.height)
     }
 
     /// The default "spend it now" colour, kept as a name because the icon tests
@@ -143,6 +172,8 @@ enum MenuBarIconRenderer {
         /// A drawing input like any other: without it, editing a level in
         /// Settings would leave the old icon on screen.
         let escalation: MenuBarEscalation?
+        /// Two providers' items with the same reading must not share an image.
+        let marker: ProviderMarker?
     }
 
     /// The status item rasterizes its image more often than it is assigned, so
@@ -166,19 +197,28 @@ enum MenuBarIconRenderer {
         isStale: Bool,
         highlight: HighlightColor = .default,
         glow: Bool = false,
-        escalation: MenuBarEscalation? = nil
+        escalation: MenuBarEscalation? = nil,
+        marker: ProviderMarker? = nil
     ) -> NSImage {
-        let canvas = size(style: style, meterCount: meters.count)
-
         // Eager, bitmap-backed. `NSImage(size:flipped:drawingHandler:)` would
         // re-run the closure on every rasterization instead of once.
-        let image = NSImage(size: canvas)
+        let image = NSImage(size: size(style: style, meterCount: meters.count, marker: marker))
         image.lockFocus()
 
         // A coloured meter cannot survive templating, and a template is the only
         // way the neutral meters can match the menu bar. When both are on screen
         // the colour has to win, so the neutrals fall back to grey.
         let templated = !meters.contains { needsRealColor(meter: $0, escalation: escalation) }
+
+        // The meters are drawn exactly as on an unmarked icon, shifted right —
+        // so the combined item, which has no marker, is bit-for-bit unchanged.
+        let canvas = size(style: style, meterCount: meters.count)
+        if let marker {
+            drawMarker(marker, height: canvas.height, isStale: isStale, templated: templated)
+            let shift = NSAffineTransform()
+            shift.translateX(by: ProviderMarker.width + ProviderMarker.gap, yBy: 0)
+            shift.concat()
+        }
 
         switch style {
         case .bars:
@@ -196,6 +236,40 @@ enum MenuBarIconRenderer {
         image.unlockFocus()
         image.isTemplate = templated
         return image
+    }
+
+    private static func drawMarker(_ marker: ProviderMarker, height: CGFloat, isStale: Bool, templated: Bool) {
+        // Stale dims the mark with the meters, at the same alpha the meters'
+        // own stale colour uses, so the whole item reads as one muted object.
+        let base = templated ? templateColor : untemplatedNeutralColor
+        base.withAlphaComponent(isStale ? 0.45 : 1).setStroke()
+
+        let middle = height / 2
+        let path = NSBezierPath()
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+
+        switch marker {
+        case .claude:
+            // Long rays on the axes, short ones on the diagonals: eight equal
+            // rays read as an asterisk, the alternation as a spark.
+            let centre = NSPoint(x: ProviderMarker.width / 2, y: middle)
+            path.lineWidth = 1.3
+            for index in 0 ..< 8 {
+                let angle = CGFloat(index) * .pi / 4
+                let outer: CGFloat = index.isMultiple(of: 2) ? 4.3 : 3.1
+                path.move(to: NSPoint(x: centre.x + cos(angle) * 1.1, y: centre.y + sin(angle) * 1.1))
+                path.line(to: NSPoint(x: centre.x + cos(angle) * outer, y: centre.y + sin(angle) * outer))
+            }
+        case .codex:
+            path.lineWidth = 1.4
+            path.move(to: NSPoint(x: 1, y: middle + 3.5))
+            path.line(to: NSPoint(x: 4.5, y: middle))
+            path.line(to: NSPoint(x: 1, y: middle - 3.5))
+            path.move(to: NSPoint(x: 5.5, y: middle - 3.5))
+            path.line(to: NSPoint(x: 8.5, y: middle - 3.5))
+        }
+        path.stroke()
     }
 
     private static func drawBars(
@@ -284,7 +358,8 @@ enum MenuBarIconRenderer {
         isStale: Bool,
         highlight: HighlightColor = .default,
         glow: Bool = false,
-        escalation: MenuBarEscalation? = nil
+        escalation: MenuBarEscalation? = nil,
+        marker: ProviderMarker? = nil
     ) -> NSImage {
         let lit = meters.contains(where: \.isReady) && !isStale
 
@@ -302,7 +377,8 @@ enum MenuBarIconRenderer {
             isStale: isStale,
             highlight: lit ? highlight : nil,
             glow: isGlowing(isStale: isStale, isReady: lit, glow: glow),
-            escalation: escalation
+            escalation: escalation,
+            marker: marker
         )
 
         if let cached = imageCache[key] { return cached }
@@ -313,7 +389,8 @@ enum MenuBarIconRenderer {
             isStale: isStale,
             highlight: highlight,
             glow: glow,
-            escalation: escalation
+            escalation: escalation,
+            marker: marker
         )
         // Three bars, three alert states and now two styles multiply the
         // reachable states, so the cap is well above the old 16 to keep the

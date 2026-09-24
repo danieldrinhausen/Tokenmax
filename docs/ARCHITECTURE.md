@@ -82,6 +82,22 @@ AppKit context monitor that cannot exist before its status item does. The
 old scene state while removing the item, but only Settings and Side Notch carry
 user intent and may change the persisted visibility preference.
 
+There are three `MenuBarExtra` scenes — the combined item, Claude Code's and
+Codex's — because a scene cannot come and go from `body`; `isInserted` is the
+only way an item appears or disappears. `MenuBarItemDecision.items` decides
+which are inserted: none while the item is hidden, one per enabled provider
+under **One icon per provider** with both providers on, and otherwise the
+combined item. Every scene's binding goes through the same one-way
+reconciliation, so a provider item being torn down never rewrites the user's
+choice. `MenuBarItemDecision.layout(for:style:)` gives a provider's item its
+own session over its week rather than filtering the cross-provider slot layout,
+which could leave it with one bar or none; its countdown and highlight follow
+that provider alone. The renderer's `ProviderMarker` draws the identifying
+glyph in the neutral colour and shifts the meters right, so the combined item,
+which has no marker, is pixel-identical to before. Only the first inserted
+item answers `.tokenmaxOpenQueue`, since every label receives it. The context
+menu already matches any `NSStatusBarButton`, so it needs no per-item wiring.
+
 `NotificationScheduler` evaluates one provider/window rule at a time; a valid
 snapshot that omits that window is the named `.windowUnavailable` suppression,
 not missing or stale data. A session rule also receives the same provider's

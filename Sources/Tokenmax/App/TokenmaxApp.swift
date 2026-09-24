@@ -132,38 +132,13 @@ struct TokenmaxApp: App {
             NSHostingController(rootView: SettingsView().modifier(environment))
         }
 
-        MenuBarExtra(isInserted: menuBarItemBinding) {
-            MenuBarPopoverView()
-                .modifier(sharedEnvironment)
-                .onAppear { usage.popoverOpened() }
-                .onDisappear { usage.popoverClosed() }
-        } label: {
-            MenuBarLabel(
-                mode: settingsStore.settings.menuBarDisplayMode,
-                model: MenuBarIconModel.make(
-                    // The *effective* layout: a disabled provider keeps its slot
-                    // in the stored settings but must not be drawn.
-                    layout: settingsStore.settings.effectiveMenuBarLayout,
-                    countdownSource: settingsStore.settings.effectiveCountdownSource,
-                    snapshot: { usage.snapshot(for: $0) },
-                    isStale: { usage.isStale(for: $0) },
-                    alerting: notificationCoordinator.alertingSources,
-                    ready: usage.readySources
-                ),
-                now: clock.now,
-                isHighlighted: usage.burnOpportunity != nil,
-                highlight: settingsStore.settings.menuBarHighlightColor,
-                glow: settingsStore.settings.menuBarHighlightGlow,
-                escalation: settingsStore.settings.effectiveEscalation
-            )
-            .onAppear {
-                // Here rather than in `applicationDidFinishLaunching` because
-                // the stores live in this struct, and because the status item
-                // it watches for does not exist until this scene has been built.
-                appDelegate.installMenuBarContextMenu(settingsStore: settingsStore, usage: usage)
-            }
-        }
-        .menuBarExtraStyle(.window)
+        // Three scenes, of which `MenuBarItemDecision.items` inserts either the
+        // first or the other two. Declared unconditionally because a scene
+        // cannot come and go from `body`; `isInserted` is how a `MenuBarExtra`
+        // appears and disappears.
+        menuBarItem(.combined)
+        menuBarItem(.provider(.claudeCode))
+        menuBarItem(.provider(.codex))
 
         Window("Tokenmax Queue", id: TokenmaxWindow.queue) {
             QueueView()
@@ -195,9 +170,66 @@ struct TokenmaxApp: App {
         )
     }
 
-    private var menuBarItemBinding: Binding<Bool> {
+    private var menuBarItems: [MenuBarItemID] {
+        MenuBarItemDecision.items(
+            showMenuBarItem: settingsStore.settings.showMenuBarItem,
+            layout: settingsStore.settings.menuBarItemLayout,
+            enabledProviders: settingsStore.settings.enabledProviders
+        )
+    }
+
+    private func menuBarItem(_ id: MenuBarItemID) -> some Scene {
+        let provider: TokenmaxProvider? = if case let .provider(provider) = id { provider } else { nil }
+        let settings = settingsStore.settings
+        return MenuBarExtra(isInserted: menuBarItemBinding(id)) {
+            MenuBarPopoverView(provider: provider)
+                .modifier(sharedEnvironment)
+                .onAppear { usage.popoverOpened() }
+                .onDisappear { usage.popoverClosed() }
+        } label: {
+            MenuBarLabel(
+                mode: settings.menuBarDisplayMode,
+                model: MenuBarIconModel.make(
+                    // The *effective* layout: a disabled provider keeps its slot
+                    // in the stored settings but must not be drawn. A provider's
+                    // own item draws that provider's two windows instead.
+                    layout: provider.map { MenuBarItemDecision.layout(for: $0, style: settings.menuBarIconStyle) }
+                        ?? settings.effectiveMenuBarLayout,
+                    countdownSource: provider.map(MenuBarItemDecision.countdownSource(for:))
+                        ?? settings.effectiveCountdownSource,
+                    snapshot: { usage.snapshot(for: $0) },
+                    isStale: { usage.isStale(for: $0) },
+                    alerting: notificationCoordinator.alertingSources,
+                    ready: usage.readySources
+                ),
+                now: clock.now,
+                // Per provider for a provider's item: the combined item's
+                // highlight follows the selected provider, which under the
+                // Codex icon would light it for Claude's opportunity.
+                isHighlighted: provider.map { usage.coordinator(for: $0).burnOpportunity != nil }
+                    ?? (usage.burnOpportunity != nil),
+                highlight: settings.menuBarHighlightColor,
+                glow: settings.menuBarHighlightGlow,
+                escalation: settings.effectiveEscalation,
+                marker: id.marker,
+                accessibilityName: id.accessibilityName,
+                handlesAppActions: menuBarItems.first == id
+            )
+            .onAppear {
+                // Here rather than in `applicationDidFinishLaunching` because
+                // the stores live in this struct, and because the status item
+                // it watches for does not exist until this scene has been built.
+                // Guarded to once inside, and the menu matches any status item,
+                // so every item gets it however many there are.
+                appDelegate.installMenuBarContextMenu(settingsStore: settingsStore, usage: usage)
+            }
+        }
+        .menuBarExtraStyle(.window)
+    }
+
+    private func menuBarItemBinding(_ id: MenuBarItemID) -> Binding<Bool> {
         Binding(
-            get: { settingsStore.settings.showMenuBarItem },
+            get: { menuBarItems.contains(id) },
             set: { sceneState in
                 let retained = MenuBarItemDecision.persistedVisibility(
                     afterSceneReconciliation: sceneState,
@@ -264,6 +296,11 @@ private struct MenuBarLabel: View {
     let highlight: HighlightColor
     let glow: Bool
     let escalation: MenuBarEscalation?
+    let marker: MenuBarIconRenderer.ProviderMarker?
+    let accessibilityName: String
+    /// Whether this item answers app-wide requests such as "Open Queue". Only
+    /// one may: with two items inserted, both labels receive the notification.
+    let handlesAppActions: Bool
 
     @Environment(\.openWindow) private var openWindow
 
@@ -292,8 +329,13 @@ private struct MenuBarLabel: View {
         // "Open Queue" from a notification banner arrives here while the
         // status item exists, since this view has access to `openWindow`.
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxOpenQueue)) { _ in
+            guard handlesAppActions else { return }
             openWindow(id: TokenmaxWindow.queue)
         }
+        .accessibilityLabel(accessibilityName)
+        // Best effort: a `MenuBarExtra` label may not surface a tooltip, and
+        // the glyph is what identifies the item either way.
+        .help(accessibilityName)
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxAppearanceChanged)) { _ in
             appearanceGeneration &+= 1
         }
@@ -309,7 +351,8 @@ private struct MenuBarLabel: View {
             isStale: model.isStale,
             highlight: highlight,
             glow: glow,
-            escalation: escalation
+            escalation: escalation,
+            marker: marker
         ))
     }
 
