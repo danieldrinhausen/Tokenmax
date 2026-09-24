@@ -93,10 +93,17 @@ struct MenuBarItemDecisionTests {
         }
     }
 
-    @Test("A provider's item counts down to its own session")
+    @Test("A provider's item counts down to its own session or week, never another provider's")
     func providerCountdownIsItsOwn() {
-        #expect(MenuBarItemDecision.countdownSource(for: .claudeCode) == .claudeSession)
-        #expect(MenuBarItemDecision.countdownSource(for: .codex) == .codexSession)
+        #expect(MenuBarItemDecision.countdownSource(for: .claudeCode, countdown: .session) == .claudeSession)
+        #expect(MenuBarItemDecision.countdownSource(for: .claudeCode, countdown: .week) == .claudeWeekly)
+        #expect(MenuBarItemDecision.countdownSource(for: .codex, countdown: .session) == .codexSession)
+        #expect(MenuBarItemDecision.countdownSource(for: .codex, countdown: .week) == .codexWeekly)
+        for provider in TokenmaxProvider.allCases {
+            for countdown in MenuBarProviderCountdown.allCases {
+                #expect(MenuBarItemDecision.countdownSource(for: provider, countdown: countdown).provider == provider)
+            }
+        }
     }
 
     @Test("Only a provider's item carries a marker")

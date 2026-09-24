@@ -62,11 +62,14 @@ Claude Code and Codex switched on, **One icon per provider** gives each its own 
 small glyph before the meters — a spark for Claude Code, `>_` for Codex. The glyph stays in the
 neutral menu bar colour even while the meters beside it are lit or escalated, so it can never be
 read as a quota state. Each item draws its provider's session over its week in the shape you
-picked, counts down to that provider's session, and lights only for that provider's "spend it now"
-moment; its popover shows only that provider. The quota slots above keep applying to the combined
-icon, because they lay quotas out *across* providers and filtering them per item could leave an
-item with one bar or none. With only one provider on there is one icon either way, so the setting
-waits until the second is switched back on. ⌘-drag either item to reorder them.
+picked, and lights only for that provider's "spend it now" moment; its popover shows only that
+provider. The quota slot editor is hidden while this is on, because it lays quotas out *across*
+providers and filtering it per item could leave an item with one bar or none; your slot layout is
+kept and comes back when you return to one combined icon. **Count down to** likewise becomes
+**Session / Week**, applied to each icon for its own provider, since a single choice such as
+"Claude session" would leave the Codex icon counting down to a window that is not its own. With
+only one provider on there is one icon either way, so the setting waits until the second is
+switched back on. ⌘-drag either item to reorder them.
 
 The countdown is chosen separately under **Count down to**, because the most useful deadline is not
 always one the icon has room for, and tying the two would mean changing the icon to change the

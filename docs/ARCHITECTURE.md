@@ -92,7 +92,12 @@ reconciliation, so a provider item being torn down never rewrites the user's
 choice. `MenuBarItemDecision.layout(for:style:)` gives a provider's item its
 own session over its week rather than filtering the cross-provider slot layout,
 which could leave it with one bar or none; its countdown and highlight follow
-that provider alone. The renderer's `ProviderMarker` draws the identifying
+that provider alone. The countdown is `menuBarProviderCountdown` — a window
+kind, session or week, resolved per provider by
+`MenuBarItemDecision.countdownSource(for:countdown:)` — because the combined
+item's `menuBarCountdownSource` names one provider and cannot serve two items.
+Settings hides the slot editor and swaps the countdown picker while separate
+items are showing; the stored slot layout is never rewritten. The renderer's `ProviderMarker` draws the identifying
 glyph in the neutral colour and shifts the meters right, so the combined item,
 which has no marker, is pixel-identical to before. Only the first inserted
 item answers `.tokenmaxOpenQueue`, since every label receives it. The context

@@ -195,8 +195,9 @@ struct TokenmaxApp: App {
                     // own item draws that provider's two windows instead.
                     layout: provider.map { MenuBarItemDecision.layout(for: $0, style: settings.menuBarIconStyle) }
                         ?? settings.effectiveMenuBarLayout,
-                    countdownSource: provider.map(MenuBarItemDecision.countdownSource(for:))
-                        ?? settings.effectiveCountdownSource,
+                    countdownSource: provider.map {
+                        MenuBarItemDecision.countdownSource(for: $0, countdown: settings.menuBarProviderCountdown)
+                    } ?? settings.effectiveCountdownSource,
                     snapshot: { usage.snapshot(for: $0) },
                     isStale: { usage.isStale(for: $0) },
                     alerting: notificationCoordinator.alertingSources,

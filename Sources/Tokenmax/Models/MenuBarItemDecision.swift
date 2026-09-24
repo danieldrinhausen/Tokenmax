@@ -85,12 +85,17 @@ enum MenuBarItemDecision {
         }
     }
 
-    /// The countdown a provider's own item follows: that provider's session,
-    /// the window the "spend it now" moment is about.
-    static func countdownSource(for provider: TokenmaxProvider) -> MenuBarQuotaSource {
-        switch provider {
-        case .claudeCode: .claudeSession
-        case .codex: .codexSession
+    /// The countdown a provider's own item follows: that provider's own
+    /// session or week, never another provider's.
+    static func countdownSource(
+        for provider: TokenmaxProvider,
+        countdown: MenuBarProviderCountdown
+    ) -> MenuBarQuotaSource {
+        switch (provider, countdown) {
+        case (.claudeCode, .session): .claudeSession
+        case (.claudeCode, .week): .claudeWeekly
+        case (.codex, .session): .codexSession
+        case (.codex, .week): .codexWeekly
         }
     }
 

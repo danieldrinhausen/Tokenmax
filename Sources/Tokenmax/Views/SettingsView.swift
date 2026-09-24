@@ -189,11 +189,6 @@ struct GeneralSettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                } else if showsSeparateMenuBarItems {
-                    Text("Each provider gets its own item, marked with a spark for Claude Code and >_ for Codex, showing its own session over its week. Its popover shows only that provider. ⌘-drag either item to reorder them.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Picker("Style", selection: $settingsStore.settings.menuBarIconStyle) {
@@ -204,31 +199,37 @@ struct GeneralSettingsView: View {
                 .pickerStyle(.segmented)
                 .fixedSize()
 
-                switch settingsStore.settings.menuBarIconStyle {
-                case .bars:
-                    MenuBarBarsSettingsView(
-                        bars: $settingsStore.settings.menuBarBars,
-                        allowed: settingsStore.settings.allowedMenuBarSources
-                    )
-                    Text("Which quota each bar shows, top to bottom. Drag a quota onto a bar to put it there; dragging one that is already placed swaps the two.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                case .rings:
-                    MenuBarRingsSettingsView(
-                        rings: $settingsStore.settings.menuBarRings,
-                        allowed: settingsStore.settings.allowedMenuBarSources
-                    )
-                    Text("Each ring is two quotas: the outer arc encloses the inner one, so putting a week outside its own session draws the nesting the numbers actually have. Two rings fit all four quotas, which three bars cannot — at the cost of about 15pt more menu bar. The outer arc is drawn dimmer so the pair reads as nested rather than as two equal circles.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                // The slot editor lays quotas out *across* providers, which a
+                // provider's own item never uses — hidden rather than disabled,
+                // because greyed drag chips listing quotas neither icon shows
+                // read as broken. The stored layout is untouched, so switching
+                // back to one icon restores it exactly.
                 if showsSeparateMenuBarItems {
-                    Text("The quotas above apply to the combined icon; each provider icon shows its own session and week.")
+                    Text("Each icon shows its provider's session over its week, marked with a spark for Claude Code and >_ for Codex; its popover shows only that provider. The slot layout applies to the combined icon and is kept for when you switch back. ⌘-drag either icon to reorder them.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    switch settingsStore.settings.menuBarIconStyle {
+                    case .bars:
+                        MenuBarBarsSettingsView(
+                            bars: $settingsStore.settings.menuBarBars,
+                            allowed: settingsStore.settings.allowedMenuBarSources
+                        )
+                        Text("Which quota each bar shows, top to bottom. Drag a quota onto a bar to put it there; dragging one that is already placed swaps the two.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    case .rings:
+                        MenuBarRingsSettingsView(
+                            rings: $settingsStore.settings.menuBarRings,
+                            allowed: settingsStore.settings.allowedMenuBarSources
+                        )
+                        Text("Each ring is two quotas: the outer arc encloses the inner one, so putting a week outside its own session draws the nesting the numbers actually have. Two rings fit all four quotas, which three bars cannot — at the cost of about 15pt more menu bar. The outer arc is drawn dimmer so the pair reads as nested rather than as two equal circles.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 MenuBarIconPreview(
@@ -248,13 +249,28 @@ struct GeneralSettingsView: View {
                 // Its own choice rather than "whatever the top bar shows": the
                 // most useful deadline is not always one the bars have room for.
                 if settingsStore.settings.menuBarDisplayMode != .iconOnly {
-                    Picker("Count down to", selection: $settingsStore.settings.menuBarCountdownSource) {
-                        ForEach(settingsStore.settings.allowedMenuBarSources) { source in
-                            Text(source.displayName).tag(source)
+                    // Per provider in separate mode: a single quota source names
+                    // one provider, and would leave the other icon counting down
+                    // to a window that is not its own.
+                    if showsSeparateMenuBarItems {
+                        Picker("Count down to", selection: $settingsStore.settings.menuBarProviderCountdown) {
+                            ForEach(MenuBarProviderCountdown.allCases) { countdown in
+                                Text(countdown.displayName).tag(countdown)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .fixedSize()
+                    } else {
+                        Picker("Count down to", selection: $settingsStore.settings.menuBarCountdownSource) {
+                            ForEach(settingsStore.settings.allowedMenuBarSources) { source in
+                                Text(source.displayName).tag(source)
+                            }
                         }
                     }
 
-                    Text("Time left before the chosen window resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running.")
+                    Text(showsSeparateMenuBarItems
+                        ? "Each icon shows the time left before its own provider's session or week resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running."
+                        : "Time left before the chosen window resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

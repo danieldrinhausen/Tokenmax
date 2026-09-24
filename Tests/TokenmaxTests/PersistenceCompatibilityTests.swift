@@ -968,4 +968,21 @@ struct PersistenceCompatibilityTests {
         let data = try JSONEncoder().encode(settings)
         #expect(try JSONDecoder().decode(AppSettings.self, from: data).menuBarItemLayout == .separate)
     }
+
+    @Test("Provider icons count down to their session unless told otherwise, and an unknown value falls back")
+    func providerCountdownDefaultsToSession() throws {
+        let old = try decode(AppSettings.self, """
+        { "remindersEnabled": true }
+        """)
+        let unknown = try decode(AppSettings.self, """
+        { "menuBarProviderCountdown": "month", "remindersEnabled": true }
+        """)
+        let week = try decode(AppSettings.self, """
+        { "menuBarProviderCountdown": "week" }
+        """)
+        #expect(old.menuBarProviderCountdown == .session)
+        #expect(unknown.menuBarProviderCountdown == .session)
+        #expect(unknown.remindersEnabled)
+        #expect(week.menuBarProviderCountdown == .week)
+    }
 }

@@ -34,6 +34,25 @@ enum MenuBarItemLayout: String, Codable, Sendable, CaseIterable, Identifiable {
     }
 }
 
+/// Which window each provider's own item counts down to.
+///
+/// A window *kind* rather than a `MenuBarQuotaSource`: with one item per
+/// provider, "count down to Claude session" would be meaningless under the
+/// Codex icon. The same question asked once per provider still is not.
+enum MenuBarProviderCountdown: String, Codable, Sendable, CaseIterable, Identifiable {
+    case session
+    case week
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .session: "Session"
+        case .week: "Week"
+        }
+    }
+}
+
 /// One reminder rule per usage window. Session and weekly are configured
 /// independently, as the spec requires.
 struct ReminderRule: Codable, Sendable, Equatable {
@@ -325,6 +344,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// both providers on; see `MenuBarItemDecision.items`.
     var menuBarItemLayout: MenuBarItemLayout = .combined
 
+    /// What each provider's own item counts down to. The combined item keeps
+    /// `menuBarCountdownSource`, which names a provider and so cannot serve
+    /// two items at once.
+    var menuBarProviderCountdown: MenuBarProviderCountdown = .session
+
     /// Which shape the icon is drawn in. See `MenuBarIconStyle` for what each
     /// one is good at.
     ///
@@ -588,6 +612,9 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.showMenuBarItem
         menuBarItemLayout = (try? container.decodeIfPresent(MenuBarItemLayout.self, forKey: .menuBarItemLayout))
             ?? d.menuBarItemLayout
+        menuBarProviderCountdown = (try? container.decodeIfPresent(
+            MenuBarProviderCountdown.self, forKey: .menuBarProviderCountdown
+        )) ?? d.menuBarProviderCountdown
         menuBarProviderID = try container.decodeIfPresent(String.self, forKey: .menuBarProviderID)
             ?? d.menuBarProviderID
         foregroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .foregroundRefreshSeconds)

@@ -504,8 +504,10 @@ while the menu bar item is hidden.
 Switch both providers on under **Settings → Data Source**, then choose
 **Settings → General → Menu bar icon → Icons → One icon per provider**. Each
 provider gets its own item — a spark for Claude Code, `>_` for Codex — showing
-its session over its week, counting down to its own session, and opening a
-popover with only that provider in it. ⌘-drag the items into the order you
+its session over its week and opening a popover with only that provider in it.
+**Count down to** turns into **Session / Week**, which each icon applies to its
+own provider; the quota slot editor hides, because the icons do not use it, and
+your layout is kept for when you go back to one icon. ⌘-drag the items into the order you
 want. The right-click menu is the same on both.
 
 **"I want to know when quota is about to be wasted, and nothing else."**
