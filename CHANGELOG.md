@@ -5,6 +5,15 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Tokenmax asks Claude Code to renew an expired login instead of asking you to sign in.**
+  Claude Code only renews its token when it runs, so a Mac where it sat idle past the expiry
+  left Tokenmax on "needs Claude Code to renew" until you clicked Sign In — with a perfectly
+  good refresh token going unused. Tokenmax now starts `claude` in a hidden terminal, types
+  `/status`, and refreshes once Claude Code has written the new login. It runs by itself at
+  most every 15 minutes, stops after two runs that did not renew, and Refresh asks again at
+  once. Only `/status` is ever typed, tools, MCP servers and settings are off, and no prompt is
+  sent, so no quota is spent. Tokenmax still never calls the token endpoint itself.
+
 ## [0.1.16] - 2026-09-23
 
 - **The keychain prompt is gone.** Tokenmax now reads Claude Code's token through Apple's

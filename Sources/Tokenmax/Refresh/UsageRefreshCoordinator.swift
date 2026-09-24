@@ -310,7 +310,9 @@ final class UsageRefreshCoordinator: ObservableObject {
                 return
             case .tokenExpired:
                 // Keep showing what we last knew. This clears itself the next
-                // time Claude Code runs, without the user doing anything.
+                // time Claude Code runs, without the user doing anything — and
+                // `ClaudeTokenRenewalCoordinator` sees this state and makes it
+                // run.
                 isAwaitingTokenRenewal = true
                 state = .tokenExpired(lastGood: state.snapshot)
                 return

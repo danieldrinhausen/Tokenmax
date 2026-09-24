@@ -28,7 +28,9 @@ the same command and get the same answer. If you do not want Tokenmax holding
 the token, **Settings → Data Source → Status line only** never reads it. The token
 is held in memory for the lifetime of a request, is **never written to disk**,
 and is **never refreshed** by Tokenmax — refreshing would race Claude Code's own
-refresh. It is sent to exactly one place: `api.anthropic.com`.
+refresh. When the endpoint rejects it, Tokenmax may start `claude` in a hidden
+terminal so Claude Code renews its own login; that run types only `/status`,
+has tools, MCP servers and settings files switched off, and sends no prompt. It is sent to exactly one place: `api.anthropic.com`.
 
 **Network.** Outbound requests go to `api.anthropic.com`, for quota and the model
 catalogue, and — once a day, unless switched off under **Settings → About** — an

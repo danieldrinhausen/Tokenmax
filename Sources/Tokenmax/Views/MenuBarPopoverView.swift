@@ -11,6 +11,7 @@ struct MenuBarPopoverView: View {
     @EnvironmentObject private var autoRun: QueueAutoRunCoordinator
     @EnvironmentObject private var updates: UpdateCheckCoordinator
     @EnvironmentObject private var signIn: ClaudeSignInCoordinator
+    @EnvironmentObject private var renewal: ClaudeTokenRenewalCoordinator
 
     @Environment(\.openWindow) private var openWindow
 
@@ -184,10 +185,11 @@ struct MenuBarPopoverView: View {
                 statusBlock(
                     icon: "arrow.clockwise.circle",
                     title: "Tokenmax needs Claude Code to renew its saved credential",
-                    message: "Your active Claude Code session may still work. Tokenmax's saved credential was rejected; it updates when Claude Code renews its login. Keep working, then refresh. If it does not recover, sign in again — Claude's login page opens in your browser.",
+                    message: "Your active Claude Code session may still work. Tokenmax's saved credential was rejected, so it asks Claude Code to renew its login in the background — no prompt is sent and no usage is spent. Refresh asks again straight away. If it does not recover, sign in again — Claude's login page opens in your browser.",
                     recovery: [.refresh, .signIn],
                     provider: provider
                 )
+                renewalLine
                 if let lastGood {
                     windows(for: lastGood, provider: provider, forceStale: true)
                 }
@@ -415,6 +417,12 @@ struct MenuBarPopoverView: View {
     private func perform(_ action: Recovery, provider: TokenmaxProvider = .claudeCode) {
         switch action {
         case .refresh, .retry:
+            // The one Refresh that can do more than re-read: while the saved
+            // credential is rejected, the click is also the user asking for a
+            // renewal now rather than after the cooldown.
+            if provider == .claudeCode, case .tokenExpired = usage.state(for: .claudeCode) {
+                renewal.userRequested()
+            }
             Task {
                 await usage.refresh(
                     reason: "recovery",
@@ -460,6 +468,36 @@ struct MenuBarPopoverView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// What the background renewal is doing, said out loud for the same reason
+    /// as the sign-in line: it happens out of sight, and an unchanged error
+    /// above reads as nothing happening.
+    @ViewBuilder
+    private var renewalLine: some View {
+        switch renewal.activity {
+        case .renewing:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.mini)
+                Text("Asking Claude Code to renew its login…")
+            }
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
+            .padding(.leading, 25)
+        case let .waitingForReading(at):
+            Text("Claude Code renewed its login. Checking usage at \(at.formatted(date: .omitted, time: .standard)).")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 25)
+        case .idle:
+            if let reason = renewal.lastSuppression {
+                Text(reason.explanation)
+                    .font(.system(size: 10))
+                    .foregroundStyle(reason == .noEffect ? .orange : .secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 25)
             }
         }
     }

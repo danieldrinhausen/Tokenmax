@@ -104,6 +104,24 @@ untouched. The refresh waits for `nextNetworkRefreshAllowedAt`, because the
 rejected request started the client's floor and a replay inside it would not
 clear `isAwaitingTokenRenewal`.
 
+`ClaudeTokenRenewal` decides when to ask Claude Code to renew a login the usage
+endpoint has rejected, and `ClaudeTokenRenewalCoordinator` — owned beside the
+sign-in — does it. Claude Code only rotates its token when it runs, so a Mac
+where it sat idle past the expiry used to stay on "needs renewal" until the user
+signed in again, with a perfectly good refresh token unused. The coordinator
+starts `claude` in a pseudo-terminal (`ClaudeRenewalSession`, spawned through
+`SpawnedProcess` so the group can be stopped), in an empty folder Tokenmax owns,
+with tools, MCP servers and settings files off, types `/status`, and watches the
+keychain item's modification date — an attribute read that raises no dialog.
+When the date moves it stops the CLI and refreshes after the request floor;
+`ClaudeCredentialCache`'s rotation gate opens by itself because the item was
+written. The keystrokes are a closed enum, so no code path can type a prompt:
+nothing reaches a model and no quota is spent. Automatic runs wait 15 minutes
+between attempts and stop after two that left the item unchanged
+(`.noEffect`); Refresh skips both waits. Tokenmax still never calls the token
+endpoint — Claude Code performs the renewal with its own refresh token, exactly
+as it would if the user had opened it.
+
 **Corollary:** when something decides *not* to act, the reason is a case in an
 enum with human-readable copy — never a bare `return`. The user sees it in
 Settings, it appears in the log, and it is assertable in a test. A new guard
@@ -359,6 +377,16 @@ contract.
 - **When it fires:** update the argument builder, then the flag list in
   `Tools/doctor.sh`.
 
+The token renewal (`ClaudeTokenRenewal.arguments`) is the one interactive
+invocation, and it depends on something no flag check can see: that Claude
+Code renews an expired login when it starts and answers `/status`.
+
+- **Failure mode:** the renewal runs but Claude Code never rewrites the keychain
+  item, so the popover stays on "needs renewal".
+- **Detection:** the log line `renewal: item unchanged`, and after two misses the
+  `.noEffect` suppression in the popover ("Claude Code ran but did not renew its
+  login"). Sign In with Claude still recovers.
+
 ### 2. The `stream-json` event schema — quietest risk
 
 `RunTranscript.parse` keys on `assistant` / `result` events and `text` /
@@ -412,8 +440,9 @@ nothing out past its own `expiresAt`, and is dropped when the endpoint answers
 
 - **Failure mode:** quota display dies; task execution keeps working.
 - **Prevention:** `make doctor` verifies the shape.
-- **Never:** write credentials to disk, or refresh the token — that would race
-  Claude Code's own refresh.
+- **Never:** write credentials to disk, or refresh the token ourselves — that
+  would race Claude Code's own refresh. Asking Claude Code to renew
+  (`ClaudeTokenRenewal`) is the one sanctioned route.
 
 ### 5. Model identifiers
 

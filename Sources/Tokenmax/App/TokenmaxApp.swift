@@ -240,6 +240,7 @@ struct SharedEnvironment: ViewModifier {
             // typed dependency while the rest of the app uses both providers.
             .environmentObject(usage.claude)
             .environmentObject(usage.claudeSignIn)
+            .environmentObject(usage.claudeRenewal)
             .environmentObject(notificationManager)
             .environmentObject(notificationCoordinator)
             .environmentObject(sideNotch)

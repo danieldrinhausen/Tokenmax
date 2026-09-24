@@ -185,7 +185,8 @@ final class ClaudeCodeProvider: UsageProvider {
     }
 
     /// Never refreshes the token itself — racing Claude Code's own refresh
-    /// risks invalidating the refresh token.
+    /// risks invalidating the refresh token. A rejected token is renewed by
+    /// asking Claude Code to run (`ClaudeTokenRenewalCoordinator`), never here.
     ///
     /// A locally-computed expiry is **not** grounds for refusing to try. The
     /// clock check is only a hint: the endpoint may still accept the token, and

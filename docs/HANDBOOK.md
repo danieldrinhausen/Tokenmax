@@ -550,6 +550,13 @@ mode, when both are available the fresher, higher-confidence reading wins; in
 status-line-only mode there is just the one source, as fresh as your last
 session response.
 
+**Why did I have to sign in again when Claude Code still worked?**
+Claude Code renews its login only when it runs, and Tokenmax reads the login
+Claude Code last saved. When that saved login is rejected, Tokenmax now starts
+Claude Code in a hidden terminal and has it check its status, which renews the
+login without sending a prompt or spending quota. Sign In with Claude is only
+needed when the popover says Claude Code ran but did not renew.
+
 **Can I use this with an API key instead of a subscription?**
 For quota display, no — there is no window to report; API-key billing is metered
 per token. Tokenmax labels that state as billed and unmetered and refuses to

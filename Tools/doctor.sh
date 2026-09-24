@@ -62,6 +62,8 @@ if [ -n "$claude_bin" ]; then
 
     # Kept in sync with ClaudeTaskRunner.buildArguments (ClaudeTaskRunner.swift:78)
     # and ClaudeOpenerRunner.arguments (ClaudeOpenerRunner.swift:40).
+    # ClaudeTokenRenewal.arguments (--tools, --strict-mcp-config,
+    # --setting-sources) is a subset of these two lists.
     runner_flags=(
         --print --model --effort --output-format --verbose
         --max-budget-usd --allowedTools --strict-mcp-config --resume

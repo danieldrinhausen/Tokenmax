@@ -296,9 +296,19 @@ Claude Code's own refresh), and sends nothing anywhere except Anthropic.
 
 An active Claude Code conversation can keep working while Tokenmax reports that its saved
 credential was rejected. The conversation may be using an existing connection, whereas Tokenmax
-can only use the credential Claude Code last wrote to the keychain. Tokenmax keeps checking and
-uses the status-line reading when one is available; it recovers automatically when Claude Code
-writes a replacement. If it does not, the popover's **Sign In with Claude** runs Claude Code's own
+can only use the credential Claude Code last wrote to the keychain — and Claude Code only renews
+that credential when it runs. So Tokenmax **asks Claude Code to renew**: it starts `claude` in a
+hidden terminal, types `/status`, and stops it as soon as Claude Code has written a new login to
+the keychain, then refreshes. Claude Code does the renewal with its own refresh token, exactly as
+if you had opened it; Tokenmax still never touches the token endpoint. Nothing but `/status` (and
+Return for Claude Code's folder-trust question, in an empty folder Tokenmax owns) is ever typed,
+tools, MCP servers and settings files are switched off, and no prompt is sent — so it spends no
+quota. It runs by itself when the token is rejected, at most every 15 minutes, and stops after two
+runs that did not renew; **Refresh** asks again straight away. Each run leaves a small session
+file with no messages under `~/.claude/projects/…-Tokenmax-renewal`, because that is what Claude
+Code writes for any interactive start.
+
+If Claude Code does not renew, the popover's **Sign In with Claude** runs Claude Code's own
 `claude auth login`, which opens Claude's login page in your browser and writes the new login to
 the keychain when you approve it. Tokenmax never sees the sign-in or holds the token it produces;
 Claude Code does exactly what it does when you run the command in a terminal. Once the login

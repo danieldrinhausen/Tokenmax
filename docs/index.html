@@ -594,7 +594,8 @@
           The primary reads the OAuth token Claude Code already keeps in your login
           keychain — macOS asks your permission once. Tokenmax never writes credentials
           to disk and never refreshes that token itself, because racing Claude Code's own
-          refresh risks invalidating it. Requests are floored at one every 180 seconds
+          refresh risks invalidating it. When the token expires it asks Claude Code to
+          renew its own login instead, without sending a prompt. Requests are floored at one every 180 seconds
           inside the client no matter what the interface asks for.
         </p>
 

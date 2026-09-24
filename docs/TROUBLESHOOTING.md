@@ -270,9 +270,10 @@ labels it. Causes, in order of likelihood:
 - **Tokenmax's saved credential was rejected.** An active Claude Code
   conversation can still work on an existing connection, while the keychain
   credential Tokenmax reads remains old. Tokenmax deliberately never refreshes
-  it, because that would race Claude Code's own refresh. It keeps checking and
-  uses a status-line reading if one is available. Continue working and refresh;
-  if Claude Code does not write a replacement, choose **Sign In with Claude**.
+  it itself, because that would race Claude Code's own refresh; it asks Claude
+  Code to renew instead (see below). It keeps checking and uses a status-line
+  reading if one is available. If Claude Code does not renew, choose **Sign In
+  with Claude**.
 - **No network.**
 
 Stale data is deliberately conservative: it suppresses pace projection and
@@ -295,20 +296,37 @@ an issue.
 This does not mean your active Claude Code conversation has stopped working.
 That conversation can retain a live connection, while Tokenmax independently
 reads the last access credential Claude Code wrote to the keychain. The two only
-converge when Claude Code renews and writes its login state. Tokenmax never
-performs that renewal itself: two programs refreshing the same OAuth login can
-invalidate each other's credentials.
+converge when Claude Code renews and writes its login state, and Claude Code
+only does that when it runs. Tokenmax never performs the renewal itself — two
+programs refreshing the same OAuth login can invalidate each other's
+credentials — so it asks Claude Code to: the popover reads "Asking Claude Code
+to renew its login…" while it starts `claude` in a hidden terminal and types
+`/status`, then "Claude Code renewed its login. Checking usage at …" once the
+new login is in the keychain. Nothing is sent to a model and no quota is spent.
 
-Keep working and click **Refresh**; Tokenmax also checks automatically and will
-use the status-line quota reading while one is available. If the saved
-credential remains rejected, choose **Sign In with Claude** in the popover and
-approve the login in the browser tab it opens. Tokenmax runs Claude Code's own
+This happens by itself, at most every 15 minutes; **Refresh** asks again
+straight away. If the popover says "Claude Code ran but did not renew its
+login", two runs left the keychain untouched and Tokenmax stops trying on its
+own. Choose **Sign In with Claude** in the popover and approve the login in the
+browser tab it opens. `make logs` shows each attempt as a `renewal:` line. Tokenmax runs Claude Code's own
 `claude auth login` for this, so the new login belongs to Claude Code exactly
 as if you had typed the command.
 
 After you approve it the popover reads "Signed in. Checking usage at …" for up
 to three minutes. That is the request floor, not a hang: the rejected request
 started it, and asking sooner would only replay the rejected reading.
+
+### A `claude` process appears briefly in Activity Monitor
+
+That is Tokenmax asking Claude Code to renew a rejected login (see the section
+above). It runs for a few seconds — at most 25 — in
+`~/Library/Application Support/Tokenmax/renewal`, types only `/status`, and is
+stopped as soon as Claude Code has written the new login. It sends no prompt
+and spends no quota. Each run leaves a small session file with no messages in
+`~/.claude/projects/-Users-<you>-Library-Application-Support-Tokenmax-renewal`;
+that is Claude Code recording an interactive start, and deleting the folder is
+harmless. It only happens while Tokenmax's saved credential is rejected, and
+never in **Status line only** mode.
 
 ### I clicked Sign In with Claude and nothing happened
 

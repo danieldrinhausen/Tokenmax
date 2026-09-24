@@ -167,7 +167,7 @@ enum ClaudeKeychain {
     /// Attribute reads are not gated by the item's ACL, only reads of the
     /// secret data are, so this never raises a dialog. It is how each log
     /// line can carry the modification timestamp without costing a prompt.
-    private static func itemModificationDate() -> Date? {
+    static func itemModificationDate() -> Date? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
