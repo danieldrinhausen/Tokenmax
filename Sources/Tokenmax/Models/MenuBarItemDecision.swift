@@ -75,13 +75,20 @@ enum MenuBarItemDecision {
     /// item with one bar or none; an item that exists to show one provider
     /// should always show the two windows that provider has.
     static func layout(for provider: TokenmaxProvider, style: MenuBarIconStyle) -> MenuBarIconLayout {
-        let sources: [MenuBarQuotaSource] = switch provider {
-        case .claudeCode: [.claudeSession, .claudeWeekly]
-        case .codex: [.codexSession, .codexWeekly]
-        }
+        let sources = sources(for: provider)
         return switch style {
         case .bars: .bars(MenuBarBars(sources))
         case .rings: .rings(MenuBarRings(sources))
+        }
+    }
+
+    /// A provider's own two meters: its short window over its long one, or for
+    /// Cursor its total over its API usage.
+    static func sources(for provider: TokenmaxProvider) -> [MenuBarQuotaSource] {
+        switch provider {
+        case .claudeCode: [.claudeSession, .claudeWeekly]
+        case .codex: [.codexSession, .codexWeekly]
+        case .cursor: [.cursorTotal, .cursorAPI]
         }
     }
 
@@ -96,6 +103,9 @@ enum MenuBarItemDecision {
         case (.claudeCode, .week): .claudeWeekly
         case (.codex, .session): .codexSession
         case (.codex, .week): .codexWeekly
+        // One billing cycle behind both meters, so both choices land on the
+        // same reset.
+        case (.cursor, _): .cursorTotal
         }
     }
 

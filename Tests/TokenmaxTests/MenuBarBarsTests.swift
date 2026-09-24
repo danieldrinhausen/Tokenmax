@@ -73,10 +73,18 @@ struct MenuBarBarsTests {
 
     @Test("Unused lists exactly what is not on a bar")
     func unusedSources() {
-        #expect(MenuBarBars([.claudeSession, .claudeWeekly]).unused() == [.codexWeekly, .codexSession])
+        #expect(
+            MenuBarBars([.claudeSession, .claudeWeekly]).unused()
+                == [.codexWeekly, .codexSession, .cursorTotal, .cursorAPI]
+        )
         // More sources exist than there are slots, so the layout that uses every
-        // slot still leaves one over.
-        #expect(MenuBarBars(MenuBarQuotaSource.allCases).unused() == [.codexSession])
+        // slot still leaves the rest over.
+        #expect(MenuBarBars(MenuBarQuotaSource.allCases).unused() == [.codexSession, .cursorTotal, .cursorAPI])
+        // A switched-off provider is never offered.
+        #expect(
+            MenuBarBars([.claudeSession, .claudeWeekly]).unused(allowed: [.claudeSession, .claudeWeekly, .codexWeekly])
+                == [.codexWeekly]
+        )
     }
 
     @Test("Each source maps to the provider and window it names")

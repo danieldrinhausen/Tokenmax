@@ -3,10 +3,10 @@ import Foundation
 /// Cursor's included usage for the current billing cycle. Usage only: Cursor
 /// is never a task runner.
 final class CursorProvider: UsageProvider {
-    static let providerID = "cursor"
+    static let providerID = TokenmaxProvider.cursor.rawValue
 
     let identifier = CursorProvider.providerID
-    let displayName = "Cursor"
+    let displayName = TokenmaxProvider.cursor.displayName
     private let client: CursorUsageClient
     private let stateDatabase: URL
 

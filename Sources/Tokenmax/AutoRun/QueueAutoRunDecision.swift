@@ -65,6 +65,10 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         /// command in a different place and a shared sentence could name only
         /// one of them.
         case codexAPIKeyConfigured
+        /// The task names a provider Tokenmax only watches — Cursor — or one
+        /// this build does not know. There is no runner to hand it to, and
+        /// falling back to Claude's would spend the wrong plan.
+        case providerCannotRunTasks
 
         // Per-task reasons. Never the top-level verdict on their own — they
         // explain why one card is ineligible while another is not.
@@ -153,6 +157,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "An API key is configured in ~/.claude/settings.json, so a run would be billed."
             case .codexAPIKeyConfigured:
                 "Codex is signed in with an API key, so a run would be billed per token rather than covered by a ChatGPT plan. Sign in with “codex login” to run Codex tasks automatically."
+            case .providerCannotRunTasks:
+                "Tokenmax shows Cursor's usage but cannot run tasks with it. Switch the task to Claude Code or Codex in the editor."
             case .notApprovedForAutomation:
                 "Not marked for automatic execution."
             case .workingDirectoryMissing:
@@ -507,6 +513,11 @@ enum QueueAutoRun {
         let settings = input.settings
 
         guard settings.enabled else { return .skip(reason: .disabled) }
+        // Read from the id rather than trusted from the caller: an id this
+        // build cannot name resolves to "do not run", never to a default.
+        guard TokenmaxProvider.from(identifier: input.providerID)?.runsTasks == true else {
+            return .skip(reason: .providerCannotRunTasks)
+        }
         guard input.queueEnabled else { return .skip(reason: .queueDisabled) }
         guard input.cliInstalled else { return .skip(reason: .cliNotInstalled) }
 
@@ -708,6 +719,9 @@ enum QueueAutoRun {
         cliInstalled: Bool,
         runInFlight: Bool
     ) -> QueueAutoRunDecision.SkipReason? {
+        // First, so no later reason — a missing CLI, say — can describe a
+        // runner that was never going to exist.
+        if !task.provider.runsTasks { return .providerCannotRunTasks }
         if !cliInstalled { return .cliNotInstalled }
         if runInFlight { return .runInFlight }
         if !task.workingDirectoryExists { return .workingDirectoryMissing }

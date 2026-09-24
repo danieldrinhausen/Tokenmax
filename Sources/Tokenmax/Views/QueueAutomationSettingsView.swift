@@ -123,9 +123,9 @@ struct QueueAutomationSettingsView: View {
             // Not gated on `isEnabled`: these seed the task editor, which is
             // useful whether or not automatic execution is switched on.
             Section("New task defaults") {
-                if settingsStore.settings.enabledProviders.count > 1 {
+                if settingsStore.settings.enabledTaskProviders.count > 1 {
                     Picker("Provider", selection: $settingsStore.settings.defaultTaskProvider) {
-                        ForEach(TokenmaxProvider.allCases) { provider in
+                        ForEach(TokenmaxProvider.allCases.filter(\.runsTasks)) { provider in
                             Text(provider.displayName).tag(provider)
                         }
                     }

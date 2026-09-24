@@ -414,6 +414,7 @@ private extension TokenmaxProvider {
         switch self {
         case .claudeCode: "sparkles"
         case .codex: "chevron.left.forwardslash.chevron.right"
+        case .cursor: "cursorarrow"
         }
     }
 }

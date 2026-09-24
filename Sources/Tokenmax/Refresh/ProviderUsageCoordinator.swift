@@ -12,6 +12,7 @@ final class ProviderUsageCoordinator: ObservableObject {
     let clock = CountdownClock()
     let claude: UsageRefreshCoordinator
     let codex: UsageRefreshCoordinator
+    let cursor: UsageRefreshCoordinator
     /// Held here for the same reason as the clock: one instance, outliving any
     /// popover, injected on its own so only the sign-in controls observe it.
     let claudeSignIn: ClaudeSignInCoordinator
@@ -30,6 +31,10 @@ final class ProviderUsageCoordinator: ObservableObject {
             provider: CodexProvider(), settingsStore: settingsStore,
             snapshotURL: FileLocations.codexUsageSnapshotFile
         )
+        cursor = UsageRefreshCoordinator(
+            provider: CursorProvider(), settingsStore: settingsStore,
+            snapshotURL: FileLocations.cursorUsageSnapshotFile
+        )
         claudeSignIn = ClaudeSignInCoordinator(usage: claude)
         claudeRenewal = ClaudeTokenRenewalCoordinator(
             usage: claude, signIn: claudeSignIn, settingsStore: settingsStore
@@ -41,7 +46,7 @@ final class ProviderUsageCoordinator: ObservableObject {
         // four times a second — twice per provider, once for the forwarded
         // change and once for the mirrored `@Published tick`. With the clock
         // out of the children this fires only on real state changes.
-        claude.objectWillChange.merge(with: codex.objectWillChange)
+        claude.objectWillChange.merge(with: codex.objectWillChange, cursor.objectWillChange)
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
     }
@@ -63,7 +68,11 @@ final class ProviderUsageCoordinator: ObservableObject {
     private var enabledProviders: [TokenmaxProvider] { settingsStore.settings.enabledProviders }
 
     func coordinator(for provider: TokenmaxProvider) -> UsageRefreshCoordinator {
-        provider == .codex ? codex : claude
+        switch provider {
+        case .claudeCode: claude
+        case .codex: codex
+        case .cursor: cursor
+        }
     }
 
     func state(for provider: TokenmaxProvider) -> UsageState { coordinator(for: provider).state }
@@ -104,8 +113,7 @@ final class ProviderUsageCoordinator: ObservableObject {
     var burnOpportunity: BurnOpportunity? { coordinator(for: selectedProvider).burnOpportunity }
     var lastUpdatedText: String { coordinator(for: selectedProvider).lastUpdatedText }
     func projection(for window: UsageWindow) -> UsageProjection? {
-        let provider: TokenmaxProvider = window.id.hasPrefix("codex.") ? .codex : .claudeCode
-        return coordinator(for: provider).projection(for: window)
+        coordinator(for: .owning(windowID: window.id)).projection(for: window)
     }
 
     func start() {

@@ -132,13 +132,14 @@ struct TokenmaxApp: App {
             NSHostingController(rootView: SettingsView().modifier(environment))
         }
 
-        // Three scenes, of which `MenuBarItemDecision.items` inserts either the
-        // first or the other two. Declared unconditionally because a scene
+        // Four scenes, of which `MenuBarItemDecision.items` inserts either the
+        // first or one per enabled provider. Declared unconditionally because a scene
         // cannot come and go from `body`; `isInserted` is how a `MenuBarExtra`
         // appears and disappears.
         menuBarItem(.combined)
         menuBarItem(.provider(.claudeCode))
         menuBarItem(.provider(.codex))
+        menuBarItem(.provider(.cursor))
 
         Window("Tokenmax Queue", id: TokenmaxWindow.queue) {
             QueueView()

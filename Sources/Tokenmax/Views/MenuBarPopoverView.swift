@@ -172,12 +172,32 @@ struct MenuBarPopoverView: View {
                 message: nil
             )
 
+        case .claudeCodeNotInstalled where provider == .cursor:
+            statusBlock(
+                icon: "questionmark.folder",
+                title: "Cursor is not installed",
+                message: "Tokenmax reads Cursor's usage through the Cursor app's own sign-in, and could not find the app's data on this Mac. Install Cursor and sign in, then refresh.",
+                recovery: [.refresh],
+                provider: provider
+            )
+
         case .claudeCodeNotInstalled:
             statusBlock(
                 icon: "questionmark.folder",
                 title: "\(provider.displayName) is not installed",
                 message: "Tokenmax could not find the \(provider.commandName) CLI on this Mac.",
                 recovery: [.openTerminal, .refresh],
+                provider: provider
+            )
+
+        // Cursor renews its own sign-in whenever it runs, and Tokenmax never
+        // touches it — so the fix is opening Cursor, not a terminal.
+        case .notAuthenticated where provider == .cursor:
+            statusBlock(
+                icon: "person.crop.circle.badge.exclamationmark",
+                title: "Cursor is not signed in",
+                message: "Open Cursor and sign in, then refresh. If you are signed in, Cursor's saved sign-in was rejected; opening Cursor renews it.",
+                recovery: [.refresh],
                 provider: provider
             )
 
@@ -286,6 +306,16 @@ struct MenuBarPopoverView: View {
                     )
                     reminderLine(for: .weekly, provider: provider)
                 }
+            }
+            // Cursor's meters. No reminder line: reminders are set per
+            // session and weekly window, and a billing cycle is neither.
+            ForEach(snapshot.windows.filter { $0.kind == .billingCycle }) { window in
+                UsageWindowView(
+                    window: window,
+                    isStale: forceStale,
+                    now: clock.now,
+                    projection: projection(for: window, forceStale: forceStale)
+                )
             }
             if provider == .codex,
                let resetText = UsageWindowPresentation.availableResetText(for: snapshot, now: clock.now) {

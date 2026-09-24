@@ -5,6 +5,18 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Cursor's included usage, if you use Cursor.** Settings → Data Source → **Monitor Cursor
+  usage**, off by default, adds Cursor beside Claude Code and Codex: how much of the plan's
+  included usage is left this billing cycle, in total and on models picked by name — the one
+  that runs out first. Cursor offers individual plans no usage API, so Tokenmax asks the
+  undocumented endpoint behind Cursor's own usage dashboard, signed in with the token Cursor.app
+  already keeps on your Mac. It is read-only and never refreshed, and no browser cookies are read.
+  Both meters reset when the billing cycle ends, and neither gets a pace projection or a
+  reminder, since both are built for five-hour and weekly windows. Cursor is usage-only: it
+  never appears in the task editor or the queue, and a task naming it is refused rather than run
+  with another agent. A provider the menu bar's rings have no room for now still gets its own
+  ring in the Side Notch. `make doctor` checks Cursor's sign-in keys and endpoint.
+
 - **One menu bar icon per provider.** Settings → General → Menu bar icon → **Icons** can now
   give Claude Code and Codex their own menu bar items instead of one combined icon. Each is
   marked with a small glyph — a spark for Claude Code, `>_` for Codex — drawn in the neutral

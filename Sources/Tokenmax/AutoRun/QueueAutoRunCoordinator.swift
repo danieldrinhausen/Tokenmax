@@ -169,7 +169,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     // MARK: - Evaluation
 
     private func makeInput(provider requestedProvider: TokenmaxProvider? = nil, now: Date = Date()) -> QueueAutoRun.Input {
-        let provider = requestedProvider ?? usage.selectedProvider
+        let provider = requestedProvider ?? taskProvider
         let snapshot = usage.snapshot(for: provider)
         var settings = settingsStore.settings.queueAutoRun
         // A provider the user switched off has stopped refreshing, so its
@@ -206,8 +206,20 @@ final class QueueAutoRunCoordinator: ObservableObject {
         )
     }
 
-    /// The providers the user is still monitoring. Never empty.
-    private var enabledProviders: [TokenmaxProvider] { settingsStore.settings.enabledProviders }
+    /// The providers the queue may run tasks on: enabled, and able to run
+    /// tasks at all. Empty when only Cursor is watched, and every caller
+    /// treats that as "nothing may run".
+    private var enabledProviders: [TokenmaxProvider] { settingsStore.settings.enabledTaskProviders }
+
+    /// The provider the queue speaks for by default — the one on screen when it
+    /// can run tasks, else the first that can. `usage.selectedProvider` alone
+    /// could be Cursor, which has a meter and no runner. Falls back to Claude
+    /// when nothing can run; Claude is then switched off, so `makeInput` turns
+    /// the queue off with it.
+    private var taskProvider: TokenmaxProvider {
+        let providers = enabledProviders
+        return providers.first { $0 == usage.selectedProvider } ?? providers.first ?? .claudeCode
+    }
 
     /// Whether this provider's queue may spend the weekly window when no
     /// session window is reported.
@@ -234,6 +246,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     }
 
     private func cliInstalled(_ provider: TokenmaxProvider = .claudeCode) -> Bool {
+        guard provider.runsTasks else { return false }
         if provider == .codex { return CodexCLIClient.isInstalled }
         if let cachedCLIInstalled, Date().timeIntervalSince(cachedCLIInstalled.readAt) < Self.cliCacheLifetime {
             return cachedCLIInstalled.value
@@ -284,7 +297,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // total — `selectedProvider` is derived from the same settings and can
         // momentarily disagree with this list mid-change.
         guard var outcome = outcomes.first(where: { $0.1.isEligible })?.1
-            ?? outcomes.first(where: { $0.0 == usage.selectedProvider })?.1
+            ?? outcomes.first(where: { $0.0 == taskProvider })?.1
             ?? outcomes.first?.1
         else {
             publish(.skip(reason: .disabled))
@@ -342,7 +355,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// is decided before a process exists.
     private func enforceRunLimits() {
         let provider = activeRun.flatMap { TokenmaxProvider.from(identifier: $0.providerID) }
-            ?? usage.selectedProvider
+            ?? taskProvider
         guard let snapshot = usage.snapshot(for: provider) else { return }
 
         enforceQuotaExhaustion(snapshot)
@@ -436,6 +449,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
             QueueAutoRun.accountGate(expensiveGate(force: force))
         case .codex:
             QueueAutoRun.codexAccountGate(isAPIKeyOnly: usage.isAPIKeyOnly(for: .codex))
+        case .cursor:
+            .providerCannotRunTasks
         }
     }
 
@@ -527,6 +542,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
         resuming sessionID: String? = nil
     ) -> QueueAutoRunDecision.SkipReason? {
         guard !statePersistenceFailed else { return .statePersistenceFailed }
+        // Every path to a process ends here, and the runner choice below is
+        // Codex-or-else-Claude. A task naming a provider with no runner must
+        // be stopped before that `else` can hand it to Claude.
+        guard task.provider.runsTasks else {
+            Log.shared.write("autorun: refused — \(task.providerID) cannot run tasks")
+            return .providerCannotRunTasks
+        }
 
         let runID = UUID()
         var record = TaskRunRecord(
@@ -717,7 +739,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     @discardableResult
     func checkEligibility() -> QueueAutoRunDecision {
         cachedCLIInstalled = nil
-        let provider = usage.selectedProvider
+        let provider = taskProvider
         var outcome = QueueAutoRun.decide(makeInput(provider: provider))
         // Nothing served from cache: the button exists to give a current
         // answer, and the user may have just edited ~/.claude/settings.json.
@@ -743,8 +765,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // Both halves drawn from the enabled set rather than prepending
         // `selectedProvider` outright, which would consult a disabled provider
         // whenever the two disagree.
-        let providers = enabled.filter { $0 == usage.selectedProvider }
-            + enabled.filter { $0 != usage.selectedProvider }
+        let providers = enabled.filter { $0 == taskProvider }
+            + enabled.filter { $0 != taskProvider }
         for provider in providers {
             let input = makeInput(provider: provider)
             let candidates = QueueAutoRun.approvedTasks(input)
@@ -867,8 +889,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     /// Clears a failure pause so the queue can act again in this window.
     func resumeAfterFailure() {
-        guard let resetAt = burnWindow(for: usage.selectedProvider)?.resetAt else { return }
-        state.resume(QueueAutoRun.windowID(resetAt: resetAt, providerID: usage.selectedProvider.rawValue))
+        guard let resetAt = burnWindow(for: taskProvider)?.resetAt else { return }
+        state.resume(QueueAutoRun.windowID(resetAt: resetAt, providerID: taskProvider.rawValue))
         persist()
         evaluate()
     }

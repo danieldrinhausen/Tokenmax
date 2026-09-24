@@ -14,7 +14,12 @@ struct SideNotchMeterPresentation: Equatable, Identifiable, Sendable {
     var fraction: Double? { remainingPercent.map { max(0, min(1, $0 / 100)) } }
 
     var shortLabel: String {
-        switch source.kind {
+        switch source {
+        case .cursorTotal: return "Included usage"
+        case .cursorAPI: return "API usage"
+        default: break
+        }
+        return switch source.kind {
         case .session: "Current session"
         case .weekly: "Weekly limit"
         case .modelSpecificWeekly: "Model limit"
@@ -70,6 +75,12 @@ enum SideNotchDetailLayout {
 /// Resolves the freely arranged menu-bar ring slots into one unambiguous ring
 /// per provider. First appearance orders providers; relative appearance of a
 /// provider's two sources decides outer versus inner.
+///
+/// The menu bar draws at most four rings' worth of sources, which is two
+/// providers. A third enabled provider — or one whose pair the user did not
+/// place — gets its own fixed pair instead of vanishing from the notch: the
+/// notch lists providers, and a watched provider missing from that list reads
+/// as a provider that is not being watched.
 enum SideNotchPresentation {
     static func make(
         layout: MenuBarRings,
@@ -84,8 +95,8 @@ enum SideNotchPresentation {
         reminderStatus: (TokenmaxProvider, UsageWindowKind) -> ReminderStatus?
     ) -> [SideNotchProviderPresentation] {
         orderedProviders(layout: layout, enabledProviders: enabledProviders).compactMap { provider in
-            let sources = layout.sources.filter { $0.provider == provider }
-            guard sources.count >= 2 else { return nil }
+            let placed = layout.sources.filter { $0.provider == provider }
+            let sources = placed.count >= 2 ? placed : MenuBarItemDecision.sources(for: provider)
             let stale = isStale(provider)
             let current = snapshot(provider)
             return SideNotchProviderPresentation(
@@ -135,7 +146,7 @@ enum SideNotchPresentation {
         projection: (UsageWindow) -> UsageProjection?,
         reminderStatus: (TokenmaxProvider, UsageWindowKind) -> ReminderStatus?
     ) -> SideNotchMeterPresentation {
-        let window = snapshot?.window(source.kind)
+        let window = snapshot?.window(for: source)
         let fraction = isStale ? nil : window?.remainingPercent
         let isAlerting = alerting.contains(source)
         let isReady = !isStale && ready.contains(source)

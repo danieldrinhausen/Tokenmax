@@ -374,7 +374,7 @@ struct TaskEditorView: View {
     /// back and forth never loses the settings on the other side.
     @ViewBuilder
     private var providerField: some View {
-        if settingsStore.settings.enabledProviders.count > 1 {
+        if settingsStore.settings.enabledTaskProviders.count > 1 {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -389,7 +389,9 @@ struct TaskEditorView: View {
                     Spacer(minLength: 12)
 
                     Picker("", selection: providerSelection) {
-                        ForEach(TokenmaxProvider.allCases) { provider in
+                        // Only providers that can run a task. Cursor is watched,
+                        // not driven, so it is never offered here.
+                        ForEach(TokenmaxProvider.allCases.filter(\.runsTasks)) { provider in
                             Text(provider.displayName).tag(provider)
                         }
                     }

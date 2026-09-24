@@ -620,6 +620,29 @@ struct QueueAutoRunTests {
             == .runInFlight)
     }
 
+    @Test("A Cursor task is refused by hand before any other reason, even with every gate open")
+    func manualGateRefusesCursor() {
+        var cursorTask = task(mode: .manual)
+        cursorTask.providerID = TokenmaxProvider.cursor.rawValue
+        #expect(QueueAutoRun.manualGate(task: cursorTask, cliInstalled: true, runInFlight: false)
+            == .providerCannotRunTasks)
+        // Named ahead of a missing CLI: there is no Cursor CLI to install.
+        #expect(QueueAutoRun.manualGate(task: cursorTask, cliInstalled: false, runInFlight: false)
+            == .providerCannotRunTasks)
+    }
+
+    @Test("The queue never decides to run for a provider without a runner, or one it cannot name")
+    func decideRefusesNonRunners() {
+        #expect(QueueAutoRun.decide(input(providerID: TokenmaxProvider.cursor.rawValue))
+            == .skip(reason: .providerCannotRunTasks))
+        #expect(QueueAutoRun.decide(input(providerID: "some-future-agent"))
+            == .skip(reason: .providerCannotRunTasks))
+        // And stays quiet for the providers that do run tasks.
+        #expect(QueueAutoRun.decide(input()) != .skip(reason: .providerCannotRunTasks))
+        #expect(QueueAutoRun.decide(input(providerID: TokenmaxProvider.codex.rawValue))
+            != .skip(reason: .providerCannotRunTasks))
+    }
+
     @Test("Account gates map onto this feature's reasons")
     func accountGateMapping() {
         #expect(QueueAutoRun.accountGate(nil) == nil)

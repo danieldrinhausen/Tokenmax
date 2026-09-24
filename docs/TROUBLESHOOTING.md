@@ -125,10 +125,10 @@ network call is not.
 
 ### I chose one icon per provider but still see one icon
 
-**One icon per provider** only applies with both Claude Code and Codex switched
-on under **Settings → Data Source**. With one provider there is one icon either
+**One icon per provider** only applies with at least two providers switched on
+under **Settings → Data Source**. With one provider there is one icon either
 way, so Tokenmax keeps the combined icon. The choice is remembered: switching
-the second provider back on brings both items back.
+a second provider back on brings the separate items back.
 
 ### The second menu bar icon appeared somewhere else
 
@@ -395,6 +395,40 @@ reports "Codex did not answer initialize in time" because nothing ever
 replies. `make doctor` checks the flags Tokenmax depends on against the
 installed CLI's own `--help` output and names the exact line to fix, so run
 it first rather than guessing.
+
+### Cursor says it is not signed in, or not installed
+
+Tokenmax has no Cursor login of its own. It reads the sign-in Cursor.app keeps
+on your Mac, so both messages are about Cursor.app:
+
+1. **"Cursor is not installed"** means there is no Cursor state database at
+   `~/Library/Application Support/Cursor/User/globalStorage/`. Install Cursor
+   and open it once.
+2. **"Cursor is not signed in"** means that database holds no sign-in, or
+   cursor.com rejected the one it holds. **Open Cursor.** It renews its own
+   sign-in when it runs, and Tokenmax never does. If Cursor itself asks you to
+   sign in, do that, then click Refresh.
+
+`make doctor` checks the first half without printing the token.
+
+### Cursor's API meter is nearly empty but the total is fine
+
+That is what the numbers say, not a display fault. **API** is the part of your
+included usage spent on models you picked by name. They cost far more than Auto,
+so on the same plan API can read 90% used while **Total** reads 10%. Both
+figures are Cursor's own. Its usage dashboard at cursor.com shows the same two.
+
+### There is no pace line, reminder or glow for Cursor
+
+Deliberate. All three measure a window that resets within hours or days.
+Cursor's pool resets once per billing cycle, a calendar month with no single
+length. Only the two meters and the reset date are shown.
+
+### I cannot pick Cursor for a task
+
+Deliberate: Tokenmax watches Cursor's usage but has no way to run a Cursor
+task. A task file edited by hand to name Cursor is refused with that reason
+rather than run by another agent.
 
 ---
 
@@ -693,6 +727,8 @@ without notice, and each announces itself differently:
 | The endpoint moved or vanished | `make doctor` reports 404 |
 | Claude Code's keychain format changed | `make doctor` reports it; quota display stops |
 | The statusline payload changed | `make doctor` reports the missing key |
+| Cursor's usage response changed shape | Log says `cursor: SCHEMA DRIFT`; the Cursor section reports it |
+| Cursor's endpoint moved, or its sign-in key was renamed | `make doctor`, under *Cursor* |
 
 **Run `make doctor` after every Claude Code update.** It is the cheapest way to
 find drift before a queued run does, and it costs no quota.

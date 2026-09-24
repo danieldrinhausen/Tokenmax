@@ -59,16 +59,17 @@ anything itself. Switch the check off in the same place.
 
 **Settings → General** decides both halves independently. Under **Menu bar icon**,
 pick the shape first — **Bars** or **Rings** — then say what each position shows
-by dragging a quota — Claude session, Claude week, Codex session, Codex week —
-onto the slot you want it on; dropping one onto an occupied slot swaps the two.
+by dragging a quota — Claude session, Claude week, Codex session, Codex week,
+and Cursor total and Cursor API once Cursor is on — onto the slot you want it on; dropping one onto an occupied slot swaps the two.
 **Count down to** picks the window the countdown text tracks, which does not have
 to be a window the icon shows. The text can also be switched off, leaving the
 icon alone.
 
-Watching both providers? **Icons → One icon per provider** gives Claude Code and
-Codex their own menu bar items instead of one combined icon, each with its own
-session-over-week meters, its own countdown and a popover for just that
-provider. The spark marks Claude Code's item and `>_` marks Codex's.
+Watching more than one provider? **Icons → One icon per provider** gives each
+its own menu bar item instead of one combined icon, each with its own meters
+(session over week; for Cursor, total over API), its own countdown and a popover
+for just that provider. The spark marks Claude Code's item, `>_` marks Codex's
+and a pointer arrow marks Cursor's.
 
 Bars are two or three stacked capsules and are the easiest to compare against
 each other. Rings are nested arcs, two per ring: the outer arc encloses the
@@ -150,6 +151,11 @@ automatic Codex tasks against it.
 If you do not use Codex, **Settings → Data Source** switches it off: its popover
 section, its meters and its reminders all disappear. Nothing is deleted, so
 switching it back on restores your arrangement.
+
+Using Cursor as well? The same pane has **Monitor Cursor usage**, off until you
+turn it on. Cursor.app has to be installed and signed in; Tokenmax reads its
+sign-in and adds a Cursor section on the next refresh. [Cursor, and what it
+cannot do here](#cursor-and-what-it-cannot-do-here) explains the meters.
 
 **5. Grant folder access when you add your first task.**
 
@@ -266,6 +272,41 @@ Automation** and works as documented.
 section and meters, cancels its pending reminders and refuses to auto-run its
 tasks. It hides rather than deletes: your rules, icon layout and Codex tasks stay
 on disk and come back exactly as they were.
+
+---
+
+## Cursor, and what it cannot do here
+
+Cursor is watched, not driven. Tokenmax shows how much of your plan's included
+usage is left and nothing else: there is no Cursor runner, so Cursor never
+appears in the task editor, the new-task defaults or the queue.
+
+**Meters.** A Cursor plan comes with a pool of included usage per billing cycle,
+about a month. Tokenmax shows two figures from it, both Cursor's own and both
+resetting when the cycle ends:
+
+- **Total** is the headline Cursor's dashboard shows.
+- **API** is the share spent on models you picked by name rather than Auto.
+  Named models cost far more of the pool, so this is the one that runs out first
+  and the one to watch. It is normal for it to read 90% while Total reads 10%.
+
+In the menu bar they are *Cursor total* and *Cursor API*; drag either onto a
+slot like any other quota. With **One icon per provider**, Cursor's icon draws
+total over API, and both countdown choices follow the end of the cycle.
+
+**What it deliberately leaves out.** There is no pace line: a calendar month has
+no single length, and an even-burn reference off by up to a day would be worse
+than none. There are no reminders and no "spend it now" highlight either. Both
+are about a window that resets within hours or days, and a month-long cycle is
+not one.
+
+**Where it comes from.** Cursor offers individual plans no usage API, so
+Tokenmax asks the endpoint Cursor's own dashboard uses, with the sign-in Cursor.app
+keeps on your Mac. Tokenmax reads that sign-in and never changes it. If it stops
+working, open Cursor: Cursor renews its own sign-in when it runs.
+
+**Watching only Cursor** is allowed. The queue then has no agent to run on and
+leaves your tasks alone.
 
 ---
 

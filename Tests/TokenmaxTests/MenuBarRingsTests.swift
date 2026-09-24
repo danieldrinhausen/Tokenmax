@@ -99,7 +99,9 @@ struct MenuBarRingsTests {
 
         #expect(two.ringCount == 2)
         #expect(two.sources.prefix(2) == [.claudeWeekly, .claudeSession])
-        #expect(Set(two.sources) == Set(MenuBarQuotaSource.allCases))
+        // The next unused sources in canonical order: Codex's pair, before
+        // Cursor's, which were appended after it.
+        #expect(two.sources.suffix(2) == [.codexWeekly, .codexSession])
     }
 
     @Test("Shrinking to one ring drops the rightmost")

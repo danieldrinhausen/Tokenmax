@@ -86,7 +86,7 @@ struct GeneralSettingsView: View {
     /// A plausible reading rather than the live one: the preview is there to
     /// show the *shape*, and a real snapshot can sit at four near-identical
     /// numbers, or at none at all before the first refresh lands.
-    /// Separate items are a real choice only with both providers on and the
+    /// Separate items are a real choice only with two or more providers on and the
     /// menu bar item showing — see `MenuBarItemDecision.items`.
     private var canSeparateMenuBarItems: Bool {
         settingsStore.settings.showMenuBarItem && settingsStore.settings.enabledProviders.count > 1
@@ -185,7 +185,7 @@ struct GeneralSettingsView: View {
                 .disabled(!canSeparateMenuBarItems)
 
                 if settingsStore.settings.enabledProviders.count < 2 {
-                    Text("One icon per provider needs both Claude Code and Codex switched on. With one provider there is one icon either way.")
+                    Text("One icon per provider needs at least two providers switched on. With one provider there is one icon either way.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -236,7 +236,8 @@ struct GeneralSettingsView: View {
                     style: settingsStore.settings.menuBarIconStyle,
                     meters: previewMeters,
                     highlight: settingsStore.settings.menuBarHighlightColor,
-                    separate: showsSeparateMenuBarItems
+                    separate: showsSeparateMenuBarItems,
+                    markers: settingsStore.settings.enabledProviders.map(MenuBarIconRenderer.ProviderMarker.init)
                 )
             }
 
@@ -474,6 +475,7 @@ private struct MenuBarIconPreview: View {
     let meters: [MenuBarIconRenderer.Meter]
     let highlight: HighlightColor
     var separate = false
+    var markers: [MenuBarIconRenderer.ProviderMarker] = [.claude, .codex]
 
     var body: some View {
         LabeledContent("Preview") {
@@ -481,7 +483,7 @@ private struct MenuBarIconPreview: View {
                 // Each provider item draws its own session over its week, so
                 // two meters each whatever the layout editor holds.
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach([MenuBarIconRenderer.ProviderMarker.claude, .codex], id: \.self) { marker in
+                    ForEach(markers, id: \.self) { marker in
                         MenuBarIconSwatch(
                             style: style,
                             meters: [.init(fraction: 39), .init(fraction: 74)],
@@ -907,6 +909,22 @@ struct DataSourceSettingsView: View {
                     Text("Reads your ChatGPT quota through the Codex app server. Switching this off stops the polling, hides Codex everywhere in the app, and leaves its queued tasks in place without running them.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Cursor") {
+                Toggle("Monitor Cursor usage", isOn: $settingsStore.settings.cursorEnabled)
+                    .disabled(isLastEnabled(.cursor))
+
+                if isLastEnabled(.cursor) {
+                    Text("At least one data source has to stay on — Tokenmax has nothing to show otherwise.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Shows how much of your plan's included usage is left this billing cycle — the total, and the share spent on models picked by name, which runs out first. Tokenmax reads Cursor.app's own sign-in to ask cursor.com, the same request Cursor's usage dashboard makes. It never changes that sign-in; open Cursor if it runs out. Usage only: Tokenmax does not run tasks with Cursor.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 

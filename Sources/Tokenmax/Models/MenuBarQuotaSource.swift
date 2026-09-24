@@ -14,6 +14,9 @@ enum MenuBarQuotaSource: String, Codable, Sendable, CaseIterable, Identifiable, 
     // padded and grown from, so slotting this in beside `codexWeekly` would
     // silently change which quota the third bar of an existing layout draws.
     case codexSession = "codex.session"
+    // Appended last for the same reason.
+    case cursorTotal = "cursor.total"
+    case cursorAPI = "cursor.api"
 
     var id: String { rawValue }
 
@@ -21,6 +24,7 @@ enum MenuBarQuotaSource: String, Codable, Sendable, CaseIterable, Identifiable, 
         switch self {
         case .claudeSession, .claudeWeekly: .claudeCode
         case .codexWeekly, .codexSession: .codex
+        case .cursorTotal, .cursorAPI: .cursor
         }
     }
 
@@ -28,6 +32,7 @@ enum MenuBarQuotaSource: String, Codable, Sendable, CaseIterable, Identifiable, 
         switch self {
         case .claudeSession, .codexSession: .session
         case .claudeWeekly, .codexWeekly: .weekly
+        case .cursorTotal, .cursorAPI: .billingCycle
         }
     }
 
@@ -38,7 +43,21 @@ enum MenuBarQuotaSource: String, Codable, Sendable, CaseIterable, Identifiable, 
         case .claudeWeekly: "Claude week"
         case .codexWeekly: "Codex week"
         case .codexSession: "Codex session"
+        case .cursorTotal: "Cursor total"
+        case .cursorAPI: "Cursor API"
         }
+    }
+}
+
+extension UsageSnapshot {
+    /// The window a menu-bar source draws.
+    ///
+    /// By id first, because Cursor's two meters share one kind — both span the
+    /// billing cycle — and a lookup by kind would draw its total twice. The
+    /// kind is the fallback so a Claude or Codex snapshot whose ids ever
+    /// differed from the source names still finds its window.
+    func window(for source: MenuBarQuotaSource) -> UsageWindow? {
+        windows.first { $0.id == source.rawValue } ?? (source.provider == .cursor ? nil : window(source.kind))
     }
 }
 

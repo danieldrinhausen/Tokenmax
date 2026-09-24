@@ -341,7 +341,7 @@ struct AppSettings: Codable, Sendable, Equatable {
     var showMenuBarItem = true
 
     /// One item for every provider, or one per provider. Only takes effect with
-    /// both providers on; see `MenuBarItemDecision.items`.
+    /// two or more providers on; see `MenuBarItemDecision.items`.
     var menuBarItemLayout: MenuBarItemLayout = .combined
 
     /// What each provider's own item counts down to. The combined item keeps
@@ -490,6 +490,9 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// back on restores the user's own arrangement instead of a rebuilt one.
     var claudeCodeEnabled: Bool = true
     var codexEnabled: Bool = true
+    /// Off by default, unlike the other two: an upgrade must not start reading
+    /// another app's sign-in without being asked to.
+    var cursorEnabled: Bool = false
 
     /// Which provider a new task is created for.
     ///
@@ -522,12 +525,21 @@ struct AppSettings: Codable, Sendable, Equatable {
         switch provider {
         case .claudeCode: claudeCodeEnabled
         case .codex: codexEnabled
+        case .cursor: cursorEnabled
         }
     }
 
     /// Never empty — `init(from:)` guarantees at least one provider stays on.
     var enabledProviders: [TokenmaxProvider] {
         TokenmaxProvider.allCases.filter(isEnabled)
+    }
+
+    /// The enabled providers the queue may run tasks on. Unlike
+    /// `enabledProviders` this *can* be empty — someone watching only Cursor
+    /// has a meter and no runner — and every caller must treat empty as
+    /// "nothing may run".
+    var enabledTaskProviders: [TokenmaxProvider] {
+        enabledProviders.filter(\.runsTasks)
     }
 
     /// The menu-bar quotas a disabled provider must not be able to claim. This
@@ -682,17 +694,20 @@ struct AppSettings: Codable, Sendable, Equatable {
             ?? d.codexAutoRunEnabled
         codexAutoRun = try container.decodeIfPresent(CodexAutoRunOverrides.self, forKey: .codexAutoRun)
             ?? d.codexAutoRun
-        // `try?` rather than the plain-`try` form the other Bools use. These two
+        // `try?` rather than the plain-`try` form the other Bools use. These
         // gate the whole app, and a hand-edited `"codexEnabled": "yes"` under
         // plain `try` would throw out of this initializer, make `JSONStore.load`
         // return nil, and reset every other setting with it.
         claudeCodeEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .claudeCodeEnabled))
             ?? d.claudeCodeEnabled
         codexEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .codexEnabled)) ?? d.codexEnabled
-        // `try?` for the same reason as the two above: an unrecognised provider
-        // name must cost this one setting, not the whole settings file.
+        cursorEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .cursorEnabled)) ?? d.cursorEnabled
+        // `try?` for the same reason as the flags above: an unrecognised
+        // provider name must cost this one setting, not the whole settings
+        // file. So must one that cannot run tasks — a hand-edited `"cursor"`
+        // would otherwise seed every new task with a runner that does not exist.
         defaultTaskProvider = (try? container.decodeIfPresent(TokenmaxProvider.self, forKey: .defaultTaskProvider))
-            ?? d.defaultTaskProvider
+            .flatMap { $0.runsTasks ? $0 : nil } ?? d.defaultTaskProvider
         defaultTaskModel = try container.decodeIfPresent(String.self, forKey: .defaultTaskModel)
             ?? d.defaultTaskModel
         defaultTaskEffort = try container.decodeIfPresent(String.self, forKey: .defaultTaskEffort)
@@ -710,7 +725,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         // A file with every source off has no meter to draw and no clickable
         // menu bar item to reach Settings through. The UI prevents this; a
         // hand-edited file has to be caught here instead of booting invisible.
-        if !claudeCodeEnabled && !codexEnabled { claudeCodeEnabled = true }
+        if !claudeCodeEnabled && !codexEnabled && !cursorEnabled { claudeCodeEnabled = true }
     }
 }
 

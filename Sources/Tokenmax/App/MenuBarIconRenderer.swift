@@ -64,11 +64,14 @@ enum MenuBarIconRenderer {
         case claude
         /// A `>_` prompt, for the CLI Codex is.
         case codex
+        /// A pointer arrow, for the editor's name.
+        case cursor
 
         init(provider: TokenmaxProvider) {
             switch provider {
             case .claudeCode: self = .claude
             case .codex: self = .codex
+            case .cursor: self = .cursor
             }
         }
 
@@ -268,6 +271,15 @@ enum MenuBarIconRenderer {
             path.line(to: NSPoint(x: 1, y: middle - 3.5))
             path.move(to: NSPoint(x: 5.5, y: middle - 3.5))
             path.line(to: NSPoint(x: 8.5, y: middle - 3.5))
+        case .cursor:
+            // Tip top-left, straight left edge, notch, diagonal back to the tip:
+            // the outline of a pointer, stroked like the other two marks.
+            path.lineWidth = 1.2
+            path.move(to: NSPoint(x: 1.5, y: middle + 4.3))
+            path.line(to: NSPoint(x: 1.5, y: middle - 3.2))
+            path.line(to: NSPoint(x: 3.7, y: middle - 1.2))
+            path.line(to: NSPoint(x: 7.4, y: middle - 1.2))
+            path.close()
         }
         path.stroke()
     }

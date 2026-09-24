@@ -122,10 +122,12 @@ struct QueueView: View {
         return task
     }
 
-    /// One entry per provider the user is still monitoring, in canonical order.
-    /// The header lays them out side by side when the window has room.
+    /// One entry per provider the user is still monitoring and can run tasks
+    /// on, in canonical order. Cursor's meter belongs in the popover, not over
+    /// a queue it can never draw from. The header lays them out side by side
+    /// when the window has room.
     private var providerQuotas: [QueueHeaderView.ProviderQuota] {
-        settingsStore.settings.enabledProviders.map { provider in
+        settingsStore.settings.enabledTaskProviders.map { provider in
             QueueHeaderView.ProviderQuota(
                 provider: provider,
                 state: usage.state(for: provider),
@@ -217,7 +219,7 @@ struct QueueView: View {
             query: $query,
             sort: $sort,
             provider: providerFilter,
-            providerOptions: settingsStore.settings.enabledProviders,
+            providerOptions: settingsStore.settings.enabledTaskProviders,
             canReorder: canReorder
         )
     }

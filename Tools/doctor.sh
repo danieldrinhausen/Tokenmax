@@ -339,7 +339,44 @@ else
     rm -rf "$schema_dir"
 fi
 
-# --- 8. jq ------------------------------------------------------------------
+# --- 8. Cursor ---------------------------------------------------------------
+# Only matters with "Monitor Cursor usage" on. Two couplings: Cursor.app's
+# state database, whose key names Tokenmax reads, and the endpoint behind its
+# usage dashboard. Like the Claude checks, this never reads the token itself —
+# it counts rows, and probes the endpoint without credentials. A changed
+# response shape is caught at runtime instead: `cursor: SCHEMA DRIFT` in the log.
+
+section "Cursor (only if monitored)"
+
+cursor_db="$HOME/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
+if [ ! -f "$cursor_db" ]; then
+    warn "no Cursor state database — Cursor is not installed, or has never run"
+elif ! command -v sqlite3 >/dev/null 2>&1; then
+    warn "sqlite3 not found, so the Cursor sign-in keys are unchecked"
+else
+    count="$(sqlite3 -readonly "$cursor_db" \
+        "SELECT COUNT(*) FROM ItemTable WHERE key = 'cursorAuth/accessToken' AND length(value) > 0" 2>/dev/null || echo error)"
+    case "$count" in
+        1)     pass "Cursor's sign-in is where CursorStateStore reads it" ;;
+        0)     warn "no cursorAuth/accessToken — sign in to Cursor, or the key was renamed (CursorUsageClient.swift, CursorStateStore)" ;;
+        *)     fail "could not query Cursor's state database — its table may have been renamed. Fix CursorStateStore in CursorUsageClient.swift" ;;
+    esac
+fi
+
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+    -H 'Origin: https://cursor.com' \
+    https://cursor.com/api/usage-summary 2>/dev/null || echo 000)"
+
+case "$status" in
+    401|403) pass "usage-summary reachable, rejects the unauthenticated probe ($status) as expected" ;;
+    000)     fail "cursor.com unreachable (network down, or the host moved)" ;;
+    404)     fail "404 — the dashboard endpoint moved. Fix CursorUsageClient.swift" ;;
+    429)     warn "rate limited (429) — try again later" ;;
+    200)     warn "200 without a sign-in, which is unexpected; check the response shape" ;;
+    *)       warn "unexpected status $status" ;;
+esac
+
+# --- 9. jq ------------------------------------------------------------------
 
 section "Host tools"
 

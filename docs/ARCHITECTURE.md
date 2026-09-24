@@ -82,15 +82,15 @@ AppKit context monitor that cannot exist before its status item does. The
 old scene state while removing the item, but only Settings and Side Notch carry
 user intent and may change the persisted visibility preference.
 
-There are three `MenuBarExtra` scenes — the combined item, Claude Code's and
-Codex's — because a scene cannot come and go from `body`; `isInserted` is the
-only way an item appears or disappears. `MenuBarItemDecision.items` decides
-which are inserted: none while the item is hidden, one per enabled provider
-under **One icon per provider** with both providers on, and otherwise the
-combined item. Every scene's binding goes through the same one-way
+There are four `MenuBarExtra` scenes — the combined item, Claude Code's,
+Codex's and Cursor's — because a scene cannot come and go from `body`;
+`isInserted` is the only way an item appears or disappears.
+`MenuBarItemDecision.items` decides which are inserted: none while the item is
+hidden, one per enabled provider under **One icon per provider** with two or
+more providers on, and otherwise the combined item. Every scene's binding goes through the same one-way
 reconciliation, so a provider item being torn down never rewrites the user's
 choice. `MenuBarItemDecision.layout(for:style:)` gives a provider's item its
-own session over its week rather than filtering the cross-provider slot layout,
+own pair — session over week, or Cursor's total over API — rather than filtering the cross-provider slot layout,
 which could leave it with one bar or none; its countdown and highlight follow
 that provider alone. The countdown is `menuBarProviderCountdown` — a window
 kind, session or week, resolved per provider by
@@ -269,6 +269,31 @@ credentials. The same client answers `model/list`, which is how
 `ModelCatalogStore` fetching Anthropic's `/v1/models`. Both cache to disk, both
 refresh at most daily, and both are a convenience rather than a gate: every
 failure path leaves the task editor usable.
+
+Cursor is a third path, and a usage-only one. `CursorProvider` reads Cursor.app's
+sign-in out of its SQLite state database (`CursorStateStore`, read-only, closed
+at once) and asks `cursor.com/api/usage-summary`, the endpoint behind Cursor's
+own dashboard, through `CursorUsageClient`. The client builds the dashboard's
+session cookie from that token in memory and floors requests at 120s. As with
+Claude, the token is never written and never refreshed; Cursor renews it by
+running. Its two windows, `cursor.total` and `cursor.api`, are the one
+`billingCycle` kind, so everything that draws a menu-bar source looks its window
+up by id first (`UsageSnapshot.window(for:)`). A lookup by kind would draw
+Cursor's total twice. `billingCycle` has no `duration`, so no projection is
+made, and no reminder rule, reset event or burn opportunity exists for it: those
+are all keyed to session and weekly windows, so Cursor falls out of each by
+construction rather than by a check.
+
+`TokenmaxProvider.runsTasks` is what keeps Cursor off the spending path. The
+queue coordinator iterates `AppSettings.enabledTaskProviders` rather than
+`enabledProviders`, and that list can be empty when only Cursor is watched. The
+queue's "selected provider" is the on-screen one only if it can run tasks. Three
+layers refuse a task that names Cursor or an unknown id, each with the named
+`.providerCannotRunTasks`: `QueueAutoRun.decide`, `manualGate`, and the
+coordinator's `run`. The last matters most, because its runner choice is
+Codex-or-else-Claude. Side Notch gives any enabled provider whose pair is not in
+the four-slot ring layout its fixed pair from `MenuBarItemDecision.sources(for:)`,
+so a third provider is never silently missing from it.
 
 **One rule governs the whole right-hand side:** stale data postpones, it does not
 cancel. A failed refresh means "cannot currently confirm", not "the user does not
@@ -506,7 +531,27 @@ names to the App Server, and no `--help` would ever mention those.
   the check pointed at it. The reason is inside `turn/completed`, as
   `turn.error`.
 
-### 8. macOS itself
+### 8. Cursor's dashboard endpoint and state database
+
+Two couplings, both undocumented: `GET cursor.com/api/usage-summary`, which
+serves Cursor's web dashboard rather than any promised API, and the key names in
+Cursor.app's `state.vscdb` (`cursorAuth/accessToken`,
+`cursorAuth/stripeMembershipType`, in table `ItemTable`).
+
+- **Failure mode:** the endpoint's predecessors already changed shape once.
+  When Cursor replaced request counts with an included-usage pool,
+  `/api/usage` kept answering 200 with a request count of zero. A status check
+  alone would call that success.
+- **Prevention:** drift is judged by content. A 200 with neither percentage is
+  `CursorUsageClientError.schemaDrift`, logged as `cursor: SCHEMA DRIFT` with the
+  keys that *are* there. Unlimited plans, team seats and empty bodies are
+  exempt, since they legitimately have nothing to meter. `make doctor` counts
+  the sign-in row without reading it, and probes the endpoint unauthenticated,
+  expecting a 401.
+- **Blast radius:** Cursor's section only, and only for someone who switched it
+  on. Cursor never feeds a gate that spends anything.
+
+### 9. macOS itself
 
 Annual releases. `MenuBarIconRenderer` does hand-rolled `NSImage` drawing and
 SwiftUI layout behaviour shifts between versions.
@@ -559,7 +604,7 @@ view tree contains an `NSStatusBarButton`, and that a local event monitor sees i
 before `MenuBarExtra` does. Neither is contractual. If the right-click menu ever
 stops appearing, that is where it went.
 
-### 9. The GitHub releases API — lowest risk
+### 10. The GitHub releases API — lowest risk
 
 `GitHubReleaseClient` reads `tag_name` and `html_url` from
 `/repos/.../releases/latest`.

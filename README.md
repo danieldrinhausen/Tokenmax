@@ -1,6 +1,7 @@
 # Tokenmax 0.1
 
-A macOS menubar app that shows remaining Claude Code and Codex quota, counts down to reset,
+A macOS menubar app that shows remaining Claude Code and Codex quota — and, if you switch it on,
+Cursor's included usage — counts down to reset,
 projects whether your current pace runs out early or leaves quota on the table, keeps a local
 prompt queue, and notifies you before a window resets so leftover quota gets used instead of
 evaporating.
@@ -13,6 +14,8 @@ evaporating.
 
 - **Two providers in one meter.** Claude Code and Codex quota side by side — session and weekly
   windows, each with the time left before it resets.
+- **Cursor, if you use it.** How much of your plan's included usage is left this billing cycle,
+  in total and on models picked by name. Off until you switch it on; watched, never driven.
 - **A menu bar icon you configure.** Two or three stacked bars, or nested rings that fit all four
   quotas at once — each position drawing a quota you choose, plus a countdown that can track a
   different window entirely, and optional colour levels as a window runs low.
@@ -52,17 +55,18 @@ rather than as two unrelated circles; it goes to full strength the moment it has
 announce.
 
 In either shape, choose which quota each position shows — Claude session, Claude week, Codex
-session, Codex week — by dragging a quota onto a slot; dragging one that is already placed swaps
+session, Codex week, and with Cursor on, Cursor total and Cursor API — by dragging a quota onto a slot; dragging one that is already placed swaps
 the two. Rings are not locked to one provider per ring: if what you actually watch is both weekly
 windows, put them on the two outer arcs. A preview under the picker shows the icon you have built
 on a light and a dark menu bar.
 
-**Icons** puts each provider in its own menu bar item instead of one combined item. With both
-Claude Code and Codex switched on, **One icon per provider** gives each its own icon, marked with a
-small glyph before the meters — a spark for Claude Code, `>_` for Codex. The glyph stays in the
+**Icons** puts each provider in its own menu bar item instead of one combined item. With two or
+more providers switched on, **One icon per provider** gives each its own icon, marked with a
+small glyph before the meters — a spark for Claude Code, `>_` for Codex, a pointer arrow for
+Cursor. The glyph stays in the
 neutral menu bar colour even while the meters beside it are lit or escalated, so it can never be
 read as a quota state. Each item draws its provider's session over its week in the shape you
-picked, and lights only for that provider's "spend it now" moment; its popover shows only that
+picked — Cursor's draws its total over its API usage — and lights only for that provider's "spend it now" moment; its popover shows only that
 provider. The quota slot editor is hidden while this is on, because it lays quotas out *across*
 providers and filtering it per item could leave an item with one bar or none; your slot layout is
 kept and comes back when you return to one combined icon. **Count down to** likewise becomes
@@ -186,7 +190,9 @@ so that menu is where Tokenmax quits from.
 **4. Add Codex, if you use it.** Nothing to configure: if the `codex` CLI is installed and
 signed in, Tokenmax picks it up and adds its section to the popover. A ChatGPT-managed
 login reports quota and, when Codex reports one, a banked reset count and expiry. An API-key login is unmetered and is labelled as billed instead.
-Don't use Codex? **Settings → Data Source** switches it off and it disappears.
+Don't use Codex? **Settings → Data Source** switches it off and it disappears. Use Cursor?
+The same pane has **Monitor Cursor usage**, off until you turn it on — see
+[Cursor](#cursor) for what that reads.
 
 **5. Make the icon yours.** **Settings → General** — bars or rings, which of the four
 quotas each position draws (drag a quota onto a slot; drop it on an occupied one to swap),
@@ -368,6 +374,34 @@ Codex tasks run through that same App Server protocol, under a per-task **read-o
 **workspace-write** sandbox. Codex offers Tokenmax no equivalent of Claude's per-run USD cap or its
 independent no-shell permission, so the task editor states those limits rather than showing controls
 that would not work. The session opener is intentionally Claude-only.
+
+### Cursor
+
+Off by default: **Settings → Data Source → Monitor Cursor usage**. Cursor offers individual plans
+no usage API — its Admin API needs a team admin's key — so Tokenmax asks the same undocumented
+endpoint Cursor's own usage dashboard does, `GET cursor.com/api/usage-summary`, signed in with the
+token Cursor.app already stores on your Mac. It reads that token from Cursor's state database,
+read-only, and never refreshes it: Cursor renews its own sign-in whenever it runs. No browser
+cookies are read and no Full Disk Access is needed. If Cursor.app is not installed, or not signed
+in, the popover says so.
+
+A Cursor plan is not metered in five-hour or seven-day windows. It gets a pool of included usage per
+**billing cycle**, about a month, so Cursor's two meters both reset when the cycle ends:
+
+- **Total** — Cursor's own "you've used N% of your included total usage".
+- **API** — the share spent on models you pick by name. They cost far more of the pool than Auto
+  does, so this is the one that runs out first; it can sit at 90% while the total sits at 10%.
+
+Both are Cursor's own percentages, shown as Cursor's dashboard shows them. Tokenmax does not work
+out its own from the dollar figures in the same response, because how those relate to the
+percentages is not known. There is **no pace projection**, because a calendar month has no single
+length and an approximate even-burn line would be up to a day out. There are **no reminders** and
+no "spend it now" highlight either: both are about windows that reset within a week.
+
+**Cursor is usage-only.** Tokenmax does not run tasks with Cursor, so it never appears in the task
+editor, the new-task defaults or the queue's header, and a task file hand-edited to name Cursor is
+refused rather than handed to another agent. You can watch only Cursor if you like; the queue then
+has nothing to run on and says so.
 
 ### The model catalog
 
@@ -604,7 +638,7 @@ copy the prompt, open your terminal there, and hand over.
 
 ### Choosing the provider
 
-A task's editor has a **Provider** picker when both providers are switched on in Settings. It
+A task's editor has a **Provider** picker when both Claude Code and Codex are switched on in Settings. It
 decides which agent runs the task, and the fields below it follow the choice:
 
 | | Claude Code | Codex |
@@ -830,6 +864,10 @@ Code" are trademarks of Anthropic, used here only to describe what this tool wor
 The primary data source, `GET api.anthropic.com/api/oauth/usage`, is **undocumented**. It may change
 shape, start refusing requests, or disappear at any time, and nothing about it is a stability
 promise. The statusline fallback is documented and will outlive it.
+
+The Cursor source, `GET cursor.com/api/usage-summary`, is the endpoint behind Cursor's own usage
+dashboard. It is equally undocumented, has changed shape before, and carries the same lack of
+promise. Tokenmax is not affiliated with Anysphere or Cursor either.
 
 Tokenmax reads the OAuth token Claude Code stores in your login keychain, and the session opener and
 queue automation **spend real quota on your plan on purpose** — that is what they are for. Review

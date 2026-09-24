@@ -41,7 +41,7 @@ struct MenuBarIconModel: Equatable {
         let sources = layout.sources
 
         let meters = sources.map { source -> MenuBarIconRenderer.Meter in
-            let window = snapshot(source.provider)?.window(source.kind)
+            let window = snapshot(source.provider)?.window(for: source)
             // A stale provider contributes no number. Nil lands on the same
             // stub the renderer already draws for an unknown reading, which is
             // the honest picture: the meter is there, the value is not.
@@ -62,7 +62,7 @@ struct MenuBarIconModel: Equatable {
             meters: meters,
             isStale: !shownProviders.isEmpty && shownProviders.allSatisfy { isStale($0) },
             countdownResetAt: countdownSource.flatMap {
-                snapshot($0.provider)?.window($0.kind)?.resetAt
+                snapshot($0.provider)?.window(for: $0)?.resetAt
             },
             // No source is indistinguishable from an unreadable one as far as
             // the label is concerned: either way there is no countdown to show.

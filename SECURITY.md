@@ -1,7 +1,8 @@
 # Security
 
-Tokenmax reads an OAuth token from your login keychain and can run a coding agent
-unattended against your own files. Both deserve a clear statement of what it does
+Tokenmax reads an OAuth token from your login keychain — and, if you switch
+Cursor on, Cursor's own sign-in token — and can run a coding agent unattended
+against your own files. Both deserve a clear statement of what it does
 and how to report it when something is wrong.
 
 ## Reporting a vulnerability
@@ -32,8 +33,19 @@ refresh. When the endpoint rejects it, Tokenmax may start `claude` in a hidden
 terminal so Claude Code renews its own login; that run types only `/status`,
 has tools, MCP servers and settings files switched off, and sends no prompt. It is sent to exactly one place: `api.anthropic.com`.
 
+Only with **Settings → Data Source → Monitor Cursor usage** switched on — it is
+off by default — Tokenmax also reads Cursor's sign-in token out of Cursor.app's
+state database, `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`.
+That is the same token Cursor sends to cursor.com, and any process running as you
+can read it the same way. The database is opened read-only and closed at once.
+The token is held in memory for the request, is **never written to disk**, is
+**never refreshed** by Tokenmax (Cursor renews its own sign-in when it runs), and
+is sent to exactly one place: `cursor.com`, as the cookie Cursor's own usage
+dashboard is signed in with. Tokenmax builds that cookie itself. It never reads a
+browser's cookie store, and needs no Full Disk Access.
 **Network.** Outbound requests go to `api.anthropic.com`, for quota and the model
-catalogue, and — once a day, unless switched off under **Settings → About** — an
+catalogue; to `cursor.com`, for Cursor's usage, only while Cursor is monitored;
+and — once a day, unless switched off under **Settings → About** — an
 unauthenticated `GET` to `api.github.com` for the newest published release, so
 the app can tell you a newer version exists. That request carries no credentials
 and no identifying information, and nothing is downloaded or installed as a
@@ -43,9 +55,11 @@ server of any kind. Nothing you type is transmitted anywhere by Tokenmax.
 **Local files.** It reads and writes `~/Library/Application Support/Tokenmax/`.
 It reads `~/.claude/settings.json`, and writes to it **only** when you explicitly
 install the statusline shim — wrapping any status line already configured rather
-than replacing it.
+than replacing it. With Cursor monitored it reads Cursor's `state.vscdb`, and
+never writes to it.
 
-**Process execution.** It spawns the `claude` and `codex` CLIs. This is the
+**Process execution.** It spawns the `claude` and `codex` CLIs. It never starts
+Cursor or any Cursor process: Cursor is monitored, not driven. This is the
 sharpest edge in the app, and the constraints on it are structural:
 
 - `--dangerously-skip-permissions` is never passed, under any setting.
@@ -90,11 +104,11 @@ source if you would rather not extend that trust; `make install` needs only
 
 ## Out of scope
 
-- The security of Claude Code, Codex, or Anthropic's API.
+- The security of Claude Code, Codex, Cursor, or Anthropic's or Cursor's APIs.
 - What an agent does inside a working directory you granted it.
 - Quota figures being wrong or unavailable — that is a bug, not a vulnerability,
-  and the primary source is an [undocumented
-  endpoint](README.md#disclaimer) with no stability promise.
+  and the primary sources are [undocumented
+  endpoints](README.md#disclaimer) with no stability promise.
 - Anything requiring an attacker to already have code execution as your user,
   since at that point they can read the keychain themselves.
 
