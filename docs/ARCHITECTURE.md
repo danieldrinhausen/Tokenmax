@@ -83,12 +83,21 @@ AppKit context monitor that cannot exist before its status item does. The
 old scene state while removing the item, but only Settings and Side Notch carry
 user intent and may change the persisted visibility preference.
 
-There are four `MenuBarExtra` scenes — the combined item, Claude Code's,
-Codex's and Cursor's — because a scene cannot come and go from `body`;
-`isInserted` is the only way an item appears or disappears.
-`MenuBarItemDecision.items` decides which are inserted: none while the item is
-hidden, one per enabled provider under **One icon per provider** with two or
-more providers on, and otherwise the combined item. Every scene's binding goes through the same one-way
+There are four `MenuBarExtra` scenes — the combined item's slot and three
+provider slots — because a scene cannot come and go from `body`; `isInserted`
+is the only way an item appears or disappears.
+`MenuBarItemDecision.items` decides which items exist, left to right: none
+while the item is hidden, one per enabled provider under **One icon per
+provider** with two or more providers on — in `menuBarProviderOrder`, less
+`menuBarHiddenProviders`, and never fewer than one — and otherwise the combined
+item. `MenuBarItemDecision.item(inSlot:of:)` then hands those to the slots.
+Slots, not one scene per provider, because the order is a setting and nothing
+can move a status item: macOS places it and keys its remembered position on
+the scene's index, so a slot keeps its item and changes which provider it
+draws. Provider slots fill from the right, since macOS inserts a new item to
+the left of the existing ones — that assumption is the one to check if a
+macOS release starts placing new items elsewhere. The last visible provider
+icon refuses to hide with `MenuBarItemSuppressionReason.lastProviderItem`. Every scene's binding goes through the same one-way
 reconciliation, so a provider item being torn down never rewrites the user's
 choice. `MenuBarItemDecision.layout(for:style:)` gives a provider's item its
 own pair — session over week, or Cursor's API over Auto — rather than filtering the cross-provider slot layout,

@@ -69,7 +69,9 @@ Watching more than one provider? **Icons → One icon per provider** gives each
 its own menu bar item instead of one combined icon, each with its own meters
 (session over week; for Cursor, API over Auto), its own countdown and a popover
 for just that provider. The spark marks Claude Code's item, `>_` marks Codex's
-and a pointer arrow marks Cursor's.
+and a pointer arrow marks Cursor's. The rows under the picker choose which of
+those icons show and in what order, left to right; a provider whose icon is off
+is still watched and still reminds you.
 
 Bars are two or three stacked capsules and are the easiest to compare against
 each other. Rings are nested arcs, two per ring: the outer arc encloses the
@@ -563,8 +565,15 @@ provider gets its own item — a spark for Claude Code, `>_` for Codex — showi
 its session over its week and opening a popover with only that provider in it.
 **Count down to** turns into **Session / Week**, which each icon applies to its
 own provider; the quota slot editor hides, because the icons do not use it, and
-your layout is kept for when you go back to one icon. ⌘-drag the items into the order you
-want. The right-click menu is the same on both.
+your layout is kept for when you go back to one icon. Set their order with the
+arrows in the rows below the picker. The right-click menu is the same on both.
+
+**"I watch Cursor too, but only want Claude in the menu bar."**
+Choose **One icon per provider**, then switch off the rows for the providers you
+do not want to see. They stay switched on under **Data Source**, so their
+reminders still fire and Side Notch still draws them — only their icons go. With
+one row left, that provider's own icon remains, not the combined one, because the
+combined icon would bring the others' quotas back.
 
 **"I want to know when quota is about to be wasted, and nothing else."**
 Enable reminders, set a 45-minute session lead. Leave the queue, automation and

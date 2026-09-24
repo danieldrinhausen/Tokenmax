@@ -82,6 +82,121 @@ struct MenuBarItemDecisionTests {
         }
     }
 
+    // MARK: - Which provider icons, in what order
+
+    @Test("Separate items follow the configured order, left to right")
+    func separateFollowsOrder() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .separate,
+            enabledProviders: [.claudeCode, .codex, .cursor], order: [.cursor, .claudeCode, .codex]
+        ) == [.provider(.cursor), .provider(.claudeCode), .provider(.codex)])
+    }
+
+    @Test("A partial or repeated order keeps every provider once, the missing ones last in canonical order")
+    func partialOrderIsCompleted() {
+        #expect(MenuBarItemDecision.ordered(
+            [.claudeCode, .codex, .cursor], by: [.cursor, .cursor]
+        ) == [.cursor, .claudeCode, .codex])
+        #expect(MenuBarItemDecision.ordered([.codex, .claudeCode], by: []) == [.claudeCode, .codex])
+    }
+
+    @Test("A disabled provider has no item even though it has a place in the order")
+    func disabledProviderHasNoItemDespiteOrder() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .separate,
+            enabledProviders: [.claudeCode, .codex], order: [.cursor, .codex, .claudeCode]
+        ) == [.provider(.codex), .provider(.claudeCode)])
+    }
+
+    @Test("A hidden provider loses its icon and the rest keep their order")
+    func hiddenProviderLosesItsIcon() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .separate,
+            enabledProviders: [.claudeCode, .codex, .cursor], hidden: [.codex]
+        ) == [.provider(.claudeCode), .provider(.cursor)])
+    }
+
+    @Test("One provider left showing gets its own icon, not the combined one")
+    func singleShownProviderKeepsItsOwnIcon() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .separate,
+            enabledProviders: [.claudeCode, .codex], hidden: [.claudeCode]
+        ) == [.provider(.codex)])
+    }
+
+    @Test("Hiding every provider's icon shows them all rather than none")
+    func hidingEveryIconShowsAll() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .separate,
+            enabledProviders: [.claudeCode, .codex], hidden: [.claudeCode, .codex]
+        ) == [.provider(.claudeCode), .provider(.codex)])
+    }
+
+    @Test("The hidden list and the order change nothing about the combined icon")
+    func combinedIgnoresHiddenAndOrder() {
+        #expect(MenuBarItemDecision.items(
+            showMenuBarItem: true, layout: .combined,
+            enabledProviders: [.claudeCode, .codex], order: [.codex], hidden: [.claudeCode, .codex]
+        ) == [.combined])
+    }
+
+    @Test("The last icon showing cannot be switched off, and any other can")
+    func lastShownIconIsSuppressed() {
+        #expect(MenuBarItemDecision.hideSuppression(
+            for: .codex, enabledProviders: [.claudeCode, .codex], hidden: [.claudeCode]
+        ) == .lastProviderItem)
+        #expect(MenuBarItemDecision.hideSuppression(
+            for: .codex, enabledProviders: [.claudeCode, .codex], hidden: []
+        ) == nil)
+        // Already hidden: switching it back on is never refused.
+        #expect(MenuBarItemDecision.hideSuppression(
+            for: .claudeCode, enabledProviders: [.claudeCode, .codex], hidden: [.claudeCode]
+        ) == nil)
+    }
+
+    @Test("Moving swaps with the next provider the list shows, skipping a disabled one between them")
+    func movingSkipsDisabledProviders() {
+        #expect(MenuBarItemDecision.moving(
+            .claudeCode, by: 1, in: [.claudeCode, .cursor, .codex], visible: [.claudeCode, .codex]
+        ) == [.codex, .cursor, .claudeCode])
+        #expect(MenuBarItemDecision.moving(
+            .codex, by: -1, in: [.claudeCode, .codex, .cursor], visible: [.claudeCode, .codex, .cursor]
+        ) == [.codex, .claudeCode, .cursor])
+    }
+
+    @Test("Moving past either end leaves the order as it was")
+    func movingPastTheEndIsANoOp() {
+        let order: [TokenmaxProvider] = [.claudeCode, .codex, .cursor]
+        #expect(MenuBarItemDecision.moving(.claudeCode, by: -1, in: order, visible: order) == order)
+        #expect(MenuBarItemDecision.moving(.cursor, by: 1, in: order, visible: order) == order)
+        #expect(MenuBarItemDecision.moving(.cursor, by: 1, in: order, visible: [.claudeCode, .codex]) == order)
+    }
+
+    @Test("Provider slots fill from the right, so the leftmost item is the highest slot")
+    func slotsFillFromTheRight() {
+        let items: [MenuBarItemID] = [.provider(.cursor), .provider(.claudeCode), .provider(.codex)]
+        #expect(MenuBarItemDecision.item(inSlot: 0, of: items) == nil)
+        #expect(MenuBarItemDecision.item(inSlot: 1, of: items) == .provider(.codex))
+        #expect(MenuBarItemDecision.item(inSlot: 2, of: items) == .provider(.claudeCode))
+        #expect(MenuBarItemDecision.item(inSlot: 3, of: items) == .provider(.cursor))
+    }
+
+    @Test("The combined item takes slot 0 and leaves every provider slot empty")
+    func combinedTakesSlotZero() {
+        #expect(MenuBarItemDecision.item(inSlot: 0, of: [.combined]) == .combined)
+        for slot in 1...3 {
+            #expect(MenuBarItemDecision.item(inSlot: slot, of: [.combined]) == nil)
+        }
+    }
+
+    @Test("A slot beyond the items shown, or any slot with no items, is empty")
+    func unusedSlotsAreEmpty() {
+        #expect(MenuBarItemDecision.item(inSlot: 3, of: [.provider(.claudeCode), .provider(.codex)]) == nil)
+        for slot in 0...3 {
+            #expect(MenuBarItemDecision.item(inSlot: slot, of: []) == nil)
+        }
+    }
+
     @Test("A provider's item draws only that provider's session over its week, in both styles")
     func providerLayoutIsItsOwn() {
         for style in MenuBarIconStyle.allCases {

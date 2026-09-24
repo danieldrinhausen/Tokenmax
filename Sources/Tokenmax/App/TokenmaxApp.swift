@@ -132,14 +132,17 @@ struct TokenmaxApp: App {
             NSHostingController(rootView: SettingsView().modifier(environment))
         }
 
-        // Four scenes, of which `MenuBarItemDecision.items` inserts either the
-        // first or one per enabled provider. Declared unconditionally because a scene
-        // cannot come and go from `body`; `isInserted` is how a `MenuBarExtra`
-        // appears and disappears.
-        menuBarItem(.combined)
-        menuBarItem(.provider(.claudeCode))
-        menuBarItem(.provider(.codex))
-        menuBarItem(.provider(.cursor))
+        // Four scenes: the combined item's slot and one slot per provider,
+        // which `MenuBarItemDecision.item(inSlot:of:)` fills in the user's
+        // order. Declared unconditionally because a scene cannot come and go
+        // from `body`; `isInserted` is how a `MenuBarExtra` appears and
+        // disappears. Keep the declaration order: SwiftUI names each status
+        // item by its scene's index, and macOS keys the item's saved position
+        // and visibility on that name.
+        menuBarItem(slot: 0)
+        menuBarItem(slot: 1)
+        menuBarItem(slot: 2)
+        menuBarItem(slot: 3)
 
         Window("Tokenmax Queue", id: TokenmaxWindow.queue) {
             QueueView()
@@ -175,15 +178,25 @@ struct TokenmaxApp: App {
         MenuBarItemDecision.items(
             showMenuBarItem: settingsStore.settings.showMenuBarItem,
             layout: settingsStore.settings.menuBarItemLayout,
-            enabledProviders: settingsStore.settings.enabledProviders
+            enabledProviders: settingsStore.settings.enabledProviders,
+            order: settingsStore.settings.menuBarProviderOrder,
+            hidden: settingsStore.settings.menuBarHiddenProviders
         )
     }
 
-    private func menuBarItem(_ id: MenuBarItemID) -> some Scene {
+    private func menuBarItem(slot: Int) -> some Scene {
+        let items = menuBarItems
+        let slotItem = MenuBarItemDecision.item(inSlot: slot, of: items)
+        // An empty slot is not inserted, so what it would draw never shows;
+        // the fallback only keeps the label below total.
+        let id = slotItem ?? (slot == 0 ? .combined : .provider(TokenmaxProvider.allCases[slot - 1]))
         let provider: TokenmaxProvider? = if case let .provider(provider) = id { provider } else { nil }
         let settings = settingsStore.settings
-        return MenuBarExtra(isInserted: menuBarItemBinding(id)) {
+        return MenuBarExtra(isInserted: menuBarItemBinding(slot: slot)) {
             MenuBarPopoverView(provider: provider)
+                // A reorder hands this slot another provider; its popover must
+                // not carry the previous one's state across.
+                .id(id)
                 .modifier(sharedEnvironment)
                 .onAppear { usage.popoverOpened() }
                 .onDisappear { usage.popoverClosed() }
@@ -215,7 +228,7 @@ struct TokenmaxApp: App {
                 escalation: settings.effectiveEscalation,
                 marker: id.marker,
                 accessibilityName: id.accessibilityName,
-                handlesAppActions: menuBarItems.first == id
+                handlesAppActions: slotItem != nil && items.first == slotItem
             )
             .onAppear {
                 // Here rather than in `applicationDidFinishLaunching` because
@@ -229,9 +242,9 @@ struct TokenmaxApp: App {
         .menuBarExtraStyle(.window)
     }
 
-    private func menuBarItemBinding(_ id: MenuBarItemID) -> Binding<Bool> {
+    private func menuBarItemBinding(slot: Int) -> Binding<Bool> {
         Binding(
-            get: { menuBarItems.contains(id) },
+            get: { MenuBarItemDecision.item(inSlot: slot, of: menuBarItems) != nil },
             set: { sceneState in
                 let retained = MenuBarItemDecision.persistedVisibility(
                     afterSceneReconciliation: sceneState,

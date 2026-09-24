@@ -349,6 +349,17 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// two items at once.
     var menuBarProviderCountdown: MenuBarProviderCountdown = .session
 
+    /// The providers' own items, left to right. Stored whole, disabled
+    /// providers included, so switching one off and on again returns it to
+    /// the place it had; see `MenuBarItemDecision.ordered` for how a partial
+    /// or repeated list is read.
+    var menuBarProviderOrder: [TokenmaxProvider] = TokenmaxProvider.allCases
+
+    /// Providers whose own item is left out of the menu bar. Hidden rather than
+    /// shown, so a provider added in a later version appears instead of
+    /// waiting to be discovered in Settings.
+    var menuBarHiddenProviders: [TokenmaxProvider] = []
+
     /// Which shape the icon is drawn in. See `MenuBarIconStyle` for what each
     /// one is good at.
     ///
@@ -542,6 +553,11 @@ struct AppSettings: Codable, Sendable, Equatable {
         enabledProviders.filter(\.runsTasks)
     }
 
+    /// The enabled providers in the order their own items take.
+    var orderedMenuBarProviders: [TokenmaxProvider] {
+        MenuBarItemDecision.ordered(enabledProviders, by: menuBarProviderOrder)
+    }
+
     /// The menu-bar quotas a disabled provider must not be able to claim. This
     /// is the set every bar-editing call site passes as `allowed:`.
     var allowedMenuBarSources: [MenuBarQuotaSource] {
@@ -627,6 +643,12 @@ struct AppSettings: Codable, Sendable, Equatable {
         menuBarProviderCountdown = (try? container.decodeIfPresent(
             MenuBarProviderCountdown.self, forKey: .menuBarProviderCountdown
         )) ?? d.menuBarProviderCountdown
+        // As strings, so one provider name this build does not know costs that
+        // entry rather than the whole list.
+        menuBarProviderOrder = (try? container.decodeIfPresent([String].self, forKey: .menuBarProviderOrder))
+            .map { $0.compactMap(TokenmaxProvider.init(rawValue:)) } ?? d.menuBarProviderOrder
+        menuBarHiddenProviders = (try? container.decodeIfPresent([String].self, forKey: .menuBarHiddenProviders))
+            .map { $0.compactMap(TokenmaxProvider.init(rawValue:)) } ?? d.menuBarHiddenProviders
         menuBarProviderID = try container.decodeIfPresent(String.self, forKey: .menuBarProviderID)
             ?? d.menuBarProviderID
         foregroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .foregroundRefreshSeconds)

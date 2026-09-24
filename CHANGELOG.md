@@ -38,6 +38,13 @@ versions follow [semver](https://semver.org/).
   provider. **Count down to** becomes **Session / Week**, applied to each icon for its own
   provider, and the quota slot editor hides while it is on — the icons do not use it, and the
   layout is kept for the combined icon. The combined icon stays the default and is unchanged.
+
+- **Choose which provider icons show, and their order.** With one icon per provider, each
+  enabled provider now has a row under **Icons** with a switch and left/right arrows. The switch
+  hides that provider's icon without switching the provider off — its reminders and its Side
+  Notch ring stay — and the last icon showing cannot be switched off. The arrows set the order
+  left to right, and it holds across relaunches: Tokenmax keeps its menu bar items where macOS
+  put them and changes which provider each one draws, instead of relying on ⌘-drag.
   With one provider switched on there is one icon either way.
 
 - **Tokenmax asks Claude Code to renew an expired login instead of asking you to sign in.**

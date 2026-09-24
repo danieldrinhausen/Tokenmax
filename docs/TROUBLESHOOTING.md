@@ -130,13 +130,29 @@ under **Settings → Data Source**. With one provider there is one icon either
 way, so Tokenmax keeps the combined icon. The choice is remembered: switching
 a second provider back on brings the separate items back.
 
-### The second menu bar icon appeared somewhere else
+### The provider icons are in the wrong order
 
-macOS places a newly added menu bar item wherever it has room, and may move
-items after they are removed and added again — switching between one combined
-icon and one icon per provider does exactly that. Hold ⌘ and drag the items
-into the order you want. If they keep jumping after a relaunch, that is macOS's
-placement memory, not a setting in Tokenmax; report it with your macOS version.
+Set the order with the arrows in **Settings → General → Menu bar icon**, under
+**Icons**, rather than by ⌘-dragging. macOS places each item itself and lets an
+app move none of them, so Tokenmax leaves the items where they are and changes
+which provider each one draws. If the arrows put them in exactly the reverse
+order, the items were ⌘-dragged into a different arrangement earlier; drag them
+back, or report it with your macOS version if they arrived that way on their own.
+
+### One provider's icon is missing from the menu bar
+
+Check its row under **Settings → General → Menu bar icon → Icons**: a switched-off
+row leaves that provider's icon out while Tokenmax keeps watching it. If the row
+is not listed at all, the provider is off under **Settings → Data Source**. On a
+crowded menu bar macOS also hides items that do not fit left of the notch —
+quit another menu bar app to check.
+
+### A provider icon appeared away from the others
+
+macOS places a newly added menu bar item wherever it has room — switching
+between one combined icon and one icon per provider, or showing a hidden
+provider's icon again, adds one. ⌘-drag it next to the others once; the order
+setting then decides which provider it shows.
 
 ### The icon got wider and pushed my other menu bar items along
 

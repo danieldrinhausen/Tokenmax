@@ -73,7 +73,17 @@ kept and comes back when you return to one combined icon. **Count down to** like
 **Session / Week**, applied to each icon for its own provider, since a single choice such as
 "Claude session" would leave the Codex icon counting down to a window that is not its own. With
 only one provider on there is one icon either way, so the setting waits until the second is
-switched back on. ⌘-drag either item to reorder them.
+switched back on.
+
+Under it, each enabled provider gets a row with a switch and a pair of arrows. The switch leaves
+that provider's icon out of the menu bar without switching the provider off — Tokenmax still
+reads its usage, its reminders still fire and Side Notch still shows it — for a provider you want
+watched but not in view. The last icon showing cannot be switched off, because "no icons" is what
+**Show the menu bar item** is for, and only that switch checks Side Notch is there to get you
+back. The arrows set the order, left to right. macOS offers an app no way to move a menu bar item
+once placed, so Tokenmax keeps its items where they are and changes which provider each one
+draws; the order therefore holds across relaunches and provider switches, where ⌘-dragging the
+items only holds until macOS next re-places them.
 
 The countdown is chosen separately under **Count down to**, because the most useful deadline is not
 always one the icon has room for, and tying the two would mean changing the icon to change the

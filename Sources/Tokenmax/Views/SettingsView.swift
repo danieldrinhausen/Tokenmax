@@ -205,7 +205,12 @@ struct GeneralSettingsView: View {
                 // read as broken. The stored layout is untouched, so switching
                 // back to one icon restores it exactly.
                 if showsSeparateMenuBarItems {
-                    Text("Each icon shows its provider's session over its week, marked with a spark for Claude Code and >_ for Codex; its popover shows only that provider. The slot layout applies to the combined icon and is kept for when you switch back. ⌘-drag either icon to reorder them.")
+                    Text("Each icon shows its provider's session over its week, marked with a spark for Claude Code and >_ for Codex; its popover shows only that provider. The slot layout applies to the combined icon and is kept for when you switch back.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    MenuBarProviderItemsSettingsView()
+                    Text("Listed left to right, as the icons sit in the menu bar. Hiding an icon does not stop Tokenmax watching that provider: its reminders still fire and Side Notch still shows it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -237,7 +242,13 @@ struct GeneralSettingsView: View {
                     meters: previewMeters,
                     highlight: settingsStore.settings.menuBarHighlightColor,
                     separate: showsSeparateMenuBarItems,
-                    markers: settingsStore.settings.enabledProviders.map(MenuBarIconRenderer.ProviderMarker.init)
+                    markers: MenuBarItemDecision.items(
+                        showMenuBarItem: true,
+                        layout: .separate,
+                        enabledProviders: settingsStore.settings.enabledProviders,
+                        order: settingsStore.settings.menuBarProviderOrder,
+                        hidden: settingsStore.settings.menuBarHiddenProviders
+                    ).compactMap(\.marker)
                 )
             }
 
@@ -481,8 +492,9 @@ private struct MenuBarIconPreview: View {
         LabeledContent("Preview") {
             if separate {
                 // Each provider item draws its own session over its week, so
-                // two meters each whatever the layout editor holds.
-                VStack(alignment: .leading, spacing: 6) {
+                // two meters each whatever the layout editor holds. In a row,
+                // in menu bar order, so the preview answers "which is where".
+                HStack(spacing: 8) {
                     ForEach(markers, id: \.self) { marker in
                         MenuBarIconSwatch(
                             style: style,
@@ -496,6 +508,69 @@ private struct MenuBarIconPreview: View {
                 MenuBarIconSwatch(style: style, meters: meters, highlight: highlight)
             }
         }
+    }
+}
+
+/// One row per enabled provider: whether its icon shows, and where it sits.
+///
+/// Buttons rather than a drag list: a `List` inside a grouped `Form` draws as a
+/// nested scroll view, and with at most three rows two arrows are faster than
+/// a drag anyway.
+private struct MenuBarProviderItemsSettingsView: View {
+    @EnvironmentObject private var settingsStore: SettingsStore
+
+    var body: some View {
+        let providers = settingsStore.settings.orderedMenuBarProviders
+        ForEach(Array(providers.enumerated()), id: \.element) { index, provider in
+            let suppression = MenuBarItemDecision.hideSuppression(
+                for: provider,
+                enabledProviders: providers,
+                hidden: settingsStore.settings.menuBarHiddenProviders
+            )
+            HStack {
+                Toggle(provider.displayName, isOn: shownBinding(provider))
+                    .disabled(suppression != nil)
+                    .help(suppression?.explanation ?? "")
+                Spacer()
+                Button {
+                    move(provider, by: -1, among: providers)
+                } label: {
+                    Image(systemName: "chevron.left")
+                }
+                .disabled(index == 0)
+                .help("Move left")
+                .accessibilityLabel("Move \(provider.displayName) left")
+                Button {
+                    move(provider, by: 1, among: providers)
+                } label: {
+                    Image(systemName: "chevron.right")
+                }
+                .disabled(index == providers.count - 1)
+                .help("Move right")
+                .accessibilityLabel("Move \(provider.displayName) right")
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private func shownBinding(_ provider: TokenmaxProvider) -> Binding<Bool> {
+        Binding(
+            get: { !settingsStore.settings.menuBarHiddenProviders.contains(provider) },
+            set: { shown in
+                var hidden = settingsStore.settings.menuBarHiddenProviders.filter { $0 != provider }
+                if !shown { hidden.append(provider) }
+                settingsStore.settings.menuBarHiddenProviders = hidden
+            }
+        )
+    }
+
+    private func move(_ provider: TokenmaxProvider, by offset: Int, among providers: [TokenmaxProvider]) {
+        settingsStore.settings.menuBarProviderOrder = MenuBarItemDecision.moving(
+            provider,
+            by: offset,
+            in: settingsStore.settings.menuBarProviderOrder,
+            visible: providers
+        )
     }
 }
 

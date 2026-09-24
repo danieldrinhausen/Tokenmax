@@ -1052,6 +1052,50 @@ struct PersistenceCompatibilityTests {
         #expect(try JSONDecoder().decode(AppSettings.self, from: data).menuBarItemLayout == .separate)
     }
 
+    @Test("A settings file from before provider icon order shows every icon in canonical order")
+    func menuBarProviderOrderDefaults() throws {
+        let settings = try decode(AppSettings.self, """
+        { "remindersEnabled": true }
+        """)
+        #expect(settings.menuBarProviderOrder == TokenmaxProvider.allCases)
+        #expect(settings.menuBarHiddenProviders.isEmpty)
+        #expect(settings.remindersEnabled)
+    }
+
+    @Test("An unknown provider in the icon order or hidden list costs that entry, not the list or the file")
+    func unknownMenuBarProviderIsDropped() throws {
+        let settings = try decode(AppSettings.self, """
+        {
+          "menuBarProviderOrder": ["cursor", "gemini", "codex"],
+          "menuBarHiddenProviders": ["gemini", "claude-code"],
+          "remindersEnabled": true
+        }
+        """)
+        #expect(settings.menuBarProviderOrder == [.cursor, .codex])
+        #expect(settings.menuBarHiddenProviders == [.claudeCode])
+        #expect(settings.remindersEnabled)
+    }
+
+    @Test("A provider icon order and hidden list of the wrong shape fall back without resetting the file")
+    func malformedMenuBarProviderOrderFallsBack() throws {
+        let settings = try decode(AppSettings.self, """
+        { "menuBarProviderOrder": "cursor", "menuBarHiddenProviders": 3, "remindersEnabled": true }
+        """)
+        #expect(settings.menuBarProviderOrder == TokenmaxProvider.allCases)
+        #expect(settings.menuBarHiddenProviders.isEmpty)
+        #expect(settings.remindersEnabled)
+    }
+
+    @Test("Provider icon order and hidden providers survive a round trip")
+    func menuBarProviderOrderRoundTrips() throws {
+        var settings = AppSettings()
+        settings.menuBarProviderOrder = [.cursor, .claudeCode, .codex]
+        settings.menuBarHiddenProviders = [.codex]
+        let restored = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))
+        #expect(restored.menuBarProviderOrder == [.cursor, .claudeCode, .codex])
+        #expect(restored.menuBarHiddenProviders == [.codex])
+    }
+
     @Test("Provider icons count down to their session unless told otherwise, and an unknown value falls back")
     func providerCountdownDefaultsToSession() throws {
         let old = try decode(AppSettings.self, """
