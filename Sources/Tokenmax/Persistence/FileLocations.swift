@@ -2,7 +2,7 @@ import Foundation
 
 /// Every path Tokenmax writes to. Nothing outside this directory is touched
 /// except `~/.claude/settings.json`, and only when the user explicitly installs
-/// the statusline shim.
+/// the statusline shim. Cursor's state database is read, never written.
 enum FileLocations {
     static let supportDirectory: URL = {
         // Tests set TOKENMAX_SUPPORT_DIR to a scratch path. Without it a test
@@ -116,5 +116,16 @@ enum FileLocations {
 
     static var claudeSettingsFile: URL {
         claudeDirectory.appendingPathComponent("settings.json")
+    }
+
+    /// Cursor.app's own state database, which holds its sign-in. Read only,
+    /// never written. Overridable so a test run can never read the developer's
+    /// real Cursor login.
+    static var cursorStateDatabase: URL {
+        if let override = ProcessInfo.processInfo.environment["TOKENMAX_CURSOR_STATE_DB"] {
+            return URL(fileURLWithPath: override)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Cursor/User/globalStorage/state.vscdb")
     }
 }

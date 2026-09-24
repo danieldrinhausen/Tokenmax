@@ -4,6 +4,9 @@ enum UsageWindowKind: String, Codable, Sendable, CaseIterable {
     case session
     case weekly
     case modelSpecificWeekly
+    /// A whole billing cycle — Cursor's included usage, about a month long.
+    /// Appended last: the raw values are persisted in snapshots.
+    case billingCycle
 }
 
 /// Where a window's numbers came from. The CLI-based and web-scraping sources
@@ -12,6 +15,7 @@ enum UsageSource: String, Codable, Sendable {
     case claudeOAuth
     case statusline
     case codexAppServer
+    case cursorDashboard
     case manual
 
     var displayName: String {
@@ -19,6 +23,7 @@ enum UsageSource: String, Codable, Sendable {
         case .claudeOAuth: "Claude account"
         case .statusline: "Claude Code status line"
         case .codexAppServer: "Codex App Server"
+        case .cursorDashboard: "Cursor dashboard"
         case .manual: "Manual"
         }
     }

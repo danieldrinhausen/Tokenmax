@@ -18,6 +18,7 @@ struct SideNotchMeterPresentation: Equatable, Identifiable, Sendable {
         case .session: "Current session"
         case .weekly: "Weekly limit"
         case .modelSpecificWeekly: "Model limit"
+        case .billingCycle: "Billing cycle"
         }
     }
 }

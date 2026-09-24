@@ -314,6 +314,7 @@ extension UsageWindowKind {
         case .session: 0
         case .weekly: 1
         case .modelSpecificWeekly: 2
+        case .billingCycle: 3
         }
     }
 }

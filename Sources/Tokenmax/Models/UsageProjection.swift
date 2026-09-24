@@ -8,10 +8,15 @@ extension UsageWindowKind {
     /// names state it: `five_hour`, `seven_day`, `seven_day_opus`. Everything
     /// below is derived from this and the reset time, which is why no reading
     /// history is needed.
-    var duration: TimeInterval {
+    ///
+    /// nil for a billing cycle, whose length is a calendar month rather than a
+    /// constant. A fixed 30 days would put the even-burn line up to a day out
+    /// either side, so no projection is made instead of an approximate one.
+    var duration: TimeInterval? {
         switch self {
         case .session: 5 * 3600
         case .weekly, .modelSpecificWeekly: 7 * 24 * 3600
+        case .billingCycle: nil
         }
     }
 }
@@ -71,7 +76,7 @@ struct UsageProjection: Equatable, Sendable {
         guard !window.isExhausted else { return nil }
         guard let resetAt = window.resetAt else { return nil }
 
-        let duration = window.kind.duration
+        guard let duration = window.kind.duration else { return nil }
         let timeUntilReset = resetAt.timeIntervalSince(now)
         guard timeUntilReset > 0, timeUntilReset < duration else { return nil }
 

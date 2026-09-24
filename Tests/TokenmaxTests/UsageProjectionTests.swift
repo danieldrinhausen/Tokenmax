@@ -57,9 +57,11 @@ struct UsageProjectionTests {
     /// wrong silently skews every projection.
     @Test("Window lengths match the endpoint's own field names")
     func windowDurations() {
-        #expect(UsageWindowKind.session.duration == 5 * 3600)
-        #expect(UsageWindowKind.weekly.duration == 7 * 24 * 3600)
-        #expect(UsageWindowKind.modelSpecificWeekly.duration == 7 * 24 * 3600)
+        #expect(UsageWindowKind.session.duration == TimeInterval(5 * 3600))
+        #expect(UsageWindowKind.weekly.duration == TimeInterval(7 * 24 * 3600))
+        #expect(UsageWindowKind.modelSpecificWeekly.duration == TimeInterval(7 * 24 * 3600))
+        // A calendar month has no one length, so none is claimed.
+        #expect(UsageWindowKind.billingCycle.duration == nil)
     }
 
     // MARK: - The even-burn reference

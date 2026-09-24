@@ -882,6 +882,29 @@ struct PersistenceCompatibilityTests {
         #expect(snapshot.availableResetExpiresAt == nil)
     }
 
+    @Test("A Cursor billing-cycle snapshot survives a round trip")
+    func billingCycleSnapshotRoundTrips() throws {
+        let snapshot = try decode(UsageSnapshot.self, """
+        {
+          "providerID": "cursor",
+          "planName": "Pro",
+          "windows": [{
+            "id": "cursor.api", "kind": "billingCycle", "label": "API", "usedPercent": 93.2,
+            "resetAt": "2026-09-25T09:23:16Z", "observedAt": "2026-09-24T12:00:00Z",
+            "source": "cursorDashboard", "confidence": "authoritative"
+          }],
+          "fetchedAt": "2026-09-24T12:00:00Z",
+          "fetchDuration": 0.3,
+          "extraUsageEnabled": false
+        }
+        """)
+        let reencoded = try decode(UsageSnapshot.self, String(decoding: JSONStore.makeEncoder().encode(snapshot), as: UTF8.self))
+
+        #expect(reencoded.windows.first?.kind == .billingCycle)
+        #expect(reencoded.windows.first?.source == .cursorDashboard)
+        #expect(reencoded.extraUsageEnabled == false)
+    }
+
     @Test("Opener state written by an older version still loads")
     func loadsPartialOpenerState() throws {
         let state = try decode(SessionOpenerState.self, """

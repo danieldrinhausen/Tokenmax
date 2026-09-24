@@ -256,6 +256,7 @@ enum NotificationScheduler {
         case .session: "\(provider) window ending soon"
         case .weekly: "\(provider) weekly limit resets soon"
         case .modelSpecificWeekly: "\(provider) model limit resets soon"
+        case .billingCycle: "\(provider) billing cycle resets soon"
         }
     }
 
@@ -276,6 +277,7 @@ enum NotificationScheduler {
         case .session: "five-hour window"
         case .weekly: "weekly window"
         case .modelSpecificWeekly: "model window"
+        case .billingCycle: "billing cycle"
         }
 
         let countdown = RelativeTime.countdown(timeUntilReset)

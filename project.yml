@@ -58,8 +58,9 @@ schemes:
       config: Debug
     test:
       config: Debug
-      # Keep test runs out of ~/Library/Application Support/Tokenmax, and well
-      # away from the real ~/.claude the statusline installer writes to.
+      # Keep test runs out of ~/Library/Application Support/Tokenmax, well
+      # away from the real ~/.claude the statusline installer writes to, and
+      # off the real Cursor sign-in.
       # TOKENMAX_TESTING additionally refuses the real keychain. The test host
       # is the app itself and ad-hoc signed, so a credential read from it
       # raises a consent dialog no grant can ever silence — see
@@ -67,6 +68,7 @@ schemes:
       environmentVariables:
         TOKENMAX_SUPPORT_DIR: /tmp/tokenmax-tests
         TOKENMAX_CLAUDE_DIR: /tmp/tokenmax-tests/claude
+        TOKENMAX_CURSOR_STATE_DB: /tmp/tokenmax-tests/cursor/state.vscdb
         TOKENMAX_TESTING: "1"
       targets:
         - TokenmaxTests

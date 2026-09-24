@@ -53,6 +53,9 @@ enum UsageWindowPresentation {
             formatter.setLocalizedDateFormatFromTemplate("EEE j:mm")
         case .session:
             formatter.setLocalizedDateFormatFromTemplate("j:mm")
+        case .billingCycle:
+            // Weeks out, where the weekday alone would be ambiguous.
+            formatter.setLocalizedDateFormatFromTemplate("MMM d j:mm")
         }
         return formatter.string(from: resetAt)
     }
