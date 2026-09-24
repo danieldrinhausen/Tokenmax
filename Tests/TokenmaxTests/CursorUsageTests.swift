@@ -37,26 +37,26 @@ struct CursorUsageDecodingTests {
         #expect(summary.individualUsage?.onDemand?.enabled == false)
     }
 
-    @Test("Maps total and API usage to two billing-cycle windows resetting at the cycle's end")
+    @Test("Maps API and Auto usage to two billing-cycle windows, API first, resetting at the cycle's end")
     func mapsTwoWindows() throws {
         let summary = try decode(observedSummary)
         let windows = CursorProvider.windows(from: summary, observedAt: Date())
 
-        #expect(windows.map(\.id) == ["cursor.total", "cursor.api"])
+        #expect(windows.map(\.id) == ["cursor.api", "cursor.auto"])
         #expect(windows.allSatisfy { $0.kind == .billingCycle })
         #expect(windows.allSatisfy { $0.resetAt == summary.billingCycleEnd })
         #expect(windows.allSatisfy { $0.source == .cursorDashboard })
-        #expect(Int(windows[0].remainingPercent?.rounded() ?? -1) == 90)
-        #expect(Int(windows[1].remainingPercent?.rounded() ?? -1) == 7)
+        #expect(Int(windows[0].remainingPercent?.rounded() ?? -1) == 7)
+        #expect(Int(windows[1].remainingPercent?.rounded() ?? -1) == 99)
     }
 
     @Test("A missing percentage drops only its own window")
     func missingPercentageDropsItsWindow() throws {
         let summary = try decode("""
         { "billingCycleEnd": "2026-09-25T09:23:16.000Z",
-          "individualUsage": { "plan": { "totalPercentUsed": 40 } } }
+          "individualUsage": { "plan": { "autoPercentUsed": 40 } } }
         """)
-        #expect(CursorProvider.windows(from: summary, observedAt: Date()).map(\.id) == ["cursor.total"])
+        #expect(CursorProvider.windows(from: summary, observedAt: Date()).map(\.id) == ["cursor.auto"])
     }
 
     @Test("A field of the wrong type costs that field, not the whole response")

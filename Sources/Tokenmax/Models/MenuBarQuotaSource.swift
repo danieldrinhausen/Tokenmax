@@ -15,16 +15,31 @@ enum MenuBarQuotaSource: String, Codable, Sendable, CaseIterable, Identifiable, 
     // silently change which quota the third bar of an existing layout draws.
     case codexSession = "codex.session"
     // Appended last for the same reason.
-    case cursorTotal = "cursor.total"
+    case cursorAuto = "cursor.auto"
     case cursorAPI = "cursor.api"
 
     var id: String { rawValue }
+
+    /// Cursor's first meter was its blended total, `cursor.total`, until it
+    /// became Auto. A saved layout decodes as one array under `try?`, so a
+    /// single unknown value would cost the user the whole layout; read the old
+    /// name as its replacement instead.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        guard let source = Self(rawValue: raw == "cursor.total" ? Self.cursorAuto.rawValue : raw) else {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: decoder.codingPath,
+                debugDescription: "Unknown quota source \(raw)"
+            ))
+        }
+        self = source
+    }
 
     var provider: TokenmaxProvider {
         switch self {
         case .claudeSession, .claudeWeekly: .claudeCode
         case .codexWeekly, .codexSession: .codex
-        case .cursorTotal, .cursorAPI: .cursor
+        case .cursorAuto, .cursorAPI: .cursor
         }
     }
 
@@ -32,7 +47,7 @@ enum MenuBarQuotaSource: String, Codable, Sendable, CaseIterable, Identifiable, 
         switch self {
         case .claudeSession, .codexSession: .session
         case .claudeWeekly, .codexWeekly: .weekly
-        case .cursorTotal, .cursorAPI: .billingCycle
+        case .cursorAuto, .cursorAPI: .billingCycle
         }
     }
 
@@ -43,7 +58,7 @@ enum MenuBarQuotaSource: String, Codable, Sendable, CaseIterable, Identifiable, 
         case .claudeWeekly: "Claude week"
         case .codexWeekly: "Codex week"
         case .codexSession: "Codex session"
-        case .cursorTotal: "Cursor total"
+        case .cursorAuto: "Cursor Auto"
         case .cursorAPI: "Cursor API"
         }
     }
@@ -53,7 +68,7 @@ extension UsageSnapshot {
     /// The window a menu-bar source draws.
     ///
     /// By id first, because Cursor's two meters share one kind — both span the
-    /// billing cycle — and a lookup by kind would draw its total twice. The
+    /// billing cycle — and a lookup by kind would draw one of them twice. The
     /// kind is the fallback so a Claude or Codex snapshot whose ids ever
     /// differed from the source names still finds its window.
     func window(for source: MenuBarQuotaSource) -> UsageWindow? {

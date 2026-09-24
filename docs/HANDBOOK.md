@@ -60,14 +60,14 @@ anything itself. Switch the check off in the same place.
 **Settings → General** decides both halves independently. Under **Menu bar icon**,
 pick the shape first — **Bars** or **Rings** — then say what each position shows
 by dragging a quota — Claude session, Claude week, Codex session, Codex week,
-and Cursor total and Cursor API once Cursor is on — onto the slot you want it on; dropping one onto an occupied slot swaps the two.
+and Cursor API and Cursor Auto once Cursor is on — onto the slot you want it on; dropping one onto an occupied slot swaps the two.
 **Count down to** picks the window the countdown text tracks, which does not have
 to be a window the icon shows. The text can also be switched off, leaving the
 icon alone.
 
 Watching more than one provider? **Icons → One icon per provider** gives each
 its own menu bar item instead of one combined icon, each with its own meters
-(session over week; for Cursor, total over API), its own countdown and a popover
+(session over week; for Cursor, API over Auto), its own countdown and a popover
 for just that provider. The spark marks Claude Code's item, `>_` marks Codex's
 and a pointer arrow marks Cursor's.
 
@@ -297,14 +297,17 @@ appears in the task editor, the new-task defaults or the queue.
 about a month. Tokenmax shows two figures from it, both Cursor's own and both
 resetting when the cycle ends:
 
-- **Total** is the headline Cursor's dashboard shows.
 - **API** is the share spent on models you picked by name rather than Auto.
   Named models cost far more of the pool, so this is the one that runs out first
-  and the one to watch. It is normal for it to read 90% while Total reads 10%.
+  and the one to watch. It leads everywhere Cursor appears.
+- **Auto** is the share spent through Auto mode. It is normal for it to read 1%
+  while API reads 93%.
 
-In the menu bar they are *Cursor total* and *Cursor API*; drag either onto a
-slot like any other quota. With **One icon per provider**, Cursor's icon draws
-total over API, and both countdown choices follow the end of the cycle.
+Those are the two bars on Cursor's own dashboard. In the menu bar they are
+*Cursor API* and *Cursor Auto*; drag either onto a slot like any other quota.
+With **One icon per provider**, Cursor's icon draws API over Auto, and both
+countdown choices follow the end of the cycle. A layout saved while the first
+meter was still Cursor's blended total keeps its slot, now drawing Auto.
 
 **What it deliberately leaves out.** There is no pace line: a calendar month has
 no single length, and an even-burn reference off by up to a day would be worse

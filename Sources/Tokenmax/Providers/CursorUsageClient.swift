@@ -265,7 +265,7 @@ actor CursorUsageClient {
         let fetchedAt = now()
         cached = (summary, fetchedAt)
         let plan = summary.individualUsage?.plan
-        Log.shared.write("cursor: ok total=\(plan?.totalPercentUsed ?? -1) api=\(plan?.apiPercentUsed ?? -1)")
+        Log.shared.write("cursor: ok api=\(plan?.apiPercentUsed ?? -1) auto=\(plan?.autoPercentUsed ?? -1)")
         return (summary, fetchedAt)
     }
 
@@ -274,14 +274,14 @@ actor CursorUsageClient {
     ///
     /// Missing percentages alone are not drift: an unlimited plan and a team
     /// seat have no individual allowance to meter, and an empty body is an
-    /// empty answer. Anything else without either percentage means the fields
+    /// empty answer. Anything else without either meter's percentage means the fields
     /// were renamed, and the keys that *are* there go in the log so the fix
     /// starts from evidence.
     ///
     /// Static and pure so the rule can be tested without a network stub.
     static func driftedKeys(_ summary: CursorUsageSummary, data: Data) -> [String]? {
         let plan = summary.individualUsage?.plan
-        guard plan?.totalPercentUsed == nil, plan?.apiPercentUsed == nil else { return nil }
+        guard plan?.apiPercentUsed == nil, plan?.autoPercentUsed == nil else { return nil }
         guard summary.isUnlimited != true, summary.limitType != "team" else { return nil }
 
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]

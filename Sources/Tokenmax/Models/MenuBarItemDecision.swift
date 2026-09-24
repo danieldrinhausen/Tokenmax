@@ -83,12 +83,12 @@ enum MenuBarItemDecision {
     }
 
     /// A provider's own two meters: its short window over its long one, or for
-    /// Cursor its total over its API usage.
+    /// Cursor its API usage over Auto — the meter that runs out leads.
     static func sources(for provider: TokenmaxProvider) -> [MenuBarQuotaSource] {
         switch provider {
         case .claudeCode: [.claudeSession, .claudeWeekly]
         case .codex: [.codexSession, .codexWeekly]
-        case .cursor: [.cursorTotal, .cursorAPI]
+        case .cursor: [.cursorAPI, .cursorAuto]
         }
     }
 
@@ -105,7 +105,7 @@ enum MenuBarItemDecision {
         case (.codex, .week): .codexWeekly
         // One billing cycle behind both meters, so both choices land on the
         // same reset.
-        case (.cursor, _): .cursorTotal
+        case (.cursor, _): .cursorAPI
         }
     }
 

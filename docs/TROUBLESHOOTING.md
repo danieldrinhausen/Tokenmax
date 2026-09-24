@@ -430,12 +430,13 @@ on your Mac, so both messages are about Cursor.app:
 
 `make doctor` checks the first half without printing the token.
 
-### Cursor's API meter is nearly empty but the total is fine
+### Cursor's API meter is nearly empty but Auto is fine
 
 That is what the numbers say, not a display fault. **API** is the part of your
 included usage spent on models you picked by name. They cost far more than Auto,
-so on the same plan API can read 90% used while **Total** reads 10%. Both
-figures are Cursor's own. Its usage dashboard at cursor.com shows the same two.
+so on the same plan API can read 93% used while **Auto** reads 1%. Both figures
+are Cursor's own. Its usage dashboard at cursor.com shows the same two. Tokenmax
+leads with API because it is the one that decides what you can still pick.
 
 ### There is no pace line, reminder or glow for Cursor
 

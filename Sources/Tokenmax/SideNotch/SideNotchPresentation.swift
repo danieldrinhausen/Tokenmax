@@ -15,8 +15,8 @@ struct SideNotchMeterPresentation: Equatable, Identifiable, Sendable {
 
     var shortLabel: String {
         switch source {
-        case .cursorTotal: return "Included usage"
         case .cursorAPI: return "API usage"
+        case .cursorAuto: return "Auto usage"
         default: break
         }
         return switch source.kind {

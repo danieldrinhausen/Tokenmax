@@ -55,7 +55,7 @@ rather than as two unrelated circles; it goes to full strength the moment it has
 announce.
 
 In either shape, choose which quota each position shows — Claude session, Claude week, Codex
-session, Codex week, and with Cursor on, Cursor total and Cursor API — by dragging a quota onto a slot; dragging one that is already placed swaps
+session, Codex week, and with Cursor on, Cursor API and Cursor Auto — by dragging a quota onto a slot; dragging one that is already placed swaps
 the two. Rings are not locked to one provider per ring: if what you actually watch is both weekly
 windows, put them on the two outer arcs. A preview under the picker shows the icon you have built
 on a light and a dark menu bar.
@@ -66,7 +66,7 @@ small glyph before the meters — a spark for Claude Code, `>_` for Codex, a poi
 Cursor. The glyph stays in the
 neutral menu bar colour even while the meters beside it are lit or escalated, so it can never be
 read as a quota state. Each item draws its provider's session over its week in the shape you
-picked — Cursor's draws its total over its API usage — and lights only for that provider's "spend it now" moment; its popover shows only that
+picked — Cursor's leads with its API usage over Auto — and lights only for that provider's "spend it now" moment; its popover shows only that
 provider. The quota slot editor is hidden while this is on, because it lays quotas out *across*
 providers and filtering it per item could leave an item with one bar or none; your slot layout is
 kept and comes back when you return to one combined icon. **Count down to** likewise becomes
@@ -400,9 +400,13 @@ in, the popover says so.
 A Cursor plan is not metered in five-hour or seven-day windows. It gets a pool of included usage per
 **billing cycle**, about a month, so Cursor's two meters both reset when the cycle ends:
 
-- **Total** — Cursor's own "you've used N% of your included total usage".
 - **API** — the share spent on models you pick by name. They cost far more of the pool than Auto
-  does, so this is the one that runs out first; it can sit at 90% while the total sits at 10%.
+  does, so this is the one that runs out first — it can sit at 93% while Auto sits at 1% — and it
+  leads: first in the popover, the outer ring and the headline number.
+- **Auto** — the share spent through Auto mode.
+
+These are the two bars Cursor's own dashboard draws. Its blended "included total usage" is left out:
+at 10% beside an API meter at 93% it read as plenty left when the models you pick were nearly gone.
 
 Both are Cursor's own percentages, shown as Cursor's dashboard shows them. Tokenmax does not work
 out its own from the dollar figures in the same response, because how those relate to the

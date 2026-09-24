@@ -75,11 +75,11 @@ struct MenuBarBarsTests {
     func unusedSources() {
         #expect(
             MenuBarBars([.claudeSession, .claudeWeekly]).unused()
-                == [.codexWeekly, .codexSession, .cursorTotal, .cursorAPI]
+                == [.codexWeekly, .codexSession, .cursorAuto, .cursorAPI]
         )
         // More sources exist than there are slots, so the layout that uses every
         // slot still leaves the rest over.
-        #expect(MenuBarBars(MenuBarQuotaSource.allCases).unused() == [.codexSession, .cursorTotal, .cursorAPI])
+        #expect(MenuBarBars(MenuBarQuotaSource.allCases).unused() == [.codexSession, .cursorAuto, .cursorAPI])
         // A switched-off provider is never offered.
         #expect(
             MenuBarBars([.claudeSession, .claudeWeekly]).unused(allowed: [.claudeSession, .claudeWeekly, .codexWeekly])

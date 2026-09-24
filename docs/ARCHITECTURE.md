@@ -91,7 +91,7 @@ hidden, one per enabled provider under **One icon per provider** with two or
 more providers on, and otherwise the combined item. Every scene's binding goes through the same one-way
 reconciliation, so a provider item being torn down never rewrites the user's
 choice. `MenuBarItemDecision.layout(for:style:)` gives a provider's item its
-own pair — session over week, or Cursor's total over API — rather than filtering the cross-provider slot layout,
+own pair — session over week, or Cursor's API over Auto — rather than filtering the cross-provider slot layout,
 which could leave it with one bar or none; its countdown and highlight follow
 that provider alone. The countdown is `menuBarProviderCountdown` — a window
 kind, session or week, resolved per provider by
@@ -277,10 +277,13 @@ at once) and asks `cursor.com/api/usage-summary`, the endpoint behind Cursor's
 own dashboard, through `CursorUsageClient`. The client builds the dashboard's
 session cookie from that token in memory and floors requests at 120s. As with
 Claude, the token is never written and never refreshed; Cursor renews it by
-running. Its two windows, `cursor.total` and `cursor.api`, are the one
+running. Its two windows, `cursor.api` and `cursor.auto` — API first, because
+it is the one that runs out — are the one
 `billingCycle` kind, so everything that draws a menu-bar source looks its window
 up by id first (`UsageSnapshot.window(for:)`). A lookup by kind would draw
-Cursor's total twice. `billingCycle` has no `duration`, so no projection is
+one of Cursor's meters twice. The source that used to be `cursor.total`
+decodes as `cursor.auto`, because a saved layout decodes as one array and a
+single unknown value would reset all of it. `billingCycle` has no `duration`, so no projection is
 made, and no reminder rule, reset event or burn opportunity exists for it: those
 are all keyed to session and weekly windows, so Cursor falls out of each by
 construction rather than by a check.

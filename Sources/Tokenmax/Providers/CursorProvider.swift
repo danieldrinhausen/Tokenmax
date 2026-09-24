@@ -60,13 +60,16 @@ final class CursorProvider: UsageProvider {
         )
     }
 
-    /// Two meters over the one billing cycle, both resetting when it ends.
+    /// Two meters over the one billing cycle, both resetting when it ends —
+    /// the same two bars Cursor's dashboard draws.
     ///
-    /// Total first because it is the headline Cursor itself shows; API second
-    /// because it is the one that runs out — named models cost far more of the
-    /// allowance than Auto does, so it can sit at 90% while the total sits at
-    /// 10%. Auto's own percentage is left out: it is the cheap remainder of the
-    /// total and a third meter would say nothing the first does not.
+    /// API first because it is the one that runs out: models picked by name
+    /// cost far more of the allowance than Auto does, so it can sit at 93%
+    /// while Auto sits at 1%. Leading with it puts the number that decides
+    /// what you can still do on the ring and the headline. Cursor's blended
+    /// total is left out: it is a figure its dashboard does not draw as a bar,
+    /// and at 10% beside an API meter at 93% it read as "plenty left" when
+    /// the models you pick by name were nearly gone.
     static func windows(from summary: CursorUsageSummary, observedAt: Date) -> [UsageWindow] {
         let plan = summary.individualUsage?.plan
         var windows: [UsageWindow] = []
@@ -78,8 +81,8 @@ final class CursorProvider: UsageProvider {
                 observedAt: observedAt, source: .cursorDashboard, confidence: .authoritative
             ))
         }
-        append(plan?.totalPercentUsed, id: "cursor.total", label: "Total")
         append(plan?.apiPercentUsed, id: "cursor.api", label: "API")
+        append(plan?.autoPercentUsed, id: "cursor.auto", label: "Auto")
         return windows
     }
 

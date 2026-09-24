@@ -7,7 +7,7 @@ import Testing
 struct CursorWiringTests {
     private let now = Date(timeIntervalSince1970: 1_790_000_000)
 
-    private func cursorSnapshot(total: Double = 10, api: Double = 93) -> UsageSnapshot {
+    private func cursorSnapshot(auto: Double = 1, api: Double = 93) -> UsageSnapshot {
         let reset = now.addingTimeInterval(86_400)
         func window(_ id: String, _ used: Double) -> UsageWindow {
             UsageWindow(
@@ -17,7 +17,7 @@ struct CursorWiringTests {
         }
         return UsageSnapshot(
             providerID: TokenmaxProvider.cursor.rawValue, planName: "Pro",
-            windows: [window("cursor.total", total), window("cursor.api", api)],
+            windows: [window("cursor.api", api), window("cursor.auto", auto)],
             fetchedAt: now, fetchDuration: 0.1, errorMessage: nil
         )
     }
@@ -73,8 +73,8 @@ struct CursorWiringTests {
 
     @Test("Each Cursor meter draws its own window, though both share one kind")
     func windowsResolveByID() {
-        let snapshot = cursorSnapshot(total: 10, api: 93)
-        #expect(snapshot.window(for: .cursorTotal)?.usedPercent == 10)
+        let snapshot = cursorSnapshot(auto: 1, api: 93)
+        #expect(snapshot.window(for: .cursorAuto)?.usedPercent == 1)
         #expect(snapshot.window(for: .cursorAPI)?.usedPercent == 93)
     }
 
@@ -83,7 +83,7 @@ struct CursorWiringTests {
         var snapshot = cursorSnapshot()
         snapshot = UsageSnapshot(
             providerID: snapshot.providerID, planName: nil,
-            windows: snapshot.windows.filter { $0.id == "cursor.total" },
+            windows: snapshot.windows.filter { $0.id == "cursor.auto" },
             fetchedAt: now, fetchDuration: 0, errorMessage: nil
         )
         #expect(snapshot.window(for: .cursorAPI) == nil)
@@ -113,9 +113,9 @@ struct CursorWiringTests {
 
     // MARK: - Surfaces
 
-    @Test("Cursor's own menu bar item draws its total over its API usage, counting down to the cycle's end")
+    @Test("Cursor's own menu bar item leads with API usage over Auto, counting down to the cycle's end")
     func cursorItemLayout() {
-        #expect(MenuBarItemDecision.layout(for: .cursor, style: .bars).sources == [.cursorTotal, .cursorAPI])
+        #expect(MenuBarItemDecision.layout(for: .cursor, style: .bars).sources == [.cursorAPI, .cursorAuto])
         #expect(MenuBarItemDecision.countdownSource(for: .cursor, countdown: .session).provider == .cursor)
         #expect(MenuBarItemDecision.countdownSource(for: .cursor, countdown: .week).provider == .cursor)
     }
@@ -145,18 +145,30 @@ struct CursorWiringTests {
 
         #expect(models.map(\.provider) == [.claudeCode, .codex, .cursor])
         let cursor = try #require(models.last)
-        #expect(cursor.outer.source == .cursorTotal)
-        #expect(cursor.inner.source == .cursorAPI)
-        #expect(cursor.outer.remainingPercent == 90)
-        #expect(cursor.inner.remainingPercent == 7)
+        // API leads: it is the meter that runs out.
+        #expect(cursor.outer.source == .cursorAPI)
+        #expect(cursor.inner.source == .cursorAuto)
+        #expect(cursor.outer.remainingPercent == 7)
+        #expect(cursor.inner.remainingPercent == 99)
         #expect(cursor.outer.shortLabel != cursor.inner.shortLabel)
     }
 
     @Test("A billing cycle never becomes a burn opportunity or a reminder")
     func noSessionSemantics() {
-        #expect(MenuBarQuotaSource.cursorTotal.kind == .billingCycle)
+        #expect(MenuBarQuotaSource.cursorAuto.kind == .billingCycle)
         #expect(MenuBarQuotaSource.cursorAPI.kind == .billingCycle)
         #expect(AppSettings().reminderRule(for: .cursor, kind: .billingCycle) == .disabled)
         #expect(QuotaResetEvent(provider: .cursor, kind: .billingCycle) == nil)
+    }
+
+    @Test("A layout saved with Cursor's old total meter keeps its slots, now drawing Auto")
+    func oldTotalSourceDecodesAsAuto() throws {
+        let rings = try JSONStore.makeDecoder().decode(
+            MenuBarRings.self,
+            from: Data(#"["claude.weekly", "claude.session", "cursor.api", "cursor.total"]"#.utf8)
+        )
+        #expect(rings.sources == [.claudeWeekly, .claudeSession, .cursorAPI, .cursorAuto])
+        let encoded = try JSONStore.makeEncoder().encode(rings)
+        #expect(String(decoding: encoded, as: UTF8.self).contains("cursor.auto"))
     }
 }
