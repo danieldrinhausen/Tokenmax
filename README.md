@@ -394,7 +394,7 @@ window, you get *"Not reported for this account"* — deliberately distinct from
 If Codex reports banked promotional resets, Tokenmax lists them below the Codex meters with every
 expiry, soonest first, so the one to use next is named first. Resets of the same kind share a line —
 *3× Full reset (Weekly + 5 hr) · exp. 4 Oct, 5 Oct, 22 Oct* — because a stack of identical credits
-differs only in its dates; past three dates the line shows the soonest and counts the rest. Claude's banked limit resets appear the same way below Claude's meters, when
+differs only in its dates; past three dates the line shows the soonest and counts the rest. Claude's banked limit resets appear below Claude's meters, as a count and nearest use-by date, when
 Anthropic offers them to your account. Tokenmax never redeems either: a reset changes your account
 allowance, so it stays on the surface that shows you the offer and asks you to confirm — Codex's usage
 summary, or `/limit-reset` in Claude Code.
