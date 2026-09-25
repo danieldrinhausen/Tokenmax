@@ -86,24 +86,28 @@ enum MenuBarItemDecision {
         return complete.filter(providers.contains)
     }
 
-    /// The stored order with `provider` swapped past its neighbour among
-    /// `visible` — the providers the settings list actually shows. Moving
-    /// against the full order instead would make a press swap with a switched-
-    /// off provider and look like it did nothing.
+    /// The stored order with `provider` dropped into `target`'s place among
+    /// `visible` — the providers the settings list actually shows — and the
+    /// rows between them shifting up one. An insert rather than a swap: a drop
+    /// onto the first row means "first", not "trade places with the first".
+    ///
+    /// Only the visible providers' positions are rewritten. A switched-off
+    /// provider keeps its place, so switching it back on returns it there,
+    /// and a drag can never land on a row the user could not see.
     static func moving(
         _ provider: TokenmaxProvider,
-        by offset: Int,
+        to target: TokenmaxProvider,
         in order: [TokenmaxProvider],
         visible: [TokenmaxProvider]
     ) -> [TokenmaxProvider] {
-        var full = ordered(TokenmaxProvider.allCases, by: order)
-        let list = ordered(visible, by: full)
-        guard let index = list.firstIndex(of: provider), list.indices.contains(index + offset),
-              let from = full.firstIndex(of: provider),
-              let to = full.firstIndex(of: list[index + offset])
+        let full = ordered(TokenmaxProvider.allCases, by: order)
+        var list = ordered(visible, by: full)
+        guard provider != target, let from = list.firstIndex(of: provider),
+              let to = list.firstIndex(of: target)
         else { return full }
-        full.swapAt(from, to)
-        return full
+        list.insert(list.remove(at: from), at: to)
+        var reordered = list.makeIterator()
+        return full.map { list.contains($0) ? reordered.next() ?? $0 : $0 }
     }
 
     /// Why a provider's icon cannot be switched off, or nil if it can.

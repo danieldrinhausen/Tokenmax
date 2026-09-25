@@ -154,22 +154,32 @@ struct MenuBarItemDecisionTests {
         ) == nil)
     }
 
-    @Test("Moving swaps with the next provider the list shows, skipping a disabled one between them")
-    func movingSkipsDisabledProviders() {
-        #expect(MenuBarItemDecision.moving(
-            .claudeCode, by: 1, in: [.claudeCode, .cursor, .codex], visible: [.claudeCode, .codex]
-        ) == [.codex, .cursor, .claudeCode])
-        #expect(MenuBarItemDecision.moving(
-            .codex, by: -1, in: [.claudeCode, .codex, .cursor], visible: [.claudeCode, .codex, .cursor]
-        ) == [.codex, .claudeCode, .cursor])
+    @Test("Dropping a provider onto another puts it in that place and shifts the rows between")
+    func droppingInsertsAtTarget() {
+        let order: [TokenmaxProvider] = [.claudeCode, .codex, .cursor]
+        #expect(MenuBarItemDecision.moving(.cursor, to: .claudeCode, in: order, visible: order)
+            == [.cursor, .claudeCode, .codex])
+        #expect(MenuBarItemDecision.moving(.claudeCode, to: .cursor, in: order, visible: order)
+            == [.codex, .cursor, .claudeCode])
+        #expect(MenuBarItemDecision.moving(.codex, to: .claudeCode, in: order, visible: order)
+            == [.codex, .claudeCode, .cursor])
     }
 
-    @Test("Moving past either end leaves the order as it was")
-    func movingPastTheEndIsANoOp() {
+    @Test("A switched-off provider keeps its place when the others are dragged around it")
+    func droppingLeavesDisabledProvidersInPlace() {
+        #expect(MenuBarItemDecision.moving(
+            .codex, to: .claudeCode, in: [.claudeCode, .cursor, .codex], visible: [.claudeCode, .codex]
+        ) == [.codex, .cursor, .claudeCode])
+    }
+
+    @Test("Dropping a provider onto itself, or dropping one the list does not show, changes nothing")
+    func strayDropsAreIgnored() {
         let order: [TokenmaxProvider] = [.claudeCode, .codex, .cursor]
-        #expect(MenuBarItemDecision.moving(.claudeCode, by: -1, in: order, visible: order) == order)
-        #expect(MenuBarItemDecision.moving(.cursor, by: 1, in: order, visible: order) == order)
-        #expect(MenuBarItemDecision.moving(.cursor, by: 1, in: order, visible: [.claudeCode, .codex]) == order)
+        #expect(MenuBarItemDecision.moving(.codex, to: .codex, in: order, visible: order) == order)
+        #expect(MenuBarItemDecision.moving(.cursor, to: .claudeCode, in: order, visible: [.claudeCode, .codex])
+            == order)
+        #expect(MenuBarItemDecision.moving(.claudeCode, to: .cursor, in: order, visible: [.claudeCode, .codex])
+            == order)
     }
 
     @Test("Provider slots fill from the right, so the leftmost item is the highest slot")

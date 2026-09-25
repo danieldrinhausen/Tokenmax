@@ -132,10 +132,10 @@ a second provider back on brings the separate items back.
 
 ### The provider icons are in the wrong order
 
-Set the order with the arrows in **Settings → General → Menu bar icon**, under
+Set the order by dragging the provider rows in **Settings → General → Menu bar icon**, under
 **Icons**, rather than by ⌘-dragging. macOS places each item itself and lets an
 app move none of them, so Tokenmax leaves the items where they are and changes
-which provider each one draws. If the arrows put them in exactly the reverse
+which provider each one draws. If dragging puts them in exactly the reverse
 order, the items were ⌘-dragged into a different arrangement earlier; drag them
 back, or report it with your macOS version if they arrived that way on their own.
 

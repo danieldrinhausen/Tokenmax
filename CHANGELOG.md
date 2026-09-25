@@ -40,9 +40,9 @@ versions follow [semver](https://semver.org/).
   layout is kept for the combined icon. The combined icon stays the default and is unchanged.
 
 - **Choose which provider icons show, and their order.** With one icon per provider, each
-  enabled provider now has a row under **Icons** with a switch and left/right arrows. The switch
+  enabled provider now has a row under **Icons** with a switch and a drag handle. The switch
   hides that provider's icon without switching the provider off — its reminders and its Side
-  Notch ring stay — and the last icon showing cannot be switched off. The arrows set the order
+  Notch ring stay — and the last icon showing cannot be switched off. Dragging the rows sets the order
   left to right, and it holds across relaunches: Tokenmax keeps its menu bar items where macOS
   put them and changes which provider each one draws, instead of relying on ⌘-drag.
   With one provider switched on there is one icon either way.

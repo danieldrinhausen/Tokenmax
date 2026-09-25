@@ -75,12 +75,12 @@ kept and comes back when you return to one combined icon. **Count down to** like
 only one provider on there is one icon either way, so the setting waits until the second is
 switched back on.
 
-Under it, each enabled provider gets a row with a switch and a pair of arrows. The switch leaves
+Under it, each enabled provider gets a row with a switch and a drag handle. The switch leaves
 that provider's icon out of the menu bar without switching the provider off — Tokenmax still
 reads its usage, its reminders still fire and Side Notch still shows it — for a provider you want
 watched but not in view. The last icon showing cannot be switched off, because "no icons" is what
 **Show the menu bar item** is for, and only that switch checks Side Notch is there to get you
-back. The arrows set the order, left to right. macOS offers an app no way to move a menu bar item
+back. Dragging a row by its name onto another sets the order, left to right. macOS offers an app no way to move a menu bar item
 once placed, so Tokenmax keeps its items where they are and changes which provider each one
 draws; the order therefore holds across relaunches and provider switches, where ⌘-dragging the
 items only holds until macOS next re-places them.

@@ -566,7 +566,7 @@ its session over its week and opening a popover with only that provider in it.
 **Count down to** turns into **Session / Week**, which each icon applies to its
 own provider; the quota slot editor hides, because the icons do not use it, and
 your layout is kept for when you go back to one icon. Set their order with the
-arrows in the rows below the picker. The right-click menu is the same on both.
+rows below the picker: drag one by its name onto another to take its place. The right-click menu is the same on both.
 
 **"I watch Cursor too, but only want Claude in the menu bar."**
 Choose **One icon per provider**, then switch off the rows for the providers you

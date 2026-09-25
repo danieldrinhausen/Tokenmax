@@ -210,7 +210,7 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     MenuBarProviderItemsSettingsView()
-                    Text("Listed left to right, as the icons sit in the menu bar. Hiding an icon does not stop Tokenmax watching that provider: its reminders still fire and Side Notch still shows it.")
+                    Text("Listed left to right, as the icons sit in the menu bar; drag a provider by its name to move it. Hiding an icon does not stop Tokenmax watching that provider: its reminders still fire and Side Notch still shows it.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -513,43 +513,62 @@ private struct MenuBarIconPreview: View {
 
 /// One row per enabled provider: whether its icon shows, and where it sits.
 ///
-/// Buttons rather than a drag list: a `List` inside a grouped `Form` draws as a
-/// nested scroll view, and with at most three rows two arrows are faster than
-/// a drag anyway.
+/// Rows that are dragged onto each other rather than `ForEach.onMove`: that
+/// needs a `List`, and a `List` inside a grouped `Form` draws as a nested
+/// scroll view. Only the handle and the name start a drag, so a click on the
+/// switch is never read as the start of one.
 private struct MenuBarProviderItemsSettingsView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
+    /// The row under a drag, so the drop target shows before the mouse is
+    /// released.
+    @State private var targeted: TokenmaxProvider?
+
     var body: some View {
         let providers = settingsStore.settings.orderedMenuBarProviders
-        ForEach(Array(providers.enumerated()), id: \.element) { index, provider in
+        ForEach(providers) { provider in
             let suppression = MenuBarItemDecision.hideSuppression(
                 for: provider,
                 enabledProviders: providers,
                 hidden: settingsStore.settings.menuBarHiddenProviders
             )
             HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundStyle(.tertiary)
+                    Text(provider.displayName)
+                }
+                .contentShape(Rectangle())
+                .draggable(provider.rawValue)
+                .help("Drag onto another provider to put it in that place")
+                Spacer()
                 Toggle(provider.displayName, isOn: shownBinding(provider))
+                    .labelsHidden()
                     .disabled(suppression != nil)
                     .help(suppression?.explanation ?? "")
-                Spacer()
-                Button {
-                    move(provider, by: -1, among: providers)
-                } label: {
-                    Image(systemName: "chevron.left")
-                }
-                .disabled(index == 0)
-                .help("Move left")
-                .accessibilityLabel("Move \(provider.displayName) left")
-                Button {
-                    move(provider, by: 1, among: providers)
-                } label: {
-                    Image(systemName: "chevron.right")
-                }
-                .disabled(index == providers.count - 1)
-                .help("Move right")
-                .accessibilityLabel("Move \(provider.displayName) right")
             }
-            .buttonStyle(.borderless)
+            .padding(.vertical, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(targeted == provider ? Color.accentColor : .clear, lineWidth: 2)
+                    .padding(-4)
+            )
+            .dropDestination(for: String.self) { items, _ in
+                guard let raw = items.first, let dropped = TokenmaxProvider(rawValue: raw) else { return false }
+                settingsStore.settings.menuBarProviderOrder = MenuBarItemDecision.moving(
+                    dropped,
+                    to: provider,
+                    in: settingsStore.settings.menuBarProviderOrder,
+                    visible: providers
+                )
+                return true
+            } isTargeted: { isTargeted in
+                if isTargeted {
+                    targeted = provider
+                } else if targeted == provider {
+                    targeted = nil
+                }
+            }
         }
     }
 
@@ -561,15 +580,6 @@ private struct MenuBarProviderItemsSettingsView: View {
                 if !shown { hidden.append(provider) }
                 settingsStore.settings.menuBarHiddenProviders = hidden
             }
-        )
-    }
-
-    private func move(_ provider: TokenmaxProvider, by offset: Int, among providers: [TokenmaxProvider]) {
-        settingsStore.settings.menuBarProviderOrder = MenuBarItemDecision.moving(
-            provider,
-            by: offset,
-            in: settingsStore.settings.menuBarProviderOrder,
-            visible: providers
         )
     }
 }
