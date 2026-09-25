@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-09-25
+
 - **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of
   them now shows every provider you have switched on, in the icons' order, instead of only the
   one you clicked — the icon is the glance, the popover the whole picture, and comparing Claude
