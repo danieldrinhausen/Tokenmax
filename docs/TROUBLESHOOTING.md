@@ -130,6 +130,14 @@ under **Settings → Data Source**. With one provider there is one icon either
 way, so Tokenmax keeps the combined icon. The choice is remembered: switching
 a second provider back on brings the separate items back.
 
+### Clicking one provider's icon shows the other providers too
+
+That is intended. Every icon opens the same popover, with each provider switched
+on under **Settings → Data Source**, in the icons' order — including one whose
+icon you hid, since hiding an icon does not stop Tokenmax watching it. The icons
+are the per-provider view; to take a provider out of the popover, switch it off
+under **Data Source**.
+
 ### The provider icons are in the wrong order
 
 Set the order by dragging the provider rows in **Settings → General → Menu bar icon**, under

@@ -5,6 +5,12 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+- **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of
+  them now shows every provider you have switched on, in the icons' order, instead of only the
+  one you clicked — the icon is the glance, the popover the whole picture, and comparing Claude
+  with Codex no longer means clicking between two popovers. A provider whose icon is hidden is
+  still in it, since hiding an icon never stops Tokenmax watching that provider.
+
 - **Claude's banked resets and one-time cloud credit.** Below Claude's meters, in the popover
   and the Side Notch, Tokenmax now shows how many limit resets Anthropic has banked for you and
   their nearest use-by date, the way it already did for Codex, and the one-time Claude Code and
@@ -34,8 +40,8 @@ versions follow [semver](https://semver.org/).
   give Claude Code and Codex their own menu bar items instead of one combined icon. Each is
   marked with a small glyph — a spark for Claude Code, `>_` for Codex — drawn in the neutral
   menu bar colour so it never reads as a quota state, shows that provider's session over its
-  week, lights only for its own "spend it now" moment, and opens a popover with only that
-  provider. **Count down to** becomes **Session / Week**, applied to each icon for its own
+  week, lights only for its own "spend it now" moment, and opens the same popover as the combined
+  icon. **Count down to** becomes **Session / Week**, applied to each icon for its own
   provider, and the quota slot editor hides while it is on — the icons do not use it, and the
   layout is kept for the combined icon. The combined icon stays the default and is unchanged.
 

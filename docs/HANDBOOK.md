@@ -67,8 +67,9 @@ icon alone.
 
 Watching more than one provider? **Icons → One icon per provider** gives each
 its own menu bar item instead of one combined icon, each with its own meters
-(session over week; for Cursor, API over Auto), its own countdown and a popover
-for just that provider. The spark marks Claude Code's item, `>_` marks Codex's
+(session over week; for Cursor, API over Auto) and its own countdown. Every
+icon opens the same popover, with all your providers in it, left to right in
+the icons' order. The spark marks Claude Code's item, `>_` marks Codex's
 and a pointer arrow marks Cursor's. The rows under the picker choose which of
 those icons show and in what order, left to right; a provider whose icon is off
 is still watched and still reminds you.
@@ -562,7 +563,7 @@ while the menu bar item is hidden.
 Switch both providers on under **Settings → Data Source**, then choose
 **Settings → General → Menu bar icon → Icons → One icon per provider**. Each
 provider gets its own item — a spark for Claude Code, `>_` for Codex — showing
-its session over its week and opening a popover with only that provider in it.
+its session over its week — and whichever you click, the popover shows both.
 **Count down to** turns into **Session / Week**, which each icon applies to its
 own provider; the quota slot editor hides, because the icons do not use it, and
 your layout is kept for when you go back to one icon. Set their order with the

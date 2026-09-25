@@ -193,10 +193,8 @@ struct TokenmaxApp: App {
         let provider: TokenmaxProvider? = if case let .provider(provider) = id { provider } else { nil }
         let settings = settingsStore.settings
         return MenuBarExtra(isInserted: menuBarItemBinding(slot: slot)) {
-            MenuBarPopoverView(provider: provider)
-                // A reorder hands this slot another provider; its popover must
-                // not carry the previous one's state across.
-                .id(id)
+            // The same popover under every item — see `shownProviders`.
+            MenuBarPopoverView()
                 .modifier(sharedEnvironment)
                 .onAppear { usage.popoverOpened() }
                 .onDisappear { usage.popoverClosed() }

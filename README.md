@@ -66,8 +66,10 @@ small glyph before the meters — a spark for Claude Code, `>_` for Codex, a poi
 Cursor. The glyph stays in the
 neutral menu bar colour even while the meters beside it are lit or escalated, so it can never be
 read as a quota state. Each item draws its provider's session over its week in the shape you
-picked — Cursor's leads with its API usage over Auto — and lights only for that provider's "spend it now" moment; its popover shows only that
-provider. The quota slot editor is hidden while this is on, because it lays quotas out *across*
+picked — Cursor's leads with its API usage over Auto — and lights only for that provider's "spend it now" moment. Clicking any of them opens the
+same popover, with every provider switched on in the icons' order: the icon is the glance and the
+popover the whole picture, so comparing two providers never means clicking back and forth between
+them. The quota slot editor is hidden while this is on, because it lays quotas out *across*
 providers and filtering it per item could leave an item with one bar or none; your slot layout is
 kept and comes back when you return to one combined icon. **Count down to** likewise becomes
 **Session / Week**, applied to each icon for its own provider, since a single choice such as

@@ -109,7 +109,10 @@ item's `menuBarCountdownSource` names one provider and cannot serve two items.
 Settings hides the slot editor and swaps the countdown picker while separate
 items are showing; the stored slot layout is never rewritten. The renderer's `ProviderMarker` draws the identifying
 glyph in the neutral colour and shifts the meters right, so the combined item,
-which has no marker, is pixel-identical to before. Only the first inserted
+which has no marker, is pixel-identical to before. The popover is not per item:
+every slot hosts the same `MenuBarPopoverView`, listing
+`orderedMenuBarProviders`, so a reorder changes a slot's label and nothing in
+its popover. Only the first inserted
 item answers `.tokenmaxOpenQueue`, since every label receives it. The context
 menu already matches any `NSStatusBarButton`, so it needs no per-item wiring.
 

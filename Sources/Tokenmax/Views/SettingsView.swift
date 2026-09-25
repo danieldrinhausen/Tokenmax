@@ -205,7 +205,7 @@ struct GeneralSettingsView: View {
                 // read as broken. The stored layout is untouched, so switching
                 // back to one icon restores it exactly.
                 if showsSeparateMenuBarItems {
-                    Text("Each icon shows its provider's session over its week, marked with a spark for Claude Code and >_ for Codex; its popover shows only that provider. The slot layout applies to the combined icon and is kept for when you switch back.")
+                    Text("Each icon shows its provider's session over its week, marked with a spark for Claude Code and >_ for Codex; each opens the same popover, with every provider in it. The slot layout applies to the combined icon and is kept for when you switch back.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
