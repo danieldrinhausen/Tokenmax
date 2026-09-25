@@ -117,19 +117,46 @@ enum UsageWindowPresentation {
     }
 
     /// A banked reset belongs to the provider rather than either window, so it
-    /// sits below both in every surface. One line per reset where the source
-    /// lists them, soonest expiry first, so the one to use next is on top; the
-    /// count summary otherwise. An expired cached credit is never advertised.
+    /// sits below both in every surface. Resets sharing a title collapse into
+    /// one line carrying each expiry, soonest first, so the one to use next
+    /// leads without spending a row per credit; the count summary otherwise.
+    /// An expired cached credit is never advertised.
     static func availableResetLines(for snapshot: UsageSnapshot, now: Date) -> [String] {
         let live = (snapshot.availableResets ?? []).filter { $0.expiresAt.map { $0 > now } ?? true }
         guard live.isEmpty else {
-            return live.map { reset in
+            var titles: [String] = []
+            var expiries: [String: [Date?]] = [:]
+            for reset in live {
                 let title = reset.title.flatMap { $0.isEmpty ? nil : $0 } ?? "Reset"
-                guard let expiry = reset.expiresAt else { return title }
-                return "\(title) · expires \(expiry.formatted(date: .abbreviated, time: .omitted))"
+                if expiries[title] == nil { titles.append(title) }
+                expiries[title, default: []].append(reset.expiresAt)
+            }
+            return titles.map { title in
+                let group = expiries[title] ?? []
+                let dates = group.compactMap { $0 }.sorted()
+                let head = group.count == 1 ? title : "\(group.count)× \(title)"
+                guard !dates.isEmpty else { return head }
+                if dates.count == 1 {
+                    return "\(head) · expires \(shortDate(dates[0], now: now))"
+                }
+                // Three dates is what fits the popover's width; past that the
+                // soonest are the ones worth reading.
+                let shown = dates.prefix(3).map { shortDate($0, now: now) }.joined(separator: ", ")
+                let more = dates.count > 3 ? " +\(dates.count - 3)" : ""
+                return "\(head) · exp. \(shown)\(more)"
             }
         }
         return availableResetText(for: snapshot, now: now).map { [$0] } ?? []
+    }
+
+    /// Day and month in the user's locale; the year only when it is not this
+    /// one, which a banked reset almost never reaches.
+    private static func shortDate(_ date: Date, now: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
+            return date.formatted(.dateTime.day().month(.abbreviated))
+        }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     static func availableResetText(for snapshot: UsageSnapshot, now: Date) -> String? {

@@ -309,8 +309,8 @@ struct MenuBarPopoverView: View {
                     projection: projection(for: window, forceStale: forceStale)
                 )
             }
-            // By position: two resets granted the same day read identically.
-            ForEach(Array(UsageWindowPresentation.availableResetLines(for: snapshot, now: clock.now).enumerated()), id: \.offset) { _, resetText in
+            // One line per title, so the text is its own identity.
+            ForEach(UsageWindowPresentation.availableResetLines(for: snapshot, now: clock.now), id: \.self) { resetText in
                 accountLine(
                     icon: "arrow.counterclockwise.circle",
                     text: resetText,

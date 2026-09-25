@@ -20,9 +20,10 @@ versions follow [semver](https://semver.org/).
   spend the credit. An expired or spent one is not shown. A reset offered only on claude.ai is
   not visible to Tokenmax, which does not read browser cookies.
 
-- **Each Codex reset on its own line.** Instead of "3 available resets · expires Oct 4", the
-  popover and the Side Notch list every banked Codex reset with its title and expiry, soonest
-  first, so you can see which one lapses next.
+- **Every Codex reset's expiry.** Instead of "3 available resets · expires Oct 4", the popover
+  and the Side Notch show each banked Codex reset's expiry, soonest first, so you can see which one
+  lapses next. Resets with the same title share a line — *3× Full reset (Weekly + 5 hr) · exp. 4
+  Oct, 5 Oct, 22 Oct* — so a stack of them costs one row, not one each.
 
 - **Cursor's included usage, if you use Cursor.** Settings → Data Source → **Monitor Cursor
   usage**, off by default, adds Cursor beside Claude Code and Codex: how much of the plan's

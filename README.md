@@ -391,8 +391,10 @@ there is no window to report: Tokenmax labels it as billed rather than drawing a
 will not start quota-gated automatic Codex tasks against it. Where an account reports no session
 window, you get *"Not reported for this account"* — deliberately distinct from a meter reading zero.
 
-If Codex reports banked promotional resets, Tokenmax lists each one below the Codex meters — its
-title and expiry, soonest first, so the one to use next is on top. Claude's banked limit resets appear the same way below Claude's meters, when
+If Codex reports banked promotional resets, Tokenmax lists them below the Codex meters with every
+expiry, soonest first, so the one to use next is named first. Resets of the same kind share a line —
+*3× Full reset (Weekly + 5 hr) · exp. 4 Oct, 5 Oct, 22 Oct* — because a stack of identical credits
+differs only in its dates; past three dates the line shows the soonest and counts the rest. Claude's banked limit resets appear the same way below Claude's meters, when
 Anthropic offers them to your account. Tokenmax never redeems either: a reset changes your account
 allowance, so it stays on the surface that shows you the offer and asks you to confirm — Codex's usage
 summary, or `/limit-reset` in Claude Code.

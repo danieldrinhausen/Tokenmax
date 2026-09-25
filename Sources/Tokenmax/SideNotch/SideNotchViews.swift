@@ -230,7 +230,7 @@ struct SideNotchDetailView: View {
                         }
                     }
 
-                    ForEach(Array(presentation.availableResetLines.enumerated()), id: \.offset) { _, resetText in
+                    ForEach(presentation.availableResetLines, id: \.self) { resetText in
                         accountLine(
                             icon: "arrow.counterclockwise.circle",
                             text: resetText,

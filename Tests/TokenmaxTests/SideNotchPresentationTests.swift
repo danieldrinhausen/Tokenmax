@@ -267,7 +267,7 @@ struct SideNotchPresentationTests {
         #expect(UsageWindowPresentation.oneTimeCreditText(for: credit, now: now) == "Cloud credit · 87% left")
     }
 
-    @Test("Codex resets listed one by one get a line each, expired ones dropped")
+    @Test("Codex resets sharing a title share one line with each expiry, expired ones dropped")
     func eachResetGetsALine() throws {
         let resets = [
             BankedReset(title: "Full reset (Weekly + 5 hr)", expiresAt: now.addingTimeInterval(86_400)),
@@ -284,9 +284,10 @@ struct SideNotchPresentationTests {
         )
 
         let lines = UsageWindowPresentation.availableResetLines(for: listed, now: now)
-        #expect(lines.count == 3)
-        #expect(lines[0].hasPrefix("Full reset (Weekly + 5 hr) · expires"))
-        #expect(lines[2] == "Reset")
+        #expect(lines.count == 2)
+        #expect(lines[0].hasPrefix("2× Full reset (Weekly + 5 hr) · exp. "))
+        #expect(lines[0].components(separatedBy: ", ").count == 2)
+        #expect(lines[1] == "Reset")
 
         let model = try #require(make(
             layout: MenuBarRings([.codexWeekly, .codexSession]),
@@ -302,7 +303,32 @@ struct SideNotchPresentationTests {
         ).first)
         #expect(
             SideNotchDetailLayout.dimensions(for: model).height
-                == SideNotchDetailLayout.dimensions(for: summary).height + 44
+                == SideNotchDetailLayout.dimensions(for: summary).height + 22
         )
+    }
+
+    @Test("A lone reset keeps the spelled-out expiry, and a long run lists only the soonest three")
+    func resetLineShapes() {
+        func listed(_ resets: [BankedReset]) -> UsageSnapshot {
+            let base = snapshot(.codex, availableResetCount: resets.count, availableResetExpiresAt: nil)
+            return UsageSnapshot(
+                providerID: base.providerID, planName: base.planName, windows: base.windows,
+                fetchedAt: base.fetchedAt, fetchDuration: 0.1, errorMessage: nil,
+                availableResetCount: resets.count, availableResetExpiresAt: nil,
+                availableResets: resets
+            )
+        }
+        let lone = UsageWindowPresentation.availableResetLines(
+            for: listed([BankedReset(title: "Full reset", expiresAt: now.addingTimeInterval(86_400))]),
+            now: now
+        )
+        #expect(lone.count == 1)
+        #expect(lone[0].hasPrefix("Full reset · expires "))
+
+        let five = (1...5).map { BankedReset(title: "Full reset", expiresAt: now.addingTimeInterval(Double($0) * 86_400)) }
+        let run = UsageWindowPresentation.availableResetLines(for: listed(five), now: now)
+        #expect(run.count == 1)
+        #expect(run[0].hasPrefix("5× Full reset · exp. "))
+        #expect(run[0].hasSuffix(" +2"))
     }
 }
