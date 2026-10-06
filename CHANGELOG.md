@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
   and changed which task auto-run picks next. The drag now reorders only the tasks shown, and
   every hidden task keeps its place.
 
+- **A stale provider no longer shows a reminder's orange.** On a combined icon, a meter whose
+  provider could not be read kept the orange of a reminder that fired earlier, painted over a
+  value nobody had, and pulled the whole icon out of the menu bar's own tint. A stale meter now
+  shows only its stub, as it already did for the ready highlight.
+
 ## [0.1.17] - 2026-09-25
 
 - **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of

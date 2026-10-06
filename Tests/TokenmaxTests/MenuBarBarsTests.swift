@@ -304,6 +304,26 @@ struct MenuBarIconModelTests {
         #expect(model.meters.map(\.isAlerting) == [false, true])
     }
 
+    /// Found by review: a reminder that fired before Claude went stale kept its
+    /// bar orange over an unknown value — and forced the whole combined icon
+    /// out of template mode — while Codex was still reading fine.
+    @Test("A stale provider's bar does not carry an alert it can no longer read")
+    func staleBarDropsItsAlert() {
+        let claude = snapshot(provider: .claudeCode, session: 40, weekly: 70)
+        let codex = snapshot(provider: .codex, weekly: 90)
+
+        let model = MenuBarIconModel.make(
+            layout: .bars(MenuBarBars([.claudeSession, .codexWeekly])),
+            countdownSource: .claudeSession,
+            snapshot: { $0 == .codex ? codex : claude },
+            isStale: { $0 == .claudeCode },
+            alerting: [.claudeSession, .codexWeekly],
+            ready: []
+        )
+
+        #expect(model.meters.map(\.isAlerting) == [false, true])
+    }
+
     /// The countdown is configured separately from the bars, so it must read
     /// the source it was given rather than inferring one from the layout.
     @Test("The countdown follows its own setting")

@@ -48,9 +48,12 @@ struct MenuBarIconModel: Equatable {
             let fraction = isStale(source.provider) ? nil : window?.remainingPercent
             return MenuBarIconRenderer.Meter(
                 fraction: fraction,
-                isAlerting: alerting.contains(source),
-                // A stale meter has no reading, so it has no opportunity to
-                // announce either — same reason `fraction` is nil above.
+                // A stale meter has no reading, so it has nothing to warn about
+                // or announce either — same reason `fraction` is nil above. The
+                // reminder that fired stays unresolved, but painting its orange
+                // over an unknown value, and pulling the whole icon out of
+                // template mode for it, claims a reading nobody has.
+                isAlerting: !isStale(source.provider) && alerting.contains(source),
                 isReady: !isStale(source.provider) && ready.contains(source)
             )
         }
