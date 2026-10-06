@@ -276,6 +276,45 @@ struct QueueListModelTests {
         #expect(updates.isEmpty)
     }
 
+    /// Found by review: filtered to one provider, a drag's offsets were
+    /// applied to the full queue and renumbered tasks the user never touched.
+    @Test("A drag in a provider-filtered list moves only the dragged task among its own")
+    func filteredDragLeavesHiddenTasksInPlace() {
+        var tasks = [
+            task("claude-a", sortIndex: 0),
+            task("codex-a", sortIndex: 1),
+            task("claude-b", sortIndex: 2),
+            task("codex-b", sortIndex: 3),
+        ]
+        tasks[1].providerID = TokenmaxProvider.codex.rawValue
+        tasks[3].providerID = TokenmaxProvider.codex.rawValue
+        let shown = [tasks[1], tasks[3]]
+
+        // codex-b dragged above codex-a in the Codex-only list.
+        let updates = QueueListModel.reordered(tasks, shown: shown, fromOffsets: IndexSet(integer: 1), toOffset: 0)
+
+        #expect(updates[tasks[3].id] == 1)
+        #expect(updates[tasks[1].id] == 3)
+        // The Claude tasks keep their slots.
+        #expect(updates[tasks[0].id] == nil)
+        #expect(updates[tasks[2].id] == nil)
+    }
+
+    @Test("A shown list out of queue order is refused rather than guessed at")
+    func filteredDragRefusesAMismatchedList() {
+        let tasks = [
+            task("a", sortIndex: 0),
+            task("b", sortIndex: 1),
+        ]
+        let updates = QueueListModel.reordered(
+            tasks,
+            shown: [tasks[1], tasks[0]],
+            fromOffsets: IndexSet(integer: 0),
+            toOffset: 2
+        )
+        #expect(updates.isEmpty)
+    }
+
     @Test("Manual order beats priority once a task has been dragged")
     func manualOrderOverridesPriority() {
         // The behaviour a drag has to have: a low-priority task dragged to the

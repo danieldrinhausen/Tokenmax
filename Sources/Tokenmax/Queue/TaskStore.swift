@@ -134,8 +134,13 @@ final class TaskStore: ObservableObject {
     /// Only ready tasks are renumbered — a completed task's `sortIndex` is
     /// meaningless to the runner, and rewriting it would silently reshuffle
     /// history. The arithmetic itself lives in `QueueListModel.reordered`.
-    func move(fromOffsets offsets: IndexSet, toOffset destination: Int) {
-        let updates = QueueListModel.reordered(readyTasks, fromOffsets: offsets, toOffset: destination)
+    func move(within shown: [TokenmaxTask]? = nil, fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        let updates = QueueListModel.reordered(
+            readyTasks,
+            shown: shown,
+            fromOffsets: offsets,
+            toOffset: destination
+        )
         guard !updates.isEmpty else { return }
 
         let now = Date()

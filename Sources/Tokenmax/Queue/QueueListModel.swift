@@ -322,13 +322,33 @@ enum QueueListModel {
     ///
     /// Only tasks whose index actually changes appear in the result, so a drag
     /// that lands where it started touches nothing.
+    ///
+    /// `shown` is the list the drag happened in, when that is only part of the
+    /// queue — filtered to one provider. Its offsets mean nothing in the full
+    /// order: applied there they renumbered whichever tasks happened to sit at
+    /// those positions, silently reordering what auto-run picks next. So the
+    /// move is made within `shown`, and the result is laid back into the slots
+    /// those tasks already held, leaving every hidden task where it was. A
+    /// `shown` that is not in queue order cannot be mapped and writes nothing.
     static func reordered(
         _ readyTasks: [TokenmaxTask],
+        shown: [TokenmaxTask]? = nil,
         fromOffsets offsets: IndexSet,
         toOffset destination: Int
     ) -> [UUID: Double] {
         var ordered = readyTasks
-        ordered.move(fromOffsets: offsets, toOffset: destination)
+        if let shown {
+            let shownIDs = Set(shown.map(\.id))
+            guard readyTasks.filter({ shownIDs.contains($0.id) }).map(\.id) == shown.map(\.id) else {
+                return [:]
+            }
+            var moved = shown
+            moved.move(fromOffsets: offsets, toOffset: destination)
+            var next = moved.makeIterator()
+            ordered = readyTasks.map { shownIDs.contains($0.id) ? (next.next() ?? $0) : $0 }
+        } else {
+            ordered.move(fromOffsets: offsets, toOffset: destination)
+        }
 
         return ordered.enumerated().reduce(into: [:]) { result, pair in
             let (position, task) = pair

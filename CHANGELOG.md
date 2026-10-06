@@ -13,6 +13,11 @@ versions follow [semver](https://semver.org/).
   editor shows; the task's status, run times, position and a consumed appointment stay as the
   queue left them.
 
+- **Dragging a task in a provider-filtered queue moves that task.** Filtered to one provider, a
+  drag's positions were applied to the whole queue, so it renumbered tasks you could not see —
+  and changed which task auto-run picks next. The drag now reorders only the tasks shown, and
+  every hidden task keeps its place.
+
 ## [0.1.17] - 2026-09-25
 
 - **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of

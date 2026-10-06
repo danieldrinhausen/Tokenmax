@@ -249,8 +249,9 @@ struct QueueView: View {
         // rewrite the priority the user set.
         var moveHandler: ((IndexSet, Int) -> Void)?
         if canReorder {
+            let shown = visibleTasks
             moveHandler = { offsets, destination in
-                taskStore.move(fromOffsets: offsets, toOffset: destination)
+                taskStore.move(within: shown, fromOffsets: offsets, toOffset: destination)
             }
         }
 
