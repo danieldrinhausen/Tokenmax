@@ -23,6 +23,10 @@ versions follow [semver](https://semver.org/).
   value nobody had, and pulled the whole icon out of the menu bar's own tint. A stale meter now
   shows only its stub, as it already did for the ready highlight.
 
+- **Switching a provider off stops it for good, mid-refresh too.** A refresh already running
+  when you turned a provider off could still land afterwards and write a reading, or an error,
+  onto the provider you had just switched off.
+
 ## [0.1.17] - 2026-09-25
 
 - **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of

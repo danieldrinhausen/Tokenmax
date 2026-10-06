@@ -37,6 +37,12 @@ final class UsageRefreshCoordinator: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var activeSurfaces: Set<UsageRefreshSurface> = []
     private var hasStarted = false
+    /// Bumped by `stop()`. Cancelling `refreshTask` only reaches the launch and
+    /// surface refreshes; a timer tick, a wake, or a sign-in each start their
+    /// own, and a fetch already in flight when the provider is switched off
+    /// would land on it anyway. A refresh that sees this move while it waited
+    /// knows the coordinator it started on is gone.
+    private var stopGeneration = 0
     private var consecutiveFailures = 0
     private var backoffUntil: Date?
 
@@ -82,6 +88,7 @@ final class UsageRefreshCoordinator: ObservableObject {
     func stop() {
         guard hasStarted else { return }
         hasStarted = false
+        stopGeneration += 1
 
         refreshTimer?.invalidate()
         refreshTimer = nil
@@ -243,11 +250,12 @@ final class UsageRefreshCoordinator: ObservableObject {
         }
 
         let startedAt = Date()
+        let generation = stopGeneration
         do {
             let usage = try await provider.fetchUsage()
             // The provider may have been switched off while this was in flight.
             // A stopped coordinator must not be repopulated behind the user's back.
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, generation == stopGeneration else { return }
             let snapshot = UsageSnapshot(
                 providerID: usage.providerID,
                 planName: usage.planName,
@@ -287,6 +295,7 @@ final class UsageRefreshCoordinator: ObservableObject {
             Log.shared.write("refresh(\(reason)): ok")
             NotificationCenter.default.post(name: .tokenmaxUsageUpdated, object: nil)
         } catch {
+            guard generation == stopGeneration else { return }
             applyFailure(error, reason: reason)
         }
     }

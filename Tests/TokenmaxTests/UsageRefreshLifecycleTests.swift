@@ -140,4 +140,73 @@ struct UsageRefreshLifecycleTests {
         coordinator.stop()
         #expect(coordinator.state.snapshot != nil)
     }
+
+    /// Holds its second fetch open until released, so a test can switch the
+    /// provider off while a refresh is in flight.
+    private final class HeldProvider: UsageProvider, @unchecked Sendable {
+        let identifier = "claude-code"
+        let displayName = "Claude Code"
+        private let lock = NSLock()
+        private var fetchCount = 0
+        private var gate: CheckedContinuation<Void, Never>?
+
+        var isHolding: Bool { lock.withLock { gate != nil } }
+
+        func release() {
+            lock.withLock {
+                gate?.resume()
+                gate = nil
+            }
+        }
+
+        func fetchUsage() async throws -> ProviderUsage {
+            let count = lock.withLock { () -> Int in
+                fetchCount += 1
+                return fetchCount
+            }
+            if count > 1 {
+                await withCheckedContinuation { continuation in
+                    lock.withLock { gate = continuation }
+                }
+            }
+            return ProviderUsage(
+                providerID: identifier,
+                planName: count > 1 ? "Late" : "Pro",
+                windows: [],
+                fetchedAt: Date()
+            )
+        }
+
+        func checkAuthentication() async -> AuthenticationState { .authenticated }
+    }
+
+    /// Found by review: `stop()` cancelled only the launch refresh. A timer
+    /// tick or a wake already in flight landed afterwards and wrote a reading
+    /// to a provider the user had just switched off.
+    @Test("A refresh in flight when the provider is switched off does not land")
+    func inFlightRefreshDoesNotLandAfterStop() async throws {
+        let provider = HeldProvider()
+        let coordinator = UsageRefreshCoordinator(
+            provider: provider,
+            settingsStore: SettingsStore(),
+            snapshotURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("tokenmax-test-\(UUID().uuidString).json")
+        )
+
+        coordinator.start()
+        await settle()
+        #expect(coordinator.state.snapshot?.planName == "Pro")
+
+        let tick = Task { await coordinator.refresh(reason: "timer") }
+        for _ in 0..<500 where !provider.isHolding {
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        #expect(provider.isHolding)
+
+        coordinator.stop()
+        provider.release()
+        await tick.value
+
+        #expect(coordinator.state.snapshot?.planName == "Pro")
+    }
 }
