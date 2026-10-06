@@ -922,14 +922,28 @@ final class QueueAutoRunCoordinator: ObservableObject {
     func eligibilityMap(for tasks: [TokenmaxTask]) -> [UUID: QueueAutoRunDecision.SkipReason] {
         guard !tasks.isEmpty else { return [:] }
 
+        // One snapshot per provider, not per task: the inputs differ only by
+        // provider, and building one per card was the very cost this exists
+        // to avoid.
+        let now = Date()
+        var snapshots: [TokenmaxProvider: (input: QueueAutoRun.Input, resetAt: Date?, runtime: TimeInterval?)] = [:]
         return tasks.reduce(into: [:]) { result, task in
-            let input = makeInput(provider: task.provider)
+            let snapshot = snapshots[task.provider] ?? {
+                let input = makeInput(provider: task.provider, now: now)
+                let made = (
+                    input: input,
+                    resetAt: QueueAutoRun.burnWindow(input)?.resetAt,
+                    runtime: QueueAutoRun.remainingWindowRuntime(input)
+                )
+                snapshots[task.provider] = made
+                return made
+            }()
             result[task.id] = QueueAutoRun.eligibility(
                 for: task,
-                resetAt: QueueAutoRun.burnWindow(input)?.resetAt,
-                settings: input.settings,
-                remainingWindowRuntime: QueueAutoRun.remainingWindowRuntime(input),
-                now: input.now
+                resetAt: snapshot.resetAt,
+                settings: snapshot.input.settings,
+                remainingWindowRuntime: snapshot.runtime,
+                now: now
             )
         }
     }
