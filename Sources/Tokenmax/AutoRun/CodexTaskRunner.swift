@@ -173,6 +173,12 @@ enum CodexTaskRunner {
                 if processBox.isStopped {
                     return .init(status: .cancelled, exitCode: observer.exitCode, resultText: observer.finalText, sessionID: thread, costUSD: nil, errorMessage: nil)
                 }
+                // The wait also ends when the server exits. Reported as a
+                // timeout, a crash seconds into an hour's budget told the user
+                // to raise a limit that was never reached.
+                if let exitCode = observer.exitCode {
+                    return .init(status: .failed, exitCode: exitCode, resultText: observer.finalText, sessionID: thread, costUSD: nil, errorMessage: observer.errorText ?? "Codex App Server exited (code \(exitCode)) before the task finished.")
+                }
                 processBox.stop()
                 return .init(status: .timedOut, exitCode: observer.exitCode, resultText: observer.finalText, sessionID: thread, costUSD: nil, errorMessage: "Codex did not finish within the task runtime limit.")
             }

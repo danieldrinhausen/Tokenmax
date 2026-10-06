@@ -27,6 +27,10 @@ versions follow [semver](https://semver.org/).
   when you turned a provider off could still land afterwards and write a reading, or an error,
   onto the provider you had just switched off.
 
+- **A Codex task whose agent crashes says so.** When the Codex App Server exited before the
+  task finished, the run was reported as having hit its runtime limit, even seconds into an
+  hour's budget. It is now reported as failed, with the exit code and whatever Codex printed.
+
 ## [0.1.17] - 2026-09-25
 
 - **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of
