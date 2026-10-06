@@ -44,8 +44,11 @@ enum StatuslineUsageReader {
         guard let payload = try? JSONDecoder().decode(StatuslinePayload.self, from: data) else {
             return nil
         }
-        let modified = (try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date)
-            ?? Date()
+        // No date means no reading. Defaulting to now presented a file of
+        // unknown age as fresh, in the one mode whose promise is to be honest
+        // about staleness.
+        guard let modified = try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date
+        else { return nil }
         return (payload, modified)
     }
 
