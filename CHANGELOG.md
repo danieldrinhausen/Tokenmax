@@ -31,6 +31,10 @@ versions follow [semver](https://semver.org/).
   task finished, the run was reported as having hit its runtime limit, even seconds into an
   hour's budget. It is now reported as failed, with the exit code and whatever Codex printed.
 
+- **No freeze when Tokenmax refreshes the model list.** Reading the Claude login and asking the
+  CLI for its version ran on the main thread, so the app could hang for as long as either took —
+  up to a minute if macOS was showing a keychain dialog.
+
 ## [0.1.17] - 2026-09-25
 
 - **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of

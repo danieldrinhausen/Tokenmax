@@ -114,10 +114,17 @@ final class ModelCatalogStore: ObservableObject {
         defer { isRefreshing = false }
 
         do {
-            let credentials = try loadCredentials()
+            // Both block: a keychain read can wait up to a minute on a consent
+            // dialog, and the version spawns the CLI. On the main actor either
+            // one froze the app for as long as it took.
+            let loadCredentials = self.loadCredentials
+            let cliVersion = self.cliVersion
+            let (credentials, version) = try await Task.detached(priority: .utility) {
+                (try loadCredentials(), cliVersion())
+            }.value
             let fetched = try await client.fetch(
                 accessToken: credentials.accessToken,
-                cliVersion: cliVersion(),
+                cliVersion: version,
                 force: force
             )
             // An empty list is a wrong answer, not a new one. Keeping the last
