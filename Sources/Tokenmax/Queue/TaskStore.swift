@@ -55,6 +55,49 @@ final class TaskStore: ObservableObject {
         persist()
     }
 
+    /// Saves the task editor's draft onto the record as it is *now*, not as it
+    /// was when the sheet opened.
+    ///
+    /// The editor holds a copy for as long as it is open, and the queue keeps
+    /// running underneath it. Written back whole, that copy put a task the
+    /// runner had just started back to `ready` with its appointment restored —
+    /// so it ran a second time, on the user's quota, the moment the sheet
+    /// closed. Only the fields the editor shows are taken from the draft; the
+    /// lifecycle stays whatever the queue has made it since.
+    ///
+    /// The appointment is the one field both sides write: the runner consumes
+    /// it at launch. `original` is the copy the sheet opened with, so a date
+    /// the user left alone keeps the store's value and only a date they
+    /// actually changed wins.
+    func applyEdit(_ edited: TokenmaxTask, openedFrom original: TokenmaxTask) {
+        guard let index = tasks.firstIndex(where: { $0.id == edited.id }) else { return }
+        tasks[index] = Self.merging(edited, openedFrom: original, onto: tasks[index])
+        tasks[index].updatedAt = Date()
+        persist()
+    }
+
+    static func merging(
+        _ edited: TokenmaxTask,
+        openedFrom original: TokenmaxTask,
+        onto current: TokenmaxTask
+    ) -> TokenmaxTask {
+        var merged = current
+        merged.title = edited.title
+        merged.prompt = edited.prompt
+        merged.providerID = edited.providerID
+        merged.projectName = edited.projectName
+        merged.workingDirectory = edited.workingDirectory
+        merged.priority = edited.priority
+        merged.executionMode = edited.executionMode
+        merged.autoRun = edited.autoRun
+        merged.codex = edited.codex
+        merged.estimatedMinutes = edited.estimatedMinutes
+        if edited.scheduledStart != original.scheduledStart {
+            merged.scheduledStart = edited.scheduledStart
+        }
+        return merged
+    }
+
     func delete(_ task: TokenmaxTask) {
         tasks.removeAll { $0.id == task.id }
         persist()

@@ -49,4 +49,48 @@ struct TaskStoreTests {
         store.delete(original)
         if let copy { store.delete(copy) }
     }
+
+    /// Found by review: the editor saved its whole copy back, so a task the
+    /// runner started while the sheet was open went back to `ready` with its
+    /// appointment restored — due again, and run a second time on Save.
+    @Test("Saving the editor does not undo a run that started while it was open")
+    func editorSaveKeepsTheQueueLifecycle() {
+        let opened = scheduledTask(at: Date().addingTimeInterval(-60))
+
+        // What the runner did in the meantime: consumed the appointment,
+        // started the task, and a drag moved it.
+        var current = opened
+        current.scheduledStart = nil
+        current.status = .running
+        current.startedAt = Date()
+        current.sortIndex = 7
+
+        var edited = opened
+        edited.title = "Codereview, thoroughly"
+        edited.prompt = "Review all of it."
+
+        let merged = TaskStore.merging(edited, openedFrom: opened, onto: current)
+
+        #expect(merged.status == .running)
+        #expect(merged.startedAt == current.startedAt)
+        #expect(merged.sortIndex == 7)
+        #expect(merged.scheduledStart == nil)
+        // What the user actually typed still lands.
+        #expect(merged.title == "Codereview, thoroughly")
+        #expect(merged.prompt == "Review all of it.")
+    }
+
+    @Test("An appointment the user changed in the editor is saved over the store's value")
+    func editorSaveKeepsAChangedAppointment() {
+        let opened = scheduledTask(at: Date().addingTimeInterval(3600))
+        var current = opened
+        current.scheduledStart = nil
+
+        var edited = opened
+        let rescheduled = Date().addingTimeInterval(7200)
+        edited.scheduledStart = rescheduled
+
+        let merged = TaskStore.merging(edited, openedFrom: opened, onto: current)
+        #expect(merged.scheduledStart == rescheduled)
+    }
 }

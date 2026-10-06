@@ -72,7 +72,7 @@ struct QueueView: View {
         }
         .sheet(item: $editingTask) { task in
             TaskEditorView(task: task) { updated in
-                taskStore.update(updated)
+                taskStore.applyEdit(updated, openedFrom: task)
                 // The user may have just pointed the task somewhere else, and
                 // the card should not keep reporting the old directory's state.
                 directories.invalidate()

@@ -5,6 +5,14 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Saving a task no longer undoes a run that started while the editor was open.** The editor
+  wrote its whole copy back on Save, so a task the queue had started in the meantime went back
+  to Ready with its appointment restored — and ran a second time. Save now changes only what the
+  editor shows; the task's status, run times, position and a consumed appointment stay as the
+  queue left them.
+
 ## [0.1.17] - 2026-09-25
 
 - **Every menu bar icon opens the same popover.** With one icon per provider, clicking any of
