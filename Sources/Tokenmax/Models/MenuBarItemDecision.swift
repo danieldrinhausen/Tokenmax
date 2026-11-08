@@ -152,6 +152,7 @@ enum MenuBarItemDecision {
         return switch style {
         case .bars: .bars(MenuBarBars(sources))
         case .rings: .rings(MenuBarRings(sources))
+        case .numbers: .numbers(MenuBarNumbers(sources))
         }
     }
 

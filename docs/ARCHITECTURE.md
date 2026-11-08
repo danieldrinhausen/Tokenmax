@@ -612,15 +612,22 @@ predicate that had to grow a term for every new colour source. It is reused for
 the ring dim, so an escalated outer arc goes to full strength without a second
 rule.
 
-The icon has two shapes, and which one is drawn is a setting:
-`MenuBarIconStyle` (bars or rings) picks between `MenuBarBars` and
-`MenuBarRings`, and `AppSettings.effectiveMenuBarLayout` resolves the pair into
+The icon has three shapes, and which one is drawn is a setting:
+`MenuBarIconStyle` (bars, rings or numbers) picks between `MenuBarBars`,
+`MenuBarRings` and `MenuBarNumbers`, and `AppSettings.effectiveMenuBarLayout` resolves the pair into
 one `MenuBarIconLayout` so no call site can hold a style and a mismatched
 layout. Both layout types normalize through the same `normalizedQuotaSlots` —
 dedupe, drop disabled providers, pad from the canonical order, truncate — with
-a `step` that keeps a ring layout even, since half a ring has no drawing. The
-canvas size is therefore style-dependent (`size(style:meterCount:)`), which is
-the one thing about the icon that used to be a constant.
+a `step` that keeps a ring layout even, since half a ring has no drawing;
+`MenuBarNumbers` is the same normalization bounded to one or two, because a
+single number is a complete layout. The canvas size is therefore
+style-dependent (`size(style:meterCount:meters:)`), which is the one thing about
+the icon that used to be a constant — and Numbers is the one style whose width
+depends on the readings, since it is the width of what it writes. The digits are
+drawn into the same template image as the other shapes, through the same
+`meterColor`, so templating, the highlight and escalation need no second copy of
+their rules; the dot before the countdown is the only part that lives in the
+label.
 
 Window *activation* is the part that has already moved once. macOS 14 made it
 cooperative, which quietly broke `AppDelegate.raise` — see the comment there

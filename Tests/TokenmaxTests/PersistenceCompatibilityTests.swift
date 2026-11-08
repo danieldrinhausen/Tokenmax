@@ -669,6 +669,21 @@ struct PersistenceCompatibilityTests {
         #expect(read.menuBarRings == written.menuBarRings)
     }
 
+    @Test("A Numbers layout survives a round trip, and an old file reads as the default")
+    func numbersRoundTrips() throws {
+        var written = AppSettings()
+        written.menuBarIconStyle = .numbers
+        written.menuBarNumbers = MenuBarNumbers([.claudeWeekly, .claudeSession])
+
+        let data = try JSONStore.makeEncoder().encode(written)
+        let read = try JSONStore.makeDecoder().decode(AppSettings.self, from: data)
+        #expect(read.menuBarIconStyle == .numbers)
+        #expect(read.menuBarNumbers == written.menuBarNumbers)
+
+        let old = try JSONStore.makeDecoder().decode(AppSettings.self, from: Data("{}".utf8))
+        #expect(old.menuBarNumbers == .default)
+    }
+
     /// A retired shape must not take the whole settings file with it, for the
     /// same reason a retired display mode must not.
     @Test("An unrecognised icon style falls back instead of throwing")

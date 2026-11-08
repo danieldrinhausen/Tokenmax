@@ -255,6 +255,14 @@ Also worth knowing: with a ladder configured, the fixed orange that used to mark
 a fired reminder steps aside. If you want that signal back, add a level with the
 **reminder fired** trigger and give it the colour you want.
 
+### The menu bar shows `--` instead of a percentage
+
+You are on **Numbers**, and that reading cannot be trusted right now — the
+provider's last refresh failed or is older than the stale limit. Bars and rings
+show a muted stub for the same state; a number has nowhere to hide, so it says
+so rather than print a figure nobody has. It returns with the next successful
+refresh. If it does not, see the provider's own heading above.
+
 ### The rings are hard to read at a glance
 
 Two things are worth knowing before giving up on them. The outer arc is drawn

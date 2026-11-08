@@ -5,6 +5,15 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **The menu bar can show the percentage left as a number.** A third icon style, **Numbers**,
+  writes one window or two stacked — `90%`, or `90%` over `40%` — instead of drawing a bar or an
+  arc, and the time remaining follows after a dot: `90% · 4:10`. Bars and rings can only be
+  estimated by eye; this is the exact figure, for anyone who watches the 5h window alone. Colours,
+  the highlight and escalation levels apply as they do to a bar, and a reading that cannot be
+  trusted shows `--`. Bars stay the default and nothing changes for an existing install.
+
 ### Fixed
 
 - **Saving a task no longer undoes a run that started while the editor was open.** The editor

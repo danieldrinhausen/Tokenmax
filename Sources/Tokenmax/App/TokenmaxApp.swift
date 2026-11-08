@@ -334,7 +334,11 @@ private struct MenuBarLabel: View {
                 HStack(spacing: 3) {
                     animatedIcon
                     if let text {
-                        Text(text)
+                        // Numbers run straight into the time, so a dot says
+                        // where the reading ends and the deadline begins:
+                        // "90% · 4:10". The bars and rings are shapes and
+                        // need no divider.
+                        Text(model.style == .numbers ? "· \(text)" : text)
                     }
                 }
             }

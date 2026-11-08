@@ -122,7 +122,11 @@ struct GeneralSettingsView: View {
         }
         // Trimmed to what the chosen shape can draw: a ring layout needs an
         // even count, and neither shape wants a fifth meter.
-        let limit = settingsStore.settings.menuBarIconStyle == .rings ? 4 : 3
+        let limit = switch settingsStore.settings.menuBarIconStyle {
+        case .rings: 4
+        case .bars: 3
+        case .numbers: 2
+        }
         let trimmed = Array(meters.prefix(limit))
         return settingsStore.settings.menuBarIconStyle == .rings && trimmed.count % 2 == 1
             ? Array(trimmed.dropLast())
@@ -222,6 +226,15 @@ struct GeneralSettingsView: View {
                             allowed: settingsStore.settings.allowedMenuBarSources
                         )
                         Text("Which quota each bar shows, top to bottom. Drag a quota onto a bar to put it there; dragging one that is already placed swaps the two.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    case .numbers:
+                        MenuBarNumbersSettingsView(
+                            numbers: $settingsStore.settings.menuBarNumbers,
+                            allowed: settingsStore.settings.allowedMenuBarSources
+                        )
+                        Text("The percentage left, written out instead of drawn — one window, or two stacked. With the time remaining switched on it follows after a dot: \"90% · 4:10\". The colours work as they do for bars; a reading that cannot be trusted shows \"--\" rather than a number.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

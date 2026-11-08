@@ -58,7 +58,7 @@ anything itself. Switch the check off in the same place.
 **3. Decide what the icon should show.**
 
 **Settings → General** decides both halves independently. Under **Menu bar icon**,
-pick the shape first — **Bars** or **Rings** — then say what each position shows
+pick the shape first — **Bars**, **Rings** or **Numbers** — then say what each position shows
 by dragging a quota — Claude session, Claude week, Codex session, Codex week,
 and Cursor API and Cursor Auto once Cursor is on — onto the slot you want it on; dropping one onto an occupied slot swaps the two.
 **Count down to** picks the window the countdown text tracks, which does not have
@@ -79,7 +79,14 @@ each other. Rings are nested arcs, two per ring: the outer arc encloses the
 inner one, which is how a session sits inside a week. Rings are the only shape
 that fits all four quotas, and the only one that costs real menu bar width —
 about 35pt for two rings against 20pt for two bars. A single ring is 16pt, so
-if you watch one provider, rings are the *narrower* choice.
+if you watch one provider, rings are the *narrower* choice. Numbers write the
+percentage left as text — **1 number** or **2 numbers**, stacked — for when you
+want the exact figure rather than a length to judge; the time remaining then
+follows after a dot (`90% · 4:10`).
+
+**Just the 5h figure.** Switch the style to **Numbers**, choose **1 number** and
+drag *Claude session* onto it. Leave **Show time remaining** on and the menu bar
+reads `90% · 4:10`: what is left, and how long until the window resets.
 
 <p align="center">
   <img src="images/settings-general.png" width="640" alt="Settings → General, showing the bar layout editor and the countdown source">

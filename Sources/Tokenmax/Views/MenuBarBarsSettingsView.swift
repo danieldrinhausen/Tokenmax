@@ -91,3 +91,44 @@ struct MenuBarRingsSettingsView: View {
         )
     }
 }
+
+/// The Numbers half: one percentage or two, and the same drag semantics as the
+/// bars.
+struct MenuBarNumbersSettingsView: View {
+    @Binding var numbers: MenuBarNumbers
+
+    var allowed: [MenuBarQuotaSource] = MenuBarQuotaSource.allCases
+
+    private var visible: MenuBarNumbers { MenuBarNumbers(numbers.sources, allowed: allowed) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // One enabled quota can only be one number, so the choice
+            // disappears rather than offering a count normalization would undo.
+            if allowed.count >= MenuBarNumbers.maximumCount {
+                Picker("Numbers", selection: countBinding) {
+                    Text("1 number").tag(1)
+                    Text("2 numbers").tag(2)
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
+
+            QuotaSlotEditor(
+                labels: (1...visible.count).map(String.init),
+                sources: visible.sources,
+                unused: visible.unused(allowed: allowed),
+                onDrop: { index, source in
+                    numbers = visible.replacing(at: index, with: source, allowed: allowed)
+                }
+            )
+        }
+    }
+
+    private var countBinding: Binding<Int> {
+        Binding(
+            get: { visible.count },
+            set: { numbers = visible.resized(to: $0, allowed: allowed) }
+        )
+    }
+}

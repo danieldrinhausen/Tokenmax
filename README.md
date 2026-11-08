@@ -16,8 +16,8 @@ evaporating.
   windows, each with the time left before it resets.
 - **Cursor, if you use it.** How much of your plan's included usage is left this billing cycle,
   in total and on models picked by name. Off until you switch it on; watched, never driven.
-- **A menu bar icon you configure.** Two or three stacked bars, or nested rings that fit all four
-  quotas at once — each position drawing a quota you choose, plus a countdown that can track a
+- **A menu bar icon you configure.** Two or three stacked bars, nested rings that fit all four
+  quotas at once, or the plain percentage left — each position drawing a quota you choose, plus a countdown that can track a
   different window entirely, and optional colour levels as a window runs low.
 - **A Side Notch when the menu bar is not enough.** An opt-in Alpha handle lives at the right
   screen edge, expanding into provider rings on hover without taking keyboard focus.
@@ -54,7 +54,17 @@ The outer arc is drawn dimmer than the inner one, which is what makes the pair r
 rather than as two unrelated circles; it goes to full strength the moment it has something to
 announce.
 
-In either shape, choose which quota each position shows — Claude session, Claude week, Codex
+**Numbers** write the percentage left instead of drawing it: one window, or two stacked, such as
+`90%` over `40%`. Neither bars nor rings can say the exact figure — length and arc are estimates —
+and for someone who watches the 5h window alone that figure is the whole question. With the time
+remaining switched on it follows after a dot, `90% · 4:10`, so the reading and the deadline do not
+run together. The colours, the highlight and the escalation levels apply exactly as they do to a
+bar, since the digits are drawn by the same renderer. A reading Tokenmax cannot trust shows `--`
+rather than a number: a stale `90%` would claim a reading nobody has. Two lines of digits have to
+share the height one line has, so they are set smaller; the width follows what is written: about
+28pt for one `90%`, 20pt for two, and a little more at `100%`.
+
+In any shape, choose which quota each position shows — Claude session, Claude week, Codex
 session, Codex week, and with Cursor on, Cursor API and Cursor Auto — by dragging a quota onto a slot; dragging one that is already placed swaps
 the two. Rings are not locked to one provider per ring: if what you actually watch is both weekly
 windows, put them on the two outer arcs. A preview under the picker shows the icon you have built
@@ -206,7 +216,7 @@ Don't use Codex? **Settings → Data Source** switches it off and it disappears.
 The same pane has **Monitor Cursor usage**, off until you turn it on — see
 [Cursor](#cursor) for what that reads.
 
-**5. Make the icon yours.** **Settings → General** — bars or rings, which of the four
+**5. Make the icon yours.** **Settings → General** — bars, rings or numbers, which of the four
 quotas each position draws (drag a quota onto a slot; drop it on an occupied one to swap),
 and a countdown that can follow a different window from any of them. Rings are the only
 shape that fits all four quotas at once. The same pane chooses between the icon, the

@@ -332,3 +332,90 @@ struct MenuBarRings: Codable, Sendable, Equatable, Hashable {
         )
     }
 }
+
+/// The percentages the menubar icon writes out, top to bottom.
+///
+/// One or two, and a type of its own rather than a reuse of `MenuBarBars`
+/// because the bounds are the point: a single number is the whole use for
+/// someone who only watches the 5h window, which three-bar normalization would
+/// pad back up to two. The encoded form is the same bare array, so the dedupe
+/// rules, the drag editor and the tolerant decoder are the shared ones.
+///
+/// Two at most because a third line of digits does not fit the menu bar's 16pt
+/// at a size that can be read.
+struct MenuBarNumbers: Codable, Sendable, Equatable, Hashable {
+    static let minimumCount = 1
+    static let maximumCount = 2
+
+    /// The session alone: the window that runs out while you work, and the one
+    /// the number was asked for.
+    static let `default` = MenuBarNumbers([.claudeSession])
+
+    private(set) var sources: [MenuBarQuotaSource]
+
+    /// See `normalizedQuotaSlots`. `allowed` is a parameter rather than a stored
+    /// property for the same reason as in `MenuBarBars`.
+    init(_ sources: [MenuBarQuotaSource], allowed: [MenuBarQuotaSource] = MenuBarQuotaSource.allCases) {
+        self.sources = normalizedQuotaSlots(
+            sources,
+            allowed: allowed,
+            minimum: Self.minimumCount,
+            maximum: Self.maximumCount
+        )
+    }
+
+    /// Decodes against the full universe, never the enabled set — same
+    /// reasoning as `MenuBarBars.init(from:)`.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let decoded = (try? container.decode([MenuBarQuotaSource].self)) ?? Self.default.sources
+        self.init(decoded)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(sources)
+    }
+
+    var count: Int { sources.count }
+
+    /// The sources not currently shown, in canonical order, for the editor's
+    /// "available" tray.
+    func unused(allowed: [MenuBarQuotaSource] = MenuBarQuotaSource.allCases) -> [MenuBarQuotaSource] {
+        allowed.filter { !sources.contains($0) }
+    }
+
+    /// Replaces the source at `index`; one already placed swaps with it, the
+    /// only reading of a drop onto an occupied slot that cannot lose a number.
+    func replacing(
+        at index: Int,
+        with source: MenuBarQuotaSource,
+        allowed: [MenuBarQuotaSource] = MenuBarQuotaSource.allCases
+    ) -> MenuBarNumbers {
+        guard sources.indices.contains(index), allowed.contains(source) else { return self }
+        var updated = sources
+        if let existing = updated.firstIndex(of: source) {
+            updated.swapAt(existing, index)
+        } else {
+            updated[index] = source
+        }
+        return MenuBarNumbers(updated, allowed: allowed)
+    }
+
+    /// Grows or shrinks to `count` numbers. Shrinking drops the lower one;
+    /// growing appends the first unused source, so the user never lands on an
+    /// empty slot they have to fill before the icon renders again.
+    func resized(to count: Int, allowed: [MenuBarQuotaSource] = MenuBarQuotaSource.allCases) -> MenuBarNumbers {
+        let universe = allowed.isEmpty ? MenuBarQuotaSource.allCases : allowed
+        let target = max(
+            min(Self.minimumCount, universe.count),
+            min(Self.maximumCount, universe.count, count)
+        )
+        if sources.count == target { return self }
+        if sources.count > target { return MenuBarNumbers(Array(sources.prefix(target)), allowed: universe) }
+        return MenuBarNumbers(
+            sources + unused(allowed: universe).prefix(target - sources.count),
+            allowed: universe
+        )
+    }
+}

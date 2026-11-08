@@ -381,6 +381,11 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// back and forth never quietly destroys either arrangement.
     var menuBarRings: MenuBarRings = .default
 
+    /// Which quotas the Numbers style writes out; see `MenuBarNumbers`. Kept
+    /// beside the other two layouts for the same reason: none translates into
+    /// another, and switching styles must not destroy an arrangement.
+    var menuBarNumbers: MenuBarNumbers = .default
+
     /// Which window the "time remaining" text counts down to.
     ///
     /// Independent of `menuBarBars` on purpose: the most useful deadline is not
@@ -579,6 +584,11 @@ struct AppSettings: Codable, Sendable, Equatable {
         MenuBarRings(menuBarRings.sources, allowed: allowedMenuBarSources)
     }
 
+    /// The Numbers half of the same read-time normalization.
+    var effectiveMenuBarNumbers: MenuBarNumbers {
+        MenuBarNumbers(menuBarNumbers.sources, allowed: allowedMenuBarSources)
+    }
+
     /// The ladder the renderer should apply, or nil while the scheme is
     /// monochrome. Optional rather than a scheme the renderer switches on, so
     /// every drawing call site is one `if let` and the monochrome path is
@@ -593,6 +603,7 @@ struct AppSettings: Codable, Sendable, Equatable {
         switch menuBarIconStyle {
         case .bars: .bars(effectiveMenuBarBars)
         case .rings: .rings(effectiveMenuBarRings)
+        case .numbers: .numbers(effectiveMenuBarNumbers)
         }
     }
 
@@ -668,6 +679,8 @@ struct AppSettings: Codable, Sendable, Equatable {
         // the wrong shape entirely still has to fall back rather than throw.
         menuBarBars = (try? container.decodeIfPresent(MenuBarBars.self, forKey: .menuBarBars)) ?? d.menuBarBars
         menuBarRings = (try? container.decodeIfPresent(MenuBarRings.self, forKey: .menuBarRings)) ?? d.menuBarRings
+        menuBarNumbers = (try? container.decodeIfPresent(MenuBarNumbers.self, forKey: .menuBarNumbers))
+            ?? d.menuBarNumbers
         menuBarIconStyle = (try? container.decodeIfPresent(MenuBarIconStyle.self, forKey: .menuBarIconStyle))
             ?? d.menuBarIconStyle
         menuBarCountdownSource = (try? container.decodeIfPresent(

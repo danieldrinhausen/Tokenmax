@@ -81,7 +81,15 @@ enum MenuBarIconRenderer {
 
     /// The canvas for `meterCount` meters in the given style, plus the marker's
     /// room when there is one.
-    static func size(style: MenuBarIconStyle, meterCount: Int, marker: ProviderMarker? = nil) -> NSSize {
+    ///
+    /// `meters` matters only to Numbers, whose width is the width of what it
+    /// writes. Without readings it reserves the widest one, "100%".
+    static func size(
+        style: MenuBarIconStyle,
+        meterCount: Int,
+        marker: ProviderMarker? = nil,
+        meters readings: [Meter] = []
+    ) -> NSSize {
         let meters: NSSize
         switch style {
         case .bars:
@@ -90,6 +98,11 @@ enum MenuBarIconRenderer {
             let rings = max(1, meterCount / 2)
             let width = CGFloat(rings) * Ring.cell + CGFloat(rings - 1) * Ring.gap
             meters = NSSize(width: width, height: barsSize.height)
+        case .numbers:
+            let font = numberFont(count: meterCount)
+            let texts = readings.isEmpty ? ["100%"] : readings.map { numberText(for: $0) }
+            let width = texts.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+            meters = NSSize(width: ceil(width), height: barsSize.height)
         }
         guard marker != nil else { return meters }
         return NSSize(width: meters.width + ProviderMarker.width + ProviderMarker.gap, height: meters.height)
@@ -205,7 +218,7 @@ enum MenuBarIconRenderer {
     ) -> NSImage {
         // Eager, bitmap-backed. `NSImage(size:flipped:drawingHandler:)` would
         // re-run the closure on every rasterization instead of once.
-        let image = NSImage(size: size(style: style, meterCount: meters.count, marker: marker))
+        let image = NSImage(size: size(style: style, meterCount: meters.count, marker: marker, meters: meters))
         image.lockFocus()
 
         // A coloured meter cannot survive templating, and a template is the only
@@ -215,7 +228,7 @@ enum MenuBarIconRenderer {
 
         // The meters are drawn exactly as on an unmarked icon, shifted right —
         // so the combined item, which has no marker, is bit-for-bit unchanged.
-        let canvas = size(style: style, meterCount: meters.count)
+        let canvas = size(style: style, meterCount: meters.count, meters: meters)
         if let marker {
             drawMarker(marker, height: canvas.height, isStale: isStale, templated: templated)
             let shift = NSAffineTransform()
@@ -231,6 +244,11 @@ enum MenuBarIconRenderer {
             )
         case .rings:
             drawRings(
+                meters, in: canvas, isStale: isStale, templated: templated,
+                highlight: highlight, glow: glow, escalation: escalation
+            )
+        case .numbers:
+            drawNumbers(
                 meters, in: canvas, isStale: isStale, templated: templated,
                 highlight: highlight, glow: glow, escalation: escalation
             )
@@ -354,6 +372,78 @@ enum MenuBarIconRenderer {
                 escalation: escalation
             )
         }
+    }
+
+    /// One or two percentages, top to bottom, right-aligned so the `%` signs
+    /// line up.
+    ///
+    /// Coloured by the same `meterColor` as a bar, so a number lights, escalates
+    /// and mutes for exactly the reasons a bar does. Drawn into the image rather
+    /// than set as menu bar text, because the image is what carries templating
+    /// and the highlight: text beside it would need its own copy of every rule.
+    private static func drawNumbers(
+        _ meters: [Meter],
+        in canvas: NSSize,
+        isStale: Bool,
+        templated: Bool,
+        highlight: HighlightColor,
+        glow: Bool,
+        escalation: MenuBarEscalation?
+    ) {
+        let font = numberFont(count: meters.count)
+        let rowHeight = canvas.height / CGFloat(max(1, meters.count))
+
+        for (index, meter) in meters.enumerated() {
+            let color = meterColor(
+                isStale: isStale,
+                isReady: meter.isReady,
+                isAlerting: meter.isAlerting,
+                templated: templated,
+                highlight: highlight,
+                fraction: meter.fraction,
+                escalation: escalation
+            )
+            let text = numberText(for: meter) as NSString
+            let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
+            let width = text.size(withAttributes: attributes).width
+
+            // Centred on the digits, not the line box: a line box carries room
+            // for descenders that a percentage never uses, which would sit the
+            // number visibly high in its row.
+            let centreY = canvas.height - rowHeight * (CGFloat(index) + 0.5)
+            let origin = NSPoint(
+                x: canvas.width - width,
+                y: centreY - font.capHeight / 2 + font.descender
+            )
+
+            if isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow) {
+                NSGraphicsContext.saveGraphicsState()
+                let bloom = NSShadow()
+                bloom.shadowColor = color.withAlphaComponent(0.85)
+                bloom.shadowBlurRadius = glowRadius
+                bloom.shadowOffset = .zero
+                bloom.set()
+                text.draw(at: origin, withAttributes: attributes)
+                NSGraphicsContext.restoreGraphicsState()
+            }
+            text.draw(at: origin, withAttributes: attributes)
+        }
+    }
+
+    /// Smaller with two lines, because two rows of digits have to share the
+    /// same 16pt a single one has to itself. Monospaced digits keep the width
+    /// from shifting as a reading ticks down, which would shove the neighbouring
+    /// menu bar items along with it.
+    static func numberFont(count: Int) -> NSFont {
+        .monospacedDigitSystemFont(ofSize: count >= 2 ? 8.5 : 12, weight: .semibold)
+    }
+
+    /// "90%". A stale or unknown reading is "--": the model already withholds a
+    /// stale provider's number, and an invented one here would be the same lie
+    /// the bars refuse to draw.
+    static func numberText(for meter: Meter) -> String {
+        guard let fraction = meter.fraction else { return "--" }
+        return "\(Int(max(0, min(100, fraction)).rounded()))%"
     }
 
     /// A glow is only ever drawn on a lit, trusted icon. Templating would
