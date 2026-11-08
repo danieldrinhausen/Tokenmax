@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-11-08
+
 ### Added
 
 - **The menu bar can show the percentage left as a number.** A third icon style, **Numbers**,
