@@ -53,6 +53,27 @@ enum MenuBarProviderCountdown: String, Codable, Sendable, CaseIterable, Identifi
     }
 }
 
+/// What the menu bar's time text measures on the window it follows.
+///
+/// A choice rather than both: the text is charged by the pixel, and two times
+/// side by side would need a divider and a legend to be readable at all.
+enum MenuBarTextMeasure: String, Codable, Sendable, CaseIterable, Identifiable {
+    /// How long until the window resets — the deadline.
+    case untilReset
+    /// How far ahead of (or behind) an even burn the window stands, as time —
+    /// what the popover already states as "42% in reserve".
+    case reserve
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .untilReset: "Until reset"
+        case .reserve: "In reserve"
+        }
+    }
+}
+
 /// One reminder rule per usage window. Session and weekly are configured
 /// independently, as the spec requires.
 struct ReminderRule: Codable, Sendable, Equatable {
@@ -348,6 +369,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// `menuBarCountdownSource`, which names a provider and so cannot serve
     /// two items at once.
     var menuBarProviderCountdown: MenuBarProviderCountdown = .session
+
+    /// Whether the time text counts down to the reset or states the reserve.
+    /// Applies to every item, whichever window it follows.
+    var menuBarTextMeasure: MenuBarTextMeasure = .untilReset
 
     /// The providers' own items, left to right. Stored whole, disabled
     /// providers included, so switching one off and on again returns it to
@@ -654,6 +679,9 @@ struct AppSettings: Codable, Sendable, Equatable {
         menuBarProviderCountdown = (try? container.decodeIfPresent(
             MenuBarProviderCountdown.self, forKey: .menuBarProviderCountdown
         )) ?? d.menuBarProviderCountdown
+        menuBarTextMeasure = (try? container.decodeIfPresent(
+            MenuBarTextMeasure.self, forKey: .menuBarTextMeasure
+        )) ?? d.menuBarTextMeasure
         // As strings, so one provider name this build does not know costs that
         // entry rather than the whole list.
         menuBarProviderOrder = (try? container.decodeIfPresent([String].self, forKey: .menuBarProviderOrder))

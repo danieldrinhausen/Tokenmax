@@ -748,6 +748,40 @@ enum MenuBarIconRenderer {
         let interval = resetAt.timeIntervalSince(now)
         guard interval > 0 else { return "0:00" }
 
+        return clock(interval)
+    }
+
+    /// The reserve as time, signed: "+2:06" ahead of an even burn, "−1:12"
+    /// behind it. The percentage the popover states — "42% in reserve" — scaled
+    /// by the window's length, so a session and a week read on one scale and the
+    /// two surfaces cannot disagree.
+    ///
+    /// Not "how long the rest lasts at the current rate", which is unbounded for
+    /// an untouched window and needs a different answer for a deficit; this is
+    /// always finite and is the one distance the bar's own marker already draws.
+    ///
+    /// `nil` exactly when `UsageProjection` has nothing honest to say — a window
+    /// not running, just opened, spent, or a billing cycle with no fixed length.
+    static func reserveText(window: UsageWindow?, now: Date) -> String? {
+        guard let window,
+              let duration = window.kind.duration,
+              let projection = UsageProjection.make(window: window, now: now)
+        else { return nil }
+
+        let percent: Double
+        let sign: String
+        switch projection.outlook {
+        case let .reserve(spare): (percent, sign) = (spare, "+")
+        case let .deficit(short, _): (percent, sign) = (short, "\u{2212}")
+        }
+
+        let interval = percent / 100 * duration
+        // A sign on nothing would claim a direction the pace does not have.
+        guard interval >= 60 else { return "0:00" }
+        return sign + clock(interval)
+    }
+
+    private static func clock(_ interval: TimeInterval) -> String {
         // Truncated, not rounded: "0:44" means *at least* 44 minutes left, which
         // is the safe direction for a deadline.
         let totalMinutes = Int(interval / 60)

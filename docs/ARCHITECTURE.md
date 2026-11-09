@@ -106,7 +106,12 @@ that provider alone. The countdown is `menuBarProviderCountdown` — a window
 kind, session or week, resolved per provider by
 `MenuBarItemDecision.countdownSource(for:countdown:)` — because the combined
 item's `menuBarCountdownSource` names one provider and cannot serve two items.
-Settings hides the slot editor and swaps the countdown picker while separate
+`menuBarTextMeasure` decides what that text says — time until reset, or
+`MenuBarIconRenderer.reserveText(window:now:)`, which is `UsageProjection`'s reserve or
+deficit percentage scaled by the window's duration. It is derived from the projection rather than
+computed again, so the label cannot disagree with the pace line, and it returns nil exactly where
+the projection does. `MenuBarIconModel` carries the whole `countdownWindow` for it because the
+reserve moves with the clock. Settings hides the slot editor and swaps the countdown picker while separate
 items are showing; the stored slot layout is never rewritten. The renderer's `ProviderMarker` draws the identifying
 glyph in the neutral colour and shifts the meters right, so the combined item,
 which has no marker, is pixel-identical to before. The popover is not per item:

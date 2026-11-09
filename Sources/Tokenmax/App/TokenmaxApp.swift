@@ -201,6 +201,7 @@ struct TokenmaxApp: App {
         } label: {
             MenuBarLabel(
                 mode: settings.menuBarDisplayMode,
+                measure: settings.menuBarTextMeasure,
                 model: MenuBarIconModel.make(
                     // The *effective* layout: a disabled provider keeps its slot
                     // in the stored settings but must not be drawn. A provider's
@@ -302,6 +303,7 @@ struct SharedEnvironment: ViewModifier {
 /// glyph is drawn into an `NSImage` and handed over as the icon.
 private struct MenuBarLabel: View {
     let mode: MenuBarDisplayMode
+    let measure: MenuBarTextMeasure
     let model: MenuBarIconModel
     /// `CountdownClock.now` — advances every second so the countdown stays live.
     let now: Date
@@ -380,9 +382,12 @@ private struct MenuBarLabel: View {
         // live deadline. Keep the menu bar honest instead of showing a precise
         // countdown beside a stale-data indicator.
         guard !model.countdownIsStale,
-              let countdown = MenuBarIconRenderer.countdownText(
-                resetAt: model.countdownResetAt, now: now
-              )
+              let countdown = switch measure {
+              case .untilReset:
+                  MenuBarIconRenderer.countdownText(resetAt: model.countdownResetAt, now: now)
+              case .reserve:
+                  MenuBarIconRenderer.reserveText(window: model.countdownWindow, now: now)
+              }
         else { return nil }
         return isHighlighted && mode == .textOnly ? "⚡︎ \(countdown)" : countdown
     }

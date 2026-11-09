@@ -263,6 +263,18 @@ show a muted stub for the same state; a number has nowhere to hide, so it says
 so rather than print a figure nobody has. It returns with the next successful
 refresh. If it does not, see the provider's own heading above.
 
+### The time in the menu bar has a plus or minus sign, or is missing
+
+You have **Time shown → In reserve** on, which is not a countdown: `+1:20` is how
+far ahead of an even burn the window is, as time, and `−0:40` how far behind. It is
+the "in reserve" percentage from the popover scaled by the window's length — 20%
+of a 5-hour session is `1:00` — so the two always agree. It is blank for the same
+reasons the pace line is: the window is not running, has barely opened (the first
+few minutes of a session, the first hours of a week), or is already spent. Cursor's
+billing cycle has no fixed length to measure against, so it never shows one. Switch
+to **Until reset** under **Settings → General → Menu bar text** for the plain
+countdown.
+
 ### The rings are hard to read at a glance
 
 Two things are worth knowing before giving up on them. The outer arc is drawn

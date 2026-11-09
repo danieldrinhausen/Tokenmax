@@ -1127,4 +1127,21 @@ struct PersistenceCompatibilityTests {
         #expect(unknown.remindersEnabled)
         #expect(week.menuBarProviderCountdown == .week)
     }
+
+    @Test("The menu bar time counts down to the reset unless told to show the reserve, and an unknown value falls back")
+    func textMeasureDefaultsToTheReset() throws {
+        let old = try decode(AppSettings.self, """
+        { "remindersEnabled": true }
+        """)
+        let unknown = try decode(AppSettings.self, """
+        { "menuBarTextMeasure": "burnRate", "remindersEnabled": true }
+        """)
+        let reserve = try decode(AppSettings.self, """
+        { "menuBarTextMeasure": "reserve" }
+        """)
+        #expect(old.menuBarTextMeasure == .untilReset)
+        #expect(unknown.menuBarTextMeasure == .untilReset)
+        #expect(unknown.remindersEnabled)
+        #expect(reserve.menuBarTextMeasure == .reserve)
+    }
 }

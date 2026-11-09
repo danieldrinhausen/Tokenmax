@@ -21,6 +21,9 @@ struct MenuBarIconModel: Equatable {
     /// live deadline. Its source is configured separately from the bars, so it
     /// may well be a window no meter is showing.
     var countdownResetAt: Date?
+    /// The whole window rather than only its reset: the reserve is measured
+    /// against the clock, so it has to be recomputed on every tick of the label.
+    var countdownWindow: UsageWindow?
     var countdownIsStale: Bool
 
     /// `layout` and `countdownSource` are expected to be the *effective* ones —
@@ -59,14 +62,14 @@ struct MenuBarIconModel: Equatable {
         }
 
         let shownProviders = Set(sources.map(\.provider))
+        let countdownWindow = countdownSource.flatMap { snapshot($0.provider)?.window(for: $0) }
 
         return MenuBarIconModel(
             style: layout.style,
             meters: meters,
             isStale: !shownProviders.isEmpty && shownProviders.allSatisfy { isStale($0) },
-            countdownResetAt: countdownSource.flatMap {
-                snapshot($0.provider)?.window(for: $0)?.resetAt
-            },
+            countdownResetAt: countdownWindow?.resetAt,
+            countdownWindow: countdownWindow,
             // No source is indistinguishable from an unreadable one as far as
             // the label is concerned: either way there is no countdown to show.
             countdownIsStale: countdownSource.map { isStale($0.provider) } ?? true

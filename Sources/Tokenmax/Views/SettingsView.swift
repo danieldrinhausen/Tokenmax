@@ -92,6 +92,20 @@ struct GeneralSettingsView: View {
         settingsStore.settings.showMenuBarItem && settingsStore.settings.enabledProviders.count > 1
     }
 
+    /// Spelled out per combination: the reserve reads as a different number from
+    /// the countdown, and a sign on it needs saying once.
+    private var menuBarTextExplanation: String {
+        let window = showsSeparateMenuBarItems ? "its own provider's session or week" : "the chosen window"
+        switch settingsStore.settings.menuBarTextMeasure {
+        case .untilReset:
+            return (showsSeparateMenuBarItems ? "Each icon shows the time left before " : "Time left before ")
+                + window + " resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running."
+        case .reserve:
+            return (showsSeparateMenuBarItems ? "Each icon shows how far " : "Shows how far ")
+                + window + " is ahead of an even burn, as time — \"+1:20\" is that much to spare, \"\u{2212}0:40\" that much behind. It is the \"in reserve\" percentage scaled by the window's length. Blank while the window has barely opened, is spent or is not running — and always for a Cursor billing cycle, which has no fixed length."
+        }
+    }
+
     private var showsSeparateMenuBarItems: Bool {
         canSeparateMenuBarItems && settingsStore.settings.menuBarItemLayout == .separate
     }
@@ -293,9 +307,17 @@ struct GeneralSettingsView: View {
                         }
                     }
 
-                    Text(showsSeparateMenuBarItems
-                        ? "Each icon shows the time left before its own provider's session or week resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running."
-                        : "Time left before the chosen window resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running.")
+                    // Under the window choice, because it applies to whichever
+                    // window that picks.
+                    Picker("Time shown", selection: $settingsStore.settings.menuBarTextMeasure) {
+                        ForEach(MenuBarTextMeasure.allCases) { measure in
+                            Text(measure.displayName).tag(measure)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+
+                    Text(menuBarTextExplanation)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

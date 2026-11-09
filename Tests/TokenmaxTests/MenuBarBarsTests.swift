@@ -342,6 +342,9 @@ struct MenuBarIconModelTests {
         )
         // Deliberately a window no bar is showing — that is allowed.
         #expect(followingSession.countdownResetAt == reset)
+        // The reserve is measured against the clock, so the label needs the whole
+        // window and not only its reset to recompute it on every tick.
+        #expect(followingSession.countdownWindow?.resetAt == reset)
 
         // Codex's weekly carries no reset time here, so the label collapses.
         let followingCodex = MenuBarIconModel.make(

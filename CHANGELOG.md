@@ -5,6 +5,16 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **The menu bar time can show the reserve instead of the countdown.** Under **Menu bar text →
+  Time shown**, **In reserve** replaces the time until reset with how far ahead of an even burn
+  the window stands, as time: `+1:20` to spare, `−0:40` behind. It is the "in reserve" percentage
+  from the popover scaled by the window's length, so the two cannot disagree, and it is blank
+  where the pace line is — a window just opened, spent or not running, and always for Cursor's
+  billing cycle. One or the other, not both: two times need a divider and a legend the menu bar
+  has no room for. **Until reset** stays the default and nothing changes for an existing install.
+
 ## [0.1.18] - 2026-11-08
 
 ### Added
