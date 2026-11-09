@@ -60,8 +60,8 @@ enum MenuBarProviderCountdown: String, Codable, Sendable, CaseIterable, Identifi
 enum MenuBarTextMeasure: String, Codable, Sendable, CaseIterable, Identifiable {
     /// How long until the window resets — the deadline.
     case untilReset
-    /// How far ahead of (or behind) an even burn the window stands, as time —
-    /// what the popover already states as "42% in reserve".
+    /// How far ahead of (or behind) an even burn the window stands, in percent —
+    /// exactly what the popover states as "42% in reserve".
     case reserve
 
     var id: String { rawValue }

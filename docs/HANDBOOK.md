@@ -64,9 +64,9 @@ and Cursor API and Cursor Auto once Cursor is on — onto the slot you want it o
 **Count down to** picks the window the countdown text tracks, which does not have
 to be a window the icon shows. **Time shown** then says what that text measures:
 **Until reset** is the countdown, **In reserve** is how far ahead of an even burn the
-window is, as time — `+1:20` to spare, `−0:40` behind — which is the pace line's "in
-reserve" percentage scaled by the window's length. It is one or the other, because
-two times side by side need a divider and a legend the menu bar has no room for. The
+window is — `+8%` to spare, `−5%` behind — which is the pace line's "in reserve"
+figure, unchanged. It is one or the other, because two readings side by side need a
+divider and a legend the menu bar has no room for. The
 text can also be switched off, leaving the icon alone.
 
 Watching more than one provider? **Icons → One icon per provider** gives each

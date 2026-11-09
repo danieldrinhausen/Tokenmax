@@ -100,12 +100,13 @@ items only holds until macOS next re-places them.
 The countdown is chosen separately under **Count down to**, because the most useful deadline is not
 always one the icon has room for, and tying the two would mean changing the icon to change the
 text. **Time shown** chooses what that text measures — the time **until reset**, or the time **in
-reserve**: how far ahead of an even burn the window stands, `+1:20` to spare or `−0:40` behind. The
-reserve is the "in reserve" percentage the popover already states, scaled by the window's length so
-a session and a week read on one scale and the two surfaces cannot disagree; it is blank wherever
-the pace line is (a window just opened, spent or not running, and always for Cursor's billing
-cycle, which has no fixed length). It is a choice, not both, because two times in the menu bar need
-a divider and a legend there is no room for. The icon can show **the icon only, the countdown only, or both**. The same pane offers
+reserve**: how far ahead of an even burn the window stands, `+8%` to spare or `−5%` behind. It is
+the "in reserve" figure the popover already states, unchanged, so the two cannot disagree. A
+percentage rather than a time because scaled by the window it is `+13:04` for a week — correct,
+and nothing anyone can act on — while a percentage reads on one scale for a session and a week. It
+is blank wherever the pace line is (a window just opened, spent or not running, and always for
+Cursor's billing cycle, which has no fixed length). It is a choice, not both, because two readings
+in the menu bar need a divider and a legend there is no room for. The icon can show **the icon only, the countdown only, or both**. The same pane offers
 **Start Tokenmax at login**.
 
 The entire menu bar item can also be hidden once Side Notch is on. That makes the edge widget a

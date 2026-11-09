@@ -751,20 +751,18 @@ enum MenuBarIconRenderer {
         return clock(interval)
     }
 
-    /// The reserve as time, signed: "+2:06" ahead of an even burn, "−1:12"
-    /// behind it. The percentage the popover states — "42% in reserve" — scaled
-    /// by the window's length, so a session and a week read on one scale and the
-    /// two surfaces cannot disagree.
+    /// The reserve as the popover states it, signed: "+8%" ahead of an even
+    /// burn, "−5%" behind it. The same number with the same rounding as
+    /// "8% in reserve", so the two surfaces cannot disagree.
     ///
-    /// Not "how long the rest lasts at the current rate", which is unbounded for
-    /// an untouched window and needs a different answer for a deficit; this is
-    /// always finite and is the one distance the bar's own marker already draws.
+    /// A percentage rather than a time on purpose: scaled by the window it
+    /// becomes "+13:04" for a week, which is the right figure and says nothing
+    /// anyone can act on, while "8%" reads on one scale for a session and a week.
     ///
     /// `nil` exactly when `UsageProjection` has nothing honest to say — a window
     /// not running, just opened, spent, or a billing cycle with no fixed length.
     static func reserveText(window: UsageWindow?, now: Date) -> String? {
         guard let window,
-              let duration = window.kind.duration,
               let projection = UsageProjection.make(window: window, now: now)
         else { return nil }
 
@@ -775,10 +773,11 @@ enum MenuBarIconRenderer {
         case let .deficit(short, _): (percent, sign) = (short, "\u{2212}")
         }
 
-        let interval = percent / 100 * duration
-        // A sign on nothing would claim a direction the pace does not have.
-        guard interval >= 60 else { return "0:00" }
-        return sign + clock(interval)
+        let rounded = Int(percent.rounded())
+        // A sign on nothing would claim a direction the pace does not have; the
+        // popover says "On pace" at the same threshold.
+        guard rounded >= 1 else { return "0%" }
+        return "\(sign)\(rounded)%"
     }
 
     private static func clock(_ interval: TimeInterval) -> String {

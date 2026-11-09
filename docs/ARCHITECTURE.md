@@ -108,7 +108,7 @@ kind, session or week, resolved per provider by
 item's `menuBarCountdownSource` names one provider and cannot serve two items.
 `menuBarTextMeasure` decides what that text says — time until reset, or
 `MenuBarIconRenderer.reserveText(window:now:)`, which is `UsageProjection`'s reserve or
-deficit percentage scaled by the window's duration. It is derived from the projection rather than
+deficit percentage, rounded as the popover rounds it. It is derived from the projection rather than
 computed again, so the label cannot disagree with the pace line, and it returns nil exactly where
 the projection does. `MenuBarIconModel` carries the whole `countdownWindow` for it because the
 reserve moves with the clock. Settings hides the slot editor and swaps the countdown picker while separate

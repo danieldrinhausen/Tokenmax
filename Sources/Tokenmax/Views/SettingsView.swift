@@ -92,8 +92,8 @@ struct GeneralSettingsView: View {
         settingsStore.settings.showMenuBarItem && settingsStore.settings.enabledProviders.count > 1
     }
 
-    /// Spelled out per combination: the reserve reads as a different number from
-    /// the countdown, and a sign on it needs saying once.
+    /// Spelled out per combination: the reserve is not a countdown, and a sign on
+    /// it needs saying once.
     private var menuBarTextExplanation: String {
         let window = showsSeparateMenuBarItems ? "its own provider's session or week" : "the chosen window"
         switch settingsStore.settings.menuBarTextMeasure {
@@ -102,7 +102,7 @@ struct GeneralSettingsView: View {
                 + window + " resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running."
         case .reserve:
             return (showsSeparateMenuBarItems ? "Each icon shows how far " : "Shows how far ")
-                + window + " is ahead of an even burn, as time — \"+1:20\" is that much to spare, \"\u{2212}0:40\" that much behind. It is the \"in reserve\" percentage scaled by the window's length. Blank while the window has barely opened, is spent or is not running — and always for a Cursor billing cycle, which has no fixed length."
+                + window + " is ahead of an even burn — \"+8%\" is that much to spare, \"\u{2212}5%\" that much behind. The same figure the popover calls \"in reserve\", so it reads alike for a session and a week. Blank while the window has barely opened, is spent or is not running — and always for a Cursor billing cycle, which has no fixed length."
         }
     }
 

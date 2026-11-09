@@ -35,45 +35,41 @@ struct MenuBarReserveTextTests {
         )
     }
 
-    @Test("Spare quota reads as time ahead of an even burn, with a plus")
+    @Test("Spare quota reads as the percentage ahead of an even burn, with a plus")
     func reserveIsPositive() {
         // 2 of 5 hours elapsed, nothing spent: an even burn would have used 40%.
-        #expect(text(remaining: 100, resetInHours: 3) == "+2:00")
+        #expect(text(remaining: 100, resetInHours: 3) == "+40%")
         // 60% left with 3 hours to go is exactly the even line; 80% is 20% over it.
-        #expect(text(remaining: 80, resetInHours: 3) == "+1:00")
+        #expect(text(remaining: 80, resetInHours: 3) == "+20%")
     }
 
-    @Test("Quota spent ahead of an even burn reads as time behind, with a minus")
+    @Test("Quota spent ahead of an even burn reads as a negative percentage")
     func deficitIsNegative() {
-        #expect(text(remaining: 40, resetInHours: 3) == "\u{2212}1:00")
+        #expect(text(remaining: 40, resetInHours: 3) == "\u{2212}20%")
     }
 
     @Test("Exactly on the line carries no sign")
     func onPaceHasNoSign() {
-        #expect(text(remaining: 60, resetInHours: 3) == "0:00")
-        // Thirty seconds ahead is a minute short of a direction worth claiming.
-        #expect(text(remaining: 60.1, resetInHours: 3) == "0:00")
+        #expect(text(remaining: 60, resetInHours: 3) == "0%")
+        // Under a point either way is what the popover calls "On pace".
+        #expect(text(remaining: 60.4, resetInHours: 3) == "0%")
+        #expect(text(remaining: 59.6, resetInHours: 3) == "0%")
     }
 
-    @Test("A weekly reserve over a day switches to days and hours, like the countdown")
-    func weeklyUsesDays() {
-        // 57% left with 25h to go: the reference reserve of 42.1% of 168h.
-        #expect(text(kind: .weekly, remaining: 57, resetInHours: 25) == "+2d 22h")
+    /// The reference reading: 98% left with 6d 7h to go is the "8% in reserve"
+    /// the weekly row shows. A week must read on the same scale as a session.
+    @Test("A weekly reserve is the same percentage the popover states, not a scaled time")
+    func weeklyIsAPercentage() {
+        #expect(text(kind: .weekly, remaining: 98, resetInHours: 6 * 24 + 7) == "+8%")
     }
 
-    /// The same percentage the popover states, scaled to the window: a reserve
-    /// the label and the popover disagree on is worse than no label.
-    @Test("The time is the popover's reserve percentage scaled by the window length")
+    @Test("The text is exactly the popover's reserve percentage")
     func agreesWithTheProjection() throws {
         let window = window(remaining: 70, resetInHours: 2)
         let projection = try #require(UsageProjection.make(window: window, now: now))
-        guard case let .reserve(percent) = projection.outlook else {
-            Issue.record("expected a reserve")
-            return
-        }
-        let minutes = Int(percent / 100 * 5 * 60)
-        #expect(MenuBarIconRenderer.reserveText(window: window, now: now)
-            == "+\(minutes / 60):\(String(format: "%02d", minutes % 60))")
+        let line = UsageWindowPresentation.projectionLine(for: projection, now: now)
+        #expect(line.outlookText == "30% in reserve")
+        #expect(MenuBarIconRenderer.reserveText(window: window, now: now) == "+30%")
     }
 
     @Test("Nothing honest to project means no text, never a placeholder")
