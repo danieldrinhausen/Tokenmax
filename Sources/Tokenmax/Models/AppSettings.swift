@@ -105,13 +105,13 @@ struct ReminderRule: Codable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let fallback = ReminderRule.sessionDefault
-        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? fallback.enabled
-        leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? fallback.leadTimeMinutes
-        minimumRemainingPercent = try container.decodeIfPresent(Double.self, forKey: .minimumRemainingPercent)
+        enabled = (try? container.decodeIfPresent(Bool.self, forKey: .enabled)) ?? fallback.enabled
+        leadTimeMinutes = (try? container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes)) ?? fallback.leadTimeMinutes
+        minimumRemainingPercent = (try? container.decodeIfPresent(Double.self, forKey: .minimumRemainingPercent))
             ?? fallback.minimumRemainingPercent
-        onlyWhenTasksQueued = try container.decodeIfPresent(Bool.self, forKey: .onlyWhenTasksQueued)
+        onlyWhenTasksQueued = (try? container.decodeIfPresent(Bool.self, forKey: .onlyWhenTasksQueued))
             ?? fallback.onlyWhenTasksQueued
-        notifyOncePerWindow = try container.decodeIfPresent(Bool.self, forKey: .notifyOncePerWindow)
+        notifyOncePerWindow = (try? container.decodeIfPresent(Bool.self, forKey: .notifyOncePerWindow))
             ?? fallback.notifyOncePerWindow
     }
 
@@ -193,9 +193,9 @@ struct QuietHours: Codable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
-        startMinutes = try container.decodeIfPresent(Int.self, forKey: .startMinutes) ?? 22 * 60
-        endMinutes = try container.decodeIfPresent(Int.self, forKey: .endMinutes) ?? 7 * 60
+        enabled = (try? container.decodeIfPresent(Bool.self, forKey: .enabled)) ?? false
+        startMinutes = (try? container.decodeIfPresent(Int.self, forKey: .startMinutes)) ?? 22 * 60
+        endMinutes = (try? container.decodeIfPresent(Int.self, forKey: .endMinutes)) ?? 7 * 60
     }
 
     /// Handles windows that wrap past midnight (22:00 → 07:00).
@@ -266,7 +266,7 @@ struct QuotaResetCelebrationSettings: Codable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = QuotaResetCelebrationSettings()
-        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
+        enabled = (try? container.decodeIfPresent(Bool.self, forKey: .enabled)) ?? d.enabled
         mode = (try? container.decodeIfPresent(QuotaResetCelebrationMode.self, forKey: .mode)) ?? d.mode
         selectedEvents = (try? container.decodeIfPresent(Set<QuotaResetEvent>.self, forKey: .selectedEvents))
             ?? d.selectedEvents
@@ -331,12 +331,12 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = SessionOpenerSettings()
-        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
-        delaySeconds = try container.decodeIfPresent(Int.self, forKey: .delaySeconds) ?? d.delaySeconds
-        minimumWeeklyRemainingPercent = try container.decodeIfPresent(
+        enabled = (try? container.decodeIfPresent(Bool.self, forKey: .enabled)) ?? d.enabled
+        delaySeconds = (try? container.decodeIfPresent(Int.self, forKey: .delaySeconds)) ?? d.delaySeconds
+        minimumWeeklyRemainingPercent = (try? container.decodeIfPresent(
             Double.self, forKey: .minimumWeeklyRemainingPercent
-        ) ?? d.minimumWeeklyRemainingPercent
-        model = try container.decodeIfPresent(String.self, forKey: .model) ?? d.model
+        )) ?? d.minimumWeeklyRemainingPercent
+        model = (try? container.decodeIfPresent(String.self, forKey: .model)) ?? d.model
         // An opener written before `effort` existed keeps the cheap default,
         // which is what it was implicitly getting from the picker anyway.
         //
@@ -348,11 +348,11 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
         } else {
             effort = d.effort
         }
-        respectQuietHours = try container.decodeIfPresent(Bool.self, forKey: .respectQuietHours)
+        respectQuietHours = (try? container.decodeIfPresent(Bool.self, forKey: .respectQuietHours))
             ?? d.respectQuietHours
-        skipWhenExtraUsageEnabled = try container.decodeIfPresent(Bool.self, forKey: .skipWhenExtraUsageEnabled)
+        skipWhenExtraUsageEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .skipWhenExtraUsageEnabled))
             ?? d.skipWhenExtraUsageEnabled
-        verifyAfterRun = try container.decodeIfPresent(Bool.self, forKey: .verifyAfterRun) ?? d.verifyAfterRun
+        verifyAfterRun = (try? container.decodeIfPresent(Bool.self, forKey: .verifyAfterRun)) ?? d.verifyAfterRun
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -720,20 +720,20 @@ struct AppSettings: Codable, Sendable, Equatable {
             .map { $0.compactMap(TokenmaxProvider.init(rawValue:)) } ?? d.menuBarProviderOrder
         menuBarHiddenProviders = (try? container.decodeIfPresent([String].self, forKey: .menuBarHiddenProviders))
             .map { $0.compactMap(TokenmaxProvider.init(rawValue:)) } ?? d.menuBarHiddenProviders
-        menuBarProviderID = try container.decodeIfPresent(String.self, forKey: .menuBarProviderID)
+        menuBarProviderID = (try? container.decodeIfPresent(String.self, forKey: .menuBarProviderID))
             ?? d.menuBarProviderID
-        foregroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .foregroundRefreshSeconds)
+        foregroundRefreshSeconds = (try? container.decodeIfPresent(TimeInterval.self, forKey: .foregroundRefreshSeconds))
             ?? d.foregroundRefreshSeconds
-        backgroundRefreshSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .backgroundRefreshSeconds)
+        backgroundRefreshSeconds = (try? container.decodeIfPresent(TimeInterval.self, forKey: .backgroundRefreshSeconds))
             ?? d.backgroundRefreshSeconds
-        staleAfterSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .staleAfterSeconds)
+        staleAfterSeconds = (try? container.decodeIfPresent(TimeInterval.self, forKey: .staleAfterSeconds))
             ?? d.staleAfterSeconds
-        remindersEnabled = try container.decodeIfPresent(Bool.self, forKey: .remindersEnabled) ?? d.remindersEnabled
-        sessionReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .sessionReminder) ?? d.sessionReminder
-        weeklyReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .weeklyReminder) ?? d.weeklyReminder
-        codexSessionReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .codexSessionReminder)
+        remindersEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .remindersEnabled)) ?? d.remindersEnabled
+        sessionReminder = (try? container.decodeIfPresent(ReminderRule.self, forKey: .sessionReminder)) ?? d.sessionReminder
+        weeklyReminder = (try? container.decodeIfPresent(ReminderRule.self, forKey: .weeklyReminder)) ?? d.weeklyReminder
+        codexSessionReminder = (try? container.decodeIfPresent(ReminderRule.self, forKey: .codexSessionReminder))
             ?? d.codexSessionReminder
-        codexWeeklyReminder = try container.decodeIfPresent(ReminderRule.self, forKey: .codexWeeklyReminder)
+        codexWeeklyReminder = (try? container.decodeIfPresent(ReminderRule.self, forKey: .codexWeeklyReminder))
             ?? d.codexWeeklyReminder
         // `try?` as above: `MenuBarBars` normalizes what it can, but a value of
         // the wrong shape entirely still has to fall back rather than throw.
@@ -746,19 +746,19 @@ struct AppSettings: Codable, Sendable, Equatable {
         menuBarCountdownSource = (try? container.decodeIfPresent(
             MenuBarQuotaSource.self, forKey: .menuBarCountdownSource
         )) ?? d.menuBarCountdownSource
-        quietHours = try container.decodeIfPresent(QuietHours.self, forKey: .quietHours) ?? d.quietHours
-        playSound = try container.decodeIfPresent(Bool.self, forKey: .playSound) ?? d.playSound
-        showBadge = try container.decodeIfPresent(Bool.self, forKey: .showBadge) ?? d.showBadge
-        resetCelebration = try container.decodeIfPresent(QuotaResetCelebrationSettings.self, forKey: .resetCelebration)
+        quietHours = (try? container.decodeIfPresent(QuietHours.self, forKey: .quietHours)) ?? d.quietHours
+        playSound = (try? container.decodeIfPresent(Bool.self, forKey: .playSound)) ?? d.playSound
+        showBadge = (try? container.decodeIfPresent(Bool.self, forKey: .showBadge)) ?? d.showBadge
+        resetCelebration = (try? container.decodeIfPresent(QuotaResetCelebrationSettings.self, forKey: .resetCelebration))
             ?? d.resetCelebration
-        menuBarHighlightWhenReady = try container.decodeIfPresent(Bool.self, forKey: .menuBarHighlightWhenReady)
+        menuBarHighlightWhenReady = (try? container.decodeIfPresent(Bool.self, forKey: .menuBarHighlightWhenReady))
             ?? d.menuBarHighlightWhenReady
         // `try?` for the same reason as `menuBarDisplayMode` above: a colour
         // hand-edited into something undecodable must cost the user that one
         // setting, not the whole file.
         menuBarHighlightColor = (try? container.decodeIfPresent(HighlightColor.self, forKey: .menuBarHighlightColor))
             ?? d.menuBarHighlightColor
-        menuBarHighlightGlow = try container.decodeIfPresent(Bool.self, forKey: .menuBarHighlightGlow)
+        menuBarHighlightGlow = (try? container.decodeIfPresent(Bool.self, forKey: .menuBarHighlightGlow))
             ?? d.menuBarHighlightGlow
         menuBarColorScheme = (try? container.decodeIfPresent(MenuBarColorScheme.self, forKey: .menuBarColorScheme))
             ?? d.menuBarColorScheme
@@ -769,25 +769,25 @@ struct AppSettings: Codable, Sendable, Equatable {
             requestedVisible: showMenuBarItem,
             sideNotchEnabled: sideNotch.enabled
         )
-        showProjections = try container.decodeIfPresent(Bool.self, forKey: .showProjections) ?? d.showProjections
-        queueEnabled = try container.decodeIfPresent(Bool.self, forKey: .queueEnabled) ?? d.queueEnabled
-        checkForUpdates = try container.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
-        terminalApplication = try container.decodeIfPresent(String.self, forKey: .terminalApplication)
+        showProjections = (try? container.decodeIfPresent(Bool.self, forKey: .showProjections)) ?? d.showProjections
+        queueEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .queueEnabled)) ?? d.queueEnabled
+        checkForUpdates = (try? container.decodeIfPresent(Bool.self, forKey: .checkForUpdates)) ?? d.checkForUpdates
+        terminalApplication = (try? container.decodeIfPresent(String.self, forKey: .terminalApplication))
             ?? d.terminalApplication
-        statuslineShimInstalled = try container.decodeIfPresent(Bool.self, forKey: .statuslineShimInstalled)
+        statuslineShimInstalled = (try? container.decodeIfPresent(Bool.self, forKey: .statuslineShimInstalled))
             ?? d.statuslineShimInstalled
         // `try?` so an unrecognised value costs this one setting, not the
         // file — and the fallback is keychain, the mode whose failure modes
         // (a consent dialog) are annoying rather than silent.
         claudeDataSource = (try? container.decodeIfPresent(ClaudeDataSource.self, forKey: .claudeDataSource))
             ?? d.claudeDataSource
-        sessionOpener = try container.decodeIfPresent(SessionOpenerSettings.self, forKey: .sessionOpener)
+        sessionOpener = (try? container.decodeIfPresent(SessionOpenerSettings.self, forKey: .sessionOpener))
             ?? d.sessionOpener
-        queueAutoRun = try container.decodeIfPresent(QueueAutoRunSettings.self, forKey: .queueAutoRun)
+        queueAutoRun = (try? container.decodeIfPresent(QueueAutoRunSettings.self, forKey: .queueAutoRun))
             ?? d.queueAutoRun
-        codexAutoRunEnabled = try container.decodeIfPresent(Bool.self, forKey: .codexAutoRunEnabled)
+        codexAutoRunEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .codexAutoRunEnabled))
             ?? d.codexAutoRunEnabled
-        codexAutoRun = try container.decodeIfPresent(CodexAutoRunOverrides.self, forKey: .codexAutoRun)
+        codexAutoRun = (try? container.decodeIfPresent(CodexAutoRunOverrides.self, forKey: .codexAutoRun))
             ?? d.codexAutoRun
         // `try?` rather than the plain-`try` form the other Bools use. These
         // gate the whole app, and a hand-edited `"codexEnabled": "yes"` under
@@ -803,18 +803,18 @@ struct AppSettings: Codable, Sendable, Equatable {
         // would otherwise seed every new task with a runner that does not exist.
         defaultTaskProvider = (try? container.decodeIfPresent(TokenmaxProvider.self, forKey: .defaultTaskProvider))
             .flatMap { $0.runsTasks ? $0 : nil } ?? d.defaultTaskProvider
-        defaultTaskModel = try container.decodeIfPresent(String.self, forKey: .defaultTaskModel)
+        defaultTaskModel = (try? container.decodeIfPresent(String.self, forKey: .defaultTaskModel))
             ?? d.defaultTaskModel
-        defaultTaskEffort = try container.decodeIfPresent(String.self, forKey: .defaultTaskEffort)
-        defaultCodexModel = try container.decodeIfPresent(String.self, forKey: .defaultCodexModel)
-        defaultCodexReasoningEffort = try container.decodeIfPresent(
+        defaultTaskEffort = (try? container.decodeIfPresent(String.self, forKey: .defaultTaskEffort))
+        defaultCodexModel = (try? container.decodeIfPresent(String.self, forKey: .defaultCodexModel))
+        defaultCodexReasoningEffort = (try? container.decodeIfPresent(
             String.self, forKey: .defaultCodexReasoningEffort
-        )
+        ))
         defaultCodexSandbox = (try? container.decodeIfPresent(CodexSandbox.self, forKey: .defaultCodexSandbox))
             ?? d.defaultCodexSandbox
         // Same guard as `TaskExecutionPolicy.init(from:)`: a non-positive figure
         // here would seed every new task with a budget the CLI refuses.
-        let defaultBudget = try container.decodeIfPresent(Double.self, forKey: .defaultTaskBudgetUSD)
+        let defaultBudget = (try? container.decodeIfPresent(Double.self, forKey: .defaultTaskBudgetUSD))
             ?? d.defaultTaskBudgetUSD
         defaultTaskBudgetUSD = defaultBudget > 0 ? defaultBudget : d.defaultTaskBudgetUSD
         // A file with every source off has no meter to draw and no clickable
@@ -840,9 +840,9 @@ struct FiredReminder: Codable, Sendable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        identifier = try container.decodeIfPresent(String.self, forKey: .identifier) ?? ""
-        firedAt = try container.decodeIfPresent(Date.self, forKey: .firedAt) ?? .distantPast
-        ruleFingerprint = try container.decodeIfPresent(String.self, forKey: .ruleFingerprint) ?? ""
+        identifier = (try? container.decodeIfPresent(String.self, forKey: .identifier)) ?? ""
+        firedAt = (try? container.decodeIfPresent(Date.self, forKey: .firedAt)) ?? .distantPast
+        ruleFingerprint = (try? container.decodeIfPresent(String.self, forKey: .ruleFingerprint)) ?? ""
     }
 }
 
@@ -855,16 +855,16 @@ struct NotificationState: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        snoozeCounts = try container.decodeIfPresent([String: Int].self, forKey: .snoozeCounts) ?? [:]
+        snoozeCounts = (try? container.decodeIfPresent([String: Int].self, forKey: .snoozeCounts)) ?? [:]
 
-        if let records = try container.decodeIfPresent([FiredReminder].self, forKey: .fired) {
+        if let records = (try? container.decodeIfPresent([FiredReminder].self, forKey: .fired)) {
             fired = records
             return
         }
 
         // Pre-fingerprint files stored bare identifier strings. Carry them over
         // with an empty fingerprint, which `hasFired` reads as "rule unknown".
-        let legacy = try container.decodeIfPresent([String].self, forKey: .firedIdentifiers) ?? []
+        let legacy = (try? container.decodeIfPresent([String].self, forKey: .firedIdentifiers)) ?? []
         fired = legacy.map {
             FiredReminder(identifier: $0, firedAt: .distantPast, ruleFingerprint: "")
         }

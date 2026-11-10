@@ -1070,6 +1070,117 @@ struct PersistenceCompatibilityTests {
         #expect(state.isSettled("b"))
     }
 
+    // MARK: - Mistyped values
+
+    @Test("A wrong-typed value inside a nested struct costs that one setting, not the file")
+    func mistypedNestedValuesAreTolerated() throws {
+        let settings = try decode(AppSettings.self, """
+        {
+          "playSound": false,
+          "staleAfterSeconds": "soon",
+          "quietHours": { "enabled": "yes", "startMinutes": 60 },
+          "sessionReminder": { "leadTimeMinutes": "ten", "minimumRemainingPercent": 55 },
+          "sessionOpener": { "enabled": true, "delaySeconds": "a minute", "model": "sonnet" },
+          "queueAutoRun": { "enabled": true, "leadTimeMinutes": [], "maximumTasksPerWindow": 4 },
+          "resetCelebration": { "enabled": 3, "mode": "everyReset" },
+          "codexAutoRun": { "leadTimeMinutes": {}, "maximumRuntimeMinutes": 20 },
+          "remindersEnabled": "maybe"
+        }
+        """)
+        let d = AppSettings()
+
+        // The mistyped fields fall back to their own defaults...
+        #expect(settings.staleAfterSeconds == d.staleAfterSeconds)
+        #expect(!settings.quietHours.enabled)
+        #expect(settings.sessionReminder.leadTimeMinutes == d.sessionReminder.leadTimeMinutes)
+        #expect(settings.sessionOpener.delaySeconds == d.sessionOpener.delaySeconds)
+        #expect(settings.queueAutoRun.leadTimeMinutes == d.queueAutoRun.leadTimeMinutes)
+        #expect(settings.resetCelebration.enabled == d.resetCelebration.enabled)
+        #expect(settings.codexAutoRun.leadTimeMinutes == d.codexAutoRun.leadTimeMinutes)
+        #expect(settings.remindersEnabled == d.remindersEnabled)
+
+        // ...and everything beside them is kept.
+        #expect(!settings.playSound)
+        #expect(settings.quietHours.startMinutes == 60)
+        #expect(settings.sessionReminder.minimumRemainingPercent == 55)
+        #expect(settings.sessionOpener.enabled)
+        #expect(settings.sessionOpener.model == "sonnet")
+        #expect(settings.queueAutoRun.enabled)
+        #expect(settings.queueAutoRun.maximumTasksPerWindow == 4)
+        #expect(settings.codexAutoRun.maximumRuntimeMinutes == 20)
+    }
+
+    @Test("A nested value of the wrong shape entirely still leaves its siblings alone")
+    func wrongShapedNestedStructFallsBack() throws {
+        let settings = try decode(AppSettings.self, """
+        { "playSound": false, "sessionOpener": "on", "queueAutoRun": [1, 2], "quietHours": 7 }
+        """)
+        #expect(!settings.playSound)
+        #expect(settings.sessionOpener == AppSettings().sessionOpener)
+        #expect(settings.queueAutoRun == AppSettings().queueAutoRun)
+    }
+
+    @Test("A file that is not JSON is set aside rather than overwritten, and nothing is kept for an empty one")
+    func undecodableFileIsPreserved() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenmax-quarantine-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = directory.appendingPathComponent("settings.json")
+        try Data("{ not json".utf8).write(to: url)
+
+        #expect(JSONStore.load(AppSettings.self, from: url) == nil)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+
+        let aside = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.hasPrefix("settings.corrupt-") && $0.hasSuffix(".json") }
+        #expect(aside.count == 1)
+        let kept = try String(contentsOf: directory.appendingPathComponent(aside[0]), encoding: .utf8)
+        #expect(kept == "{ not json")
+
+        // Empty and whitespace-only files have nothing worth keeping.
+        let empty = directory.appendingPathComponent("tokenmax.json")
+        try Data("  \n".utf8).write(to: empty)
+        #expect(JSONStore.load(AppSettings.self, from: empty) == nil)
+        #expect(FileManager.default.fileExists(atPath: empty.path))
+    }
+
+    @Test("A readable file is left exactly where it is")
+    func readableFileIsNotMoved() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenmax-quarantine-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = directory.appendingPathComponent("settings.json")
+        try Data(#"{ "playSound": "yes" }"#.utf8).write(to: url)
+
+        #expect(JSONStore.load(AppSettings.self, from: url) != nil)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["settings.json"])
+    }
+
+    @Test("Only the newest few set-aside copies of a file are kept")
+    func setAsideCopiesArePruned() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenmax-quarantine-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let url = directory.appendingPathComponent("settings.json")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        for index in 0 ..< (JSONStore.corruptCopiesKept + 3) {
+            try Data("bad \(index)".utf8).write(to: url)
+            JSONStore.quarantine(url, now: start.addingTimeInterval(Double(index) * 60))
+        }
+
+        let aside = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+        #expect(aside.count == JSONStore.corruptCopiesKept)
+        // The survivors are the newest ones.
+        let newest = try String(contentsOf: directory.appendingPathComponent(aside.last!), encoding: .utf8)
+        #expect(newest == "bad \(JSONStore.corruptCopiesKept + 2)")
+    }
+
     // MARK: - Round trip
 
     @Test("A failed save is reported to safety-critical callers")

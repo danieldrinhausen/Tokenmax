@@ -23,8 +23,57 @@ enum JSONStore {
             return try makeDecoder().decode(type, from: data)
         } catch {
             Log.shared.write("JSONStore decode failed for \(url.lastPathComponent): \(error)")
+            // The caller falls back to defaults and the next save writes over
+            // this path. For settings, tasks and the spend records that would
+            // turn one unreadable value into the permanent loss of the file, so
+            // it is moved aside first. An empty file has nothing to preserve.
+            if !data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }) {
+                quarantine(url)
+            }
             return nil
         }
+    }
+
+    /// How many `<name>.corrupt-<stamp>.json` copies to keep per file. A file
+    /// that keeps failing must not fill the disk, and the oldest copy is the
+    /// least likely to be the one anyone wants.
+    static let corruptCopiesKept = 3
+
+    /// Renames an undecodable file to `<name>.corrupt-<UTC stamp>.json` beside
+    /// it and prunes older copies. Returns where it went, nil if the move failed.
+    @discardableResult
+    static func quarantine(_ url: URL, now: Date = Date()) -> URL? {
+        let manager = FileManager.default
+        let directory = url.deletingLastPathComponent()
+        let base = url.deletingPathExtension().lastPathComponent
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withYear, .withMonth, .withDay, .withTime, .withTimeZone]
+        let stamp = formatter.string(from: now)
+
+        var target = directory.appendingPathComponent("\(base).corrupt-\(stamp).json")
+        var suffix = 1
+        while manager.fileExists(atPath: target.path) {
+            target = directory.appendingPathComponent("\(base).corrupt-\(stamp)-\(suffix).json")
+            suffix += 1
+        }
+
+        do {
+            try manager.moveItem(at: url, to: target)
+            Log.shared.write("JSONStore: moved unreadable \(url.lastPathComponent) to \(target.lastPathComponent)")
+        } catch {
+            Log.shared.write("JSONStore: could not set aside \(url.lastPathComponent): \(error)")
+            return nil
+        }
+
+        // The stamp sorts chronologically, so name order is age order.
+        let siblings = ((try? manager.contentsOfDirectory(atPath: directory.path)) ?? [])
+            .filter { $0.hasPrefix("\(base).corrupt-") && $0.hasSuffix(".json") }
+            .sorted()
+        for stale in siblings.dropLast(corruptCopiesKept) {
+            try? manager.removeItem(at: directory.appendingPathComponent(stale))
+        }
+        return target
     }
 
     @discardableResult

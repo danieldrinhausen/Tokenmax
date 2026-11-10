@@ -46,7 +46,7 @@ struct SideNotchColorSettings: Codable, Sendable, Equatable {
         escalation = (try? container.decodeIfPresent(MenuBarEscalation.self, forKey: .escalation)) ?? d.escalation
         opportunityColor = (try? container.decodeIfPresent(HighlightColor.self, forKey: .opportunityColor))
             ?? d.opportunityColor
-        glow = try container.decodeIfPresent(Bool.self, forKey: .glow) ?? d.glow
+        glow = (try? container.decodeIfPresent(Bool.self, forKey: .glow)) ?? d.glow
     }
 }
 

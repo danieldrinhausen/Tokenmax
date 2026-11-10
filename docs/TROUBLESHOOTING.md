@@ -497,6 +497,16 @@ Deliberate: Tokenmax watches Cursor's usage but has no way to run a Cursor
 task. A task file edited by hand to name Cursor is refused with that reason
 rather than run by another agent.
 
+### My settings went back to the defaults
+
+Tokenmax keeps going on a value it cannot read, falling back for that one
+setting, so this means the whole file was unreadable (truncated, or not JSON).
+It is not deleted: it is renamed to `settings.corrupt-<time>.json` in
+`~/Library/Application Support/Tokenmax`, and the log says so (`JSONStore: moved
+unreadable …`). The newest three copies are kept, per file. Fix or copy the
+values you want out of it; the same applies to `tokenmax.json` (your tasks) and
+the other state files.
+
 ---
 
 ## Reminders

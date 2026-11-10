@@ -18,6 +18,13 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **One mistyped value in a settings file no longer resets the whole file.** Nested settings (the
+  opener, queue automation, quiet hours, reminder rules, the reset celebration) and many plain
+  switches threw on a wrong-typed value, which dropped every setting back to its default and
+  overwrote the file on the next change. Each value now falls back on its own. A file that cannot
+  be read at all is moved to `<name>.corrupt-<time>.json` beside it (the newest three are kept)
+  before anything can write over it, and the log says so.
+
 - **The opener's "Thinking: Default" now sticks.** Choosing Default left the setting empty, and an
   empty setting was written as no key at all, which a later launch read as "never chosen" and gave
   back the cheap `low` default. Default is now saved explicitly; files without the key still get

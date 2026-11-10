@@ -161,41 +161,41 @@ struct QueueAutoRunSettings: Codable, Sendable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = QueueAutoRunSettings()
 
-        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? d.enabled
+        enabled = (try? container.decodeIfPresent(Bool.self, forKey: .enabled)) ?? d.enabled
         // `try?` so a mode hand-edited into something undecodable costs the user
         // that one setting rather than re-enabling automation at its default.
         mode = (try? container.decodeIfPresent(QueueAutoRunMode.self, forKey: .mode)) ?? d.mode
-        leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? d.leadTimeMinutes
-        minimumSessionRemainingPercent = try container.decodeIfPresent(
+        leadTimeMinutes = (try? container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes)) ?? d.leadTimeMinutes
+        minimumSessionRemainingPercent = (try? container.decodeIfPresent(
             Double.self, forKey: .minimumSessionRemainingPercent
-        ) ?? d.minimumSessionRemainingPercent
-        minimumWeeklyRemainingPercent = try container.decodeIfPresent(
+        )) ?? d.minimumSessionRemainingPercent
+        minimumWeeklyRemainingPercent = (try? container.decodeIfPresent(
             Double.self, forKey: .minimumWeeklyRemainingPercent
-        ) ?? d.minimumWeeklyRemainingPercent
-        safetyMarginMinutes = try container.decodeIfPresent(Int.self, forKey: .safetyMarginMinutes)
+        )) ?? d.minimumWeeklyRemainingPercent
+        safetyMarginMinutes = (try? container.decodeIfPresent(Int.self, forKey: .safetyMarginMinutes))
             ?? d.safetyMarginMinutes
-        maximumTasksPerWindow = try container.decodeIfPresent(Int.self, forKey: .maximumTasksPerWindow)
+        maximumTasksPerWindow = (try? container.decodeIfPresent(Int.self, forKey: .maximumTasksPerWindow))
             ?? d.maximumTasksPerWindow
-        maximumRuntimeMinutes = try container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes)
+        maximumRuntimeMinutes = (try? container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes))
             ?? d.maximumRuntimeMinutes
-        startDelaySeconds = try container.decodeIfPresent(Int.self, forKey: .startDelaySeconds) ?? d.startDelaySeconds
-        scheduleGraceMinutes = try container.decodeIfPresent(Int.self, forKey: .scheduleGraceMinutes)
+        startDelaySeconds = (try? container.decodeIfPresent(Int.self, forKey: .startDelaySeconds)) ?? d.startDelaySeconds
+        scheduleGraceMinutes = (try? container.decodeIfPresent(Int.self, forKey: .scheduleGraceMinutes))
             ?? d.scheduleGraceMinutes
-        onlyRunApprovedTasks = try container.decodeIfPresent(Bool.self, forKey: .onlyRunApprovedTasks)
+        onlyRunApprovedTasks = (try? container.decodeIfPresent(Bool.self, forKey: .onlyRunApprovedTasks))
             ?? d.onlyRunApprovedTasks
-        pauseAfterFailure = try container.decodeIfPresent(Bool.self, forKey: .pauseAfterFailure) ?? d.pauseAfterFailure
-        requireFreshUsageData = try container.decodeIfPresent(Bool.self, forKey: .requireFreshUsageData)
+        pauseAfterFailure = (try? container.decodeIfPresent(Bool.self, forKey: .pauseAfterFailure)) ?? d.pauseAfterFailure
+        requireFreshUsageData = (try? container.decodeIfPresent(Bool.self, forKey: .requireFreshUsageData))
             ?? d.requireFreshUsageData
         resetBoundaryBehavior = (try? container.decodeIfPresent(
             ResetBoundaryBehavior.self, forKey: .resetBoundaryBehavior
         )) ?? d.resetBoundaryBehavior
-        respectQuietHours = try container.decodeIfPresent(Bool.self, forKey: .respectQuietHours) ?? d.respectQuietHours
-        skipWhenExtraUsageEnabled = try container.decodeIfPresent(Bool.self, forKey: .skipWhenExtraUsageEnabled)
+        respectQuietHours = (try? container.decodeIfPresent(Bool.self, forKey: .respectQuietHours)) ?? d.respectQuietHours
+        skipWhenExtraUsageEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .skipWhenExtraUsageEnabled))
             ?? d.skipWhenExtraUsageEnabled
-        notifyOnStart = try container.decodeIfPresent(Bool.self, forKey: .notifyOnStart) ?? d.notifyOnStart
-        notifyOnCompletion = try container.decodeIfPresent(Bool.self, forKey: .notifyOnCompletion)
+        notifyOnStart = (try? container.decodeIfPresent(Bool.self, forKey: .notifyOnStart)) ?? d.notifyOnStart
+        notifyOnCompletion = (try? container.decodeIfPresent(Bool.self, forKey: .notifyOnCompletion))
             ?? d.notifyOnCompletion
-        notifyOnFailure = try container.decodeIfPresent(Bool.self, forKey: .notifyOnFailure) ?? d.notifyOnFailure
+        notifyOnFailure = (try? container.decodeIfPresent(Bool.self, forKey: .notifyOnFailure)) ?? d.notifyOnFailure
     }
 }
 
@@ -226,10 +226,10 @@ struct CodexAutoRunOverrides: Codable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = CodexAutoRunOverrides()
-        leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? d.leadTimeMinutes
-        maximumTasksPerWindow = try container.decodeIfPresent(Int.self, forKey: .maximumTasksPerWindow)
+        leadTimeMinutes = (try? container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes)) ?? d.leadTimeMinutes
+        maximumTasksPerWindow = (try? container.decodeIfPresent(Int.self, forKey: .maximumTasksPerWindow))
             ?? d.maximumTasksPerWindow
-        maximumRuntimeMinutes = try container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes)
+        maximumRuntimeMinutes = (try? container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes))
             ?? d.maximumRuntimeMinutes
     }
 
@@ -337,20 +337,20 @@ struct TaskExecutionPolicy: Codable, Sendable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let d = TaskExecutionPolicy()
-        maximumRuntimeMinutes = try container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes)
+        maximumRuntimeMinutes = (try? container.decodeIfPresent(Int.self, forKey: .maximumRuntimeMinutes))
             ?? d.maximumRuntimeMinutes
         // A zero or negative budget is not "spend nothing" — the CLI rejects the
         // flag outright, so the run would fail rather than be cheap. It is also
         // the shape `customBudgetTag` takes, which must never survive a round
         // trip through disk.
-        let budget = try container.decodeIfPresent(Double.self, forKey: .maximumBudgetUSD) ?? d.maximumBudgetUSD
+        let budget = (try? container.decodeIfPresent(Double.self, forKey: .maximumBudgetUSD)) ?? d.maximumBudgetUSD
         maximumBudgetUSD = budget > 0 ? budget : d.maximumBudgetUSD
-        model = try container.decodeIfPresent(String.self, forKey: .model) ?? d.model
-        effort = try container.decodeIfPresent(String.self, forKey: .effort)
-        allowFileChanges = try container.decodeIfPresent(Bool.self, forKey: .allowFileChanges) ?? d.allowFileChanges
-        allowShellCommands = try container.decodeIfPresent(Bool.self, forKey: .allowShellCommands)
+        model = (try? container.decodeIfPresent(String.self, forKey: .model)) ?? d.model
+        effort = (try? container.decodeIfPresent(String.self, forKey: .effort))
+        allowFileChanges = (try? container.decodeIfPresent(Bool.self, forKey: .allowFileChanges)) ?? d.allowFileChanges
+        allowShellCommands = (try? container.decodeIfPresent(Bool.self, forKey: .allowShellCommands))
             ?? d.allowShellCommands
-        stopWhenQuotaExhausted = try container.decodeIfPresent(Bool.self, forKey: .stopWhenQuotaExhausted)
+        stopWhenQuotaExhausted = (try? container.decodeIfPresent(Bool.self, forKey: .stopWhenQuotaExhausted))
             ?? d.stopWhenQuotaExhausted
     }
 
