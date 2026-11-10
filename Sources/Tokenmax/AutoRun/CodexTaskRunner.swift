@@ -89,7 +89,10 @@ enum CodexTaskRunner {
         let input = Pipe(), output = Pipe(), errors = Pipe()
 
         let logURL = FileLocations.runLogFile(runID: runID)
-        let observer = CodexRunObserver(logURL: logURL, onProgress: onProgress)
+        let stdin = input.fileHandleForWriting
+        let observer = CodexRunObserver(logURL: logURL, onProgress: onProgress) { line in
+            try? stdin.write(contentsOf: line)
+        }
         output.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty { handle.readabilityHandler = nil } else { observer.append(data) }
@@ -197,6 +200,56 @@ enum CodexTaskRunner {
     }
 }
 
+/// What one line from the App Server is.
+///
+/// JSON-RPC puts `id` on responses *and* on requests the server sends us, so
+/// "has an id" says nothing; the `method` is what tells them apart.
+enum CodexMessage: Equatable {
+    case response(id: Int)
+    /// `id` is kept as JSON (number or string) so the reply can echo it exactly.
+    case serverRequest(id: JSONID, method: String)
+    case notification(method: String)
+    case other
+
+    enum JSONID: Equatable {
+        case number(Int)
+        case string(String)
+    }
+
+    static func classify(_ root: [String: Any]) -> CodexMessage {
+        let method = root["method"] as? String
+        let id: JSONID? = {
+            if let string = root["id"] as? String { return .string(string) }
+            if let number = (root["id"] as? NSNumber)?.intValue { return .number(number) }
+            return nil
+        }()
+        switch (id, method) {
+        case let (id?, method?): return .serverRequest(id: id, method: method)
+        case let (.number(id)?, nil): return .response(id: id)
+        case let (nil, method?): return .notification(method: method)
+        default: return .other
+        }
+    }
+
+    /// A JSON-RPC error reply, newline-terminated. -32601 is "method not
+    /// found": the honest answer from a client that has no one to ask.
+    static func refusal(id: JSONID, method: String) -> Data {
+        let identifier: Any = switch id {
+        case let .number(number): number
+        case let .string(string): string
+        }
+        let payload: [String: Any] = [
+            "id": identifier,
+            "error": [
+                "code": -32601,
+                "message": "Tokenmax runs unattended and cannot answer \(method).",
+            ] as [String: Any],
+        ]
+        let body = (try? JSONSerialization.data(withJSONObject: payload)) ?? Data()
+        return body + Data("\n".utf8)
+    }
+}
+
 /// Connects structured-concurrency cancellation to the App Server process.
 /// `Task.cancel()` alone does not terminate a child `Process`, which would let
 /// a stopped queue task continue changing files in the background.
@@ -270,11 +323,19 @@ private final class CodexRunObserver: @unchecked Sendable {
     private var logBytes = 0
     private var logTruncated = false
     private let onProgress: @Sendable (String) -> Void
+    /// Writes one line to the server's stdin. Called only with the lock released.
+    private let reply: @Sendable (Data) -> Void
+    private var outgoing: [Data] = []
 
-    init(logURL: URL, onProgress: @escaping @Sendable (String) -> Void) {
+    init(
+        logURL: URL,
+        onProgress: @escaping @Sendable (String) -> Void,
+        reply: @escaping @Sendable (Data) -> Void
+    ) {
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         logHandle = try? FileHandle(forWritingTo: logURL)
         self.onProgress = onProgress
+        self.reply = reply
     }
 
     deinit { try? logHandle?.close() }
@@ -290,7 +351,11 @@ private final class CodexRunObserver: @unchecked Sendable {
             progress = handle(line) ?? progress
         }
         if pending.count > 1024 * 1024 { pending.removeAll() }
+        let replies = outgoing
+        outgoing.removeAll()
         lock.unlock()
+        // Outside the lock: a full stdin pipe must not stall the reader.
+        for line in replies { reply(line) }
         if let progress { onProgress(progress) }
     }
 
@@ -308,10 +373,21 @@ private final class CodexRunObserver: @unchecked Sendable {
     /// unlocking so a UI callback can never block the protocol reader.
     private func handle(_ data: Data) -> String? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        if let id = (root["id"] as? NSNumber)?.intValue {
+        switch CodexMessage.classify(root) {
+        case let .response(id):
             responses[id] = root
             lock.broadcast()
             return nil
+        case let .serverRequest(id, method):
+            // Nobody is there to answer an approval or an elicitation, and an
+            // unanswered request holds the turn open until the runtime limit.
+            // Refused, so the turn carries on (or fails) at once; and kept out
+            // of `responses`, where a colliding id could replace a real reply.
+            Log.shared.write("autorun: codex asked \(method); refused, unattended")
+            outgoing.append(CodexMessage.refusal(id: id, method: method))
+            return nil
+        case .notification, .other:
+            break
         }
         guard let method = root["method"] as? String, let params = root["params"] as? [String: Any] else { return nil }
         if method == "turn/completed" {
@@ -352,10 +428,10 @@ private final class CodexRunObserver: @unchecked Sendable {
     }
 
     func waitForResponse(_ id: Int, timeout: TimeInterval) -> [String: Any]? {
-        wait(timeout: timeout) { responses[id] != nil }.flatMap { _ in responses.removeValue(forKey: id) }
+        wait(timeout: timeout, until: { responses[id] != nil }, result: { responses.removeValue(forKey: id) })
     }
     func waitForCompletion(timeout: TimeInterval) -> String? {
-        wait(timeout: timeout) { completion != nil || serverExitCode != nil }.flatMap { _ in completion }
+        wait(timeout: timeout, until: { completion != nil || serverExitCode != nil }, result: { completion })
     }
     func cancel() {
         lock.lock()
@@ -385,10 +461,13 @@ private final class CodexRunObserver: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         return serverExitCode
     }
-    private func wait(timeout: TimeInterval, until predicate: () -> Bool) -> Bool? {
+    /// `result` runs under the lock too. It used to run after `defer` had
+    /// released it, reading and mutating `responses` while the reader thread
+    /// was inserting into it.
+    private func wait<T>(timeout: TimeInterval, until predicate: () -> Bool, result: () -> T?) -> T? {
         let deadline = Date().addingTimeInterval(timeout)
         lock.lock(); defer { lock.unlock() }
         while !predicate() && !cancelled && Date() < deadline { lock.wait(until: deadline) }
-        return predicate()
+        return predicate() ? result() : nil
     }
 }

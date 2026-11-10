@@ -55,6 +55,47 @@ struct CodexTaskProcessTests {
         )
     }
 
+    @Test("A line with an id and a method is a server request, not a response")
+    func classifiesServerRequests() {
+        func parse(_ json: String) -> CodexMessage {
+            CodexMessage.classify(try! JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any])
+        }
+        #expect(parse(#"{"id":7,"result":{}}"#) == .response(id: 7))
+        #expect(parse(#"{"id":7,"error":{"message":"no"}}"#) == .response(id: 7))
+        #expect(
+            parse(#"{"id":7,"method":"item/commandExecution/requestApproval","params":{}}"#)
+                == .serverRequest(id: .number(7), method: "item/commandExecution/requestApproval")
+        )
+        #expect(
+            parse(#"{"id":"abc","method":"mcpServer/elicitation/request","params":{}}"#)
+                == .serverRequest(id: .string("abc"), method: "mcpServer/elicitation/request")
+        )
+        // Lookalikes: a notification has a method but no id, and a bare object is neither.
+        #expect(parse(#"{"method":"turn/completed","params":{}}"#) == .notification(method: "turn/completed"))
+        #expect(parse(#"{"params":{}}"#) == .other)
+        #expect(parse(#"{"id":"abc","result":{}}"#) == .other)
+    }
+
+    @Test("A server request is refused on stdin and never answers a pending call", .timeLimit(.minutes(1)))
+    func serverRequestIsRefused() {
+        let directory = scratch()
+        // Id 3 is the id of the turn/start already answered; a request reusing
+        // an id must not be mistaken for a response. The fixture only completes
+        // if it reads a JSON-RPC error back for it.
+        let result = execute(
+            """
+            echo '{"id":3,"method":"item/commandExecution/requestApproval","params":{}}'
+            IFS= read -r answer
+            case "$answer" in
+              *'"id":3'*-32601*|*-32601*'"id":3'*) echo '{"method":"turn/completed","params":{"turn":{"status":"completed"}}}' ;;
+              *) echo '{"method":"turn/completed","params":{"turn":{"status":"failed"}}}' ;;
+            esac
+            """,
+            directory: directory
+        )
+        #expect(result.status == .completed)
+    }
+
     @Test("Flooding stderr cannot deadlock a Codex run", .timeLimit(.minutes(1)))
     func stderrIsDrained() {
         let directory = scratch()

@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A Codex task no longer hangs when the server asks it a question.** The App Server can send a
+  request of its own (an approval, an elicitation). Tokenmax read any line with an `id` as a
+  reply to something it had sent, so these were never answered, the turn sat open until the
+  runtime limit, and a colliding id could replace a real reply. They are now refused at once with
+  a JSON-RPC error and the log says which one. Also fixed a data race reading those replies.
+
 - **Queued tasks can find Homebrew tools when Tokenmax was opened from the Dock.** An app launched
   that way inherits launchd's minimal `PATH`, so `node`, `npm` and the like were missing for the
   task. The standard Homebrew and `/usr/local` directories are now appended when absent.
