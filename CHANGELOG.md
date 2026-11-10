@@ -18,6 +18,20 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Smaller polish.** The Side Notch's rail buttons now tell VoiceOver each window's share left, or
+  that the reading is out of date; its account lines (banked resets, cloud credit) stay on one line
+  with the full text in a tooltip instead of wrapping out of the panel, and its detail panel stays
+  inside the visible screen. The run output sheet can shrink with a small window instead of being
+  fixed at 620 by 620. The task editor's right-hand pickers line up with the row's edge. The reset
+  clock time in the popover is formatted once rather than every second.
+
+- **The menu bar's "In reserve" text now obeys "Show projected pace".** It stayed on after the pace
+  line was switched off. It now goes through the same gate as the popover and Side Notch. A reserve
+  that rounds to nothing reads "On pace", as in the popover, instead of a bare "0%" that looked like
+  an empty window, and the figure is always signed so `90% · +8%` beside Numbers is not a second
+  quota. The toggle that switches the text on is now "Show text beside the icon", since it covers
+  both measures, and the digits are monospaced so the item stops changing width every second.
+
 - **A window with 99.6% left no longer reads "100%", and a half percent no longer reads "1%" beside
   "Limit reached".** Every surface now rounds through one rule: 100% only when the window is full, 0%
   exactly when it shows "Limit reached". A window at that point also draws no bar fill in the popover
@@ -25,11 +39,13 @@ versions follow [semver](https://semver.org/).
   icon is cached by the percentage it draws, so a 0.4% reading can no longer be shown with the
   picture of a 0% one.
 
-- **The queue no longer freezes the app while it checks your Claude login.** Before an automatic or
-  manual run, the queue asked `claude auth status` on the main thread, which can take up to 15
-  seconds; the menu bar and every window hung for that long. It now asks in the background and
-  decides afterwards, as the session opener already did. An unread answer counts as "not a
-  subscription", so nothing starts on a check that has not finished.
+- **The app no longer freezes while it checks your Claude login or looks for the CLI.** Before an
+  automatic or manual queue run, and in the opener's checks and the sign-in button, Tokenmax ran
+  `claude auth status` (and a login-shell search for the CLI) on the main thread, each able to wait
+  up to 15 seconds, so the menu bar and every window hung for that long. They now run in the
+  background and the decision follows, as the session opener already did; where the CLI is and which
+  version it reports are remembered, so a usage refresh stops asking. An unread answer counts as
+  "not a subscription", so nothing starts on a check that has not finished.
 
 - **An unreadable record of spent quota no longer lets the opener or the queue spend again.** When
   `session-opener-state.json` or `queue-autorun-state.json` existed but could not be read, both
@@ -100,18 +116,17 @@ versions follow [semver](https://semver.org/).
   the new zone if you change time zone. They are now scheduled for an absolute instant counted from
   now, and refreshed on every sync as before.
 
-- **Reset-time jitter across a bucket edge can no longer look like a new window.** The opener's cycle
+- **Reset-time jitter across a rounding edge can no longer look like a new window.** The opener's cycle
   and the queue's per-window limits identify a window by its reset time rounded to five minutes. Two
-  readings a second apart that straddled a rounding edge got different identities, so an opener
-  already sent, or a queue already at its one-task-per-window cap, could look unspent. Identities one
-  bucket apart now count as the same window; real windows are hours apart, so this only ever
+  readings a second apart on either side of a rounding edge got different identities, so an opener
+  already sent, or a queue already at its one-task-per-window cap, could look unspent. Readings one
+  step apart now count as the same window; real windows are hours apart, so this only ever
   suppresses. The identifier formatter is also built once rather than every second.
 
-- **Settings now brings the Dock icon and focus with it, and remembers where you left it.** The
-  Settings window looked up the app delegate in a way that finds nothing under SwiftUI's lifecycle,
-  so opening it never switched the app out of menu-bar-only mode. It also re-centred itself over the
-  position it had just restored. The Queue window's open/close bookkeeping is now idempotent, so a
-  repeated appearance cannot leave the Dock icon stuck.
+- **Settings now brings the Dock icon and focus with it, and remembers where you left it.** Opening
+  Settings never switched the app out of menu-bar-only mode, so the window could open without
+  focus, and it re-centred itself over the position it had just restored. Reopening the Queue
+  window can no longer leave the Dock icon stuck either.
 
 - **A failed update check no longer hides an update it already found.** Any failure replaced the
   "version X is available" badge with an error until the next success. The offer now stays, with the
@@ -140,11 +155,6 @@ versions follow [semver](https://semver.org/).
   sync at a time, and a sync that arrived while another was running was simply dropped, so a new
   lead time or a toggled rule could sit unapplied until the next usage refresh. The running sync
   now goes round once more.
-
-- **Tokenmax no longer freezes while it looks for the Claude CLI.** The opener's checks, and the
-  sign-in button, ran `claude auth status` and a login-shell search on the main thread, each able
-  to wait up to 15 seconds. They now run in the background, and where the CLI is and which
-  version it reports are remembered, so every usage refresh stops asking.
 
 - **An opener run that may have reached Claude is never retried.** The record written before the CLI
   starts was stored as "failed", which is the one outcome that permits a retry, so a quit or crash
@@ -185,15 +195,15 @@ versions follow [semver](https://semver.org/).
   launched from. The queue shows *working directory too broad*, a manual run says so, and the
   runners refuse before starting anything.
 
-- **A named pipe in a task's folder no longer freezes the access check.** The check that a folder
-  is readable opened one file in it, and opening a FIFO for reading waits forever for a writer. It
-  now looks only at regular files and never follows links or blocks.
+- **A special file in a task's folder no longer freezes the access check.** The check that a folder
+  is readable opened one file in it, and opening a named pipe waits forever for a writer. It now
+  looks only at ordinary files and never follows links or blocks.
 
 - **A Codex task no longer hangs when the server asks it a question.** The App Server can send a
   request of its own (an approval, an elicitation). Tokenmax read any line with an `id` as a
   reply to something it had sent, so these were never answered, the turn sat open until the
   runtime limit, and a colliding id could replace a real reply. They are now refused at once with
-  a JSON-RPC error and the log says which one. Also fixed a data race reading those replies.
+  an error reply and the log says which one. Also fixed a data race reading those replies.
 
 - **Queued tasks can find Homebrew tools when Tokenmax was opened from the Dock.** An app launched
   that way inherits launchd's minimal `PATH`, so `node`, `npm` and the like were missing for the
