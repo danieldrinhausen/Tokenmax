@@ -520,7 +520,10 @@ with a date-pinned `anthropic-beta` header.
   window set from a merely empty response, and throws `.schemaDrift` rather than
   reporting "no data". Both halves of that test matter: all-nil alone is not
   drift, because an account with nothing to report legitimately returns
-  `"five_hour": null`.
+  `"five_hour": null`. A window key that is present and non-null yet decodes to
+  nothing (retyped, say) counts as drift too, and so does a 200 that is not a
+  JSON object. A mistyped field otherwise drops only its own block (and a
+  numeric-string `utilization` is read), never the whole response.
 - **Well-insulated by:** reading `utilization` and `resets_at` off the response
   instead of hardcoding plan limits. New plans need no code change.
 - **Extras, coupled to codenames:** the request adds `?cedar_ember=1`, which

@@ -18,6 +18,14 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **One mistyped field in a usage response no longer fails the whole read.** The Claude usage
+  decoder threw on a single wrong-typed window or `utilization`, and the user saw a raw "The data
+  couldn't be read" error. Each block now falls back on its own and a numeric-string percentage is
+  accepted. When no window can be read at all, or the answer is not JSON, it is reported as schema
+  drift, as before for a renamed response. The same tolerance covers the keychain expiry (a string
+  no longer reads as "credentials could not be read") and the model list's dates, whose fractional
+  seconds used to reject the whole list.
+
 - **Reminders fire at the right moment across a clock change or a trip.** They were scheduled for a
   wall-clock time, which is ambiguous when an hour repeats as the clocks go back and is re-read in
   the new zone if you change time zone. They are now scheduled for an absolute instant counted from

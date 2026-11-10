@@ -46,6 +46,70 @@ struct OAuthUsageDecodingTests {
         #expect(response.sevenDay?.resetsAt == nil)
     }
 
+    @Test("One mistyped window drops only that window")
+    func mistypedBlockDropsOnlyItself() throws {
+        let response = try decode("""
+        {
+          "five_hour": "soon",
+          "seven_day": { "utilization": 41, "resets_at": 1785500000 },
+          "seven_day_opus": [1, 2],
+          "extra_usage": 7
+        }
+        """)
+
+        #expect(response.fiveHour == nil)
+        #expect(response.sevenDay?.utilization == 41)
+        #expect(response.sevenDayOpus == nil)
+        #expect(response.extraUsage == nil)
+    }
+
+    @Test("A utilization sent as a numeric string is read; a nonsense one leaves the window empty")
+    func tolerantUtilization() throws {
+        let response = try decode("""
+        {
+          "five_hour": { "utilization": "23.5", "resets_at": 1785500000 },
+          "seven_day": { "utilization": { "x": 1 }, "resets_at": 1785500000 }
+        }
+        """)
+
+        #expect(response.fiveHour?.utilization == 23.5)
+        #expect(response.sevenDay?.utilization == nil)
+        #expect(response.sevenDay?.resetsAt != nil)
+        #expect(ClaudeCodeProvider.windows(from: response, observedAt: Date()).count == 1)
+    }
+
+    @Test("A mistyped extra_usage field keeps the one beside it")
+    func extraUsagePerField() throws {
+        let response = try decode(#"{ "extra_usage": { "is_enabled": true, "utilization": "high" } }"#)
+        #expect(response.extraUsage?.isEnabled == true)
+        #expect(response.extraUsage?.utilization == nil)
+    }
+
+    @Test("Drift is still reported when every window block is unreadable")
+    func unreadableWindowsAreDrift() throws {
+        let data = Data(#"{ "five_hour": "soon", "seven_day": 3, "seven_day_opus": null }"#.utf8)
+        let response = try JSONDecoder().decode(OAuthUsageResponse.self, from: data)
+
+        let keys = try #require(ClaudeOAuthUsageClient.driftedKeys(response, data: data))
+        #expect(keys == ["five_hour", "seven_day"])
+    }
+
+    @Test("Null windows are an empty account, not drift")
+    func nullWindowsAreNotDrift() throws {
+        let data = Data(#"{ "five_hour": null, "seven_day": null }"#.utf8)
+        let response = try JSONDecoder().decode(OAuthUsageResponse.self, from: data)
+
+        #expect(ClaudeOAuthUsageClient.driftedKeys(response, data: data) == nil)
+    }
+
+    @Test("A readable window beside an unreadable one is not drift")
+    func partialReadIsNotDrift() throws {
+        let data = Data(#"{ "five_hour": "soon", "seven_day": { "utilization": 5 } }"#.utf8)
+        let response = try JSONDecoder().decode(OAuthUsageResponse.self, from: data)
+
+        #expect(ClaudeOAuthUsageClient.driftedKeys(response, data: data) == nil)
+    }
+
     @Test("Model-specific weekly windows map to their own kind")
     func mapsModelSpecificWindows() throws {
         let response = try decode("""

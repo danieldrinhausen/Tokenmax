@@ -95,12 +95,12 @@ actor ClaudeModelCatalogClient {
         return ModelCatalog(models: models, fetchedAt: now())
     }
 
-    /// `created_at` is ISO-8601 and the keys are snake_case, neither of which
-    /// matches `JSONStore.makeDecoder()`'s configuration for our own files.
-    private static func makeDecoder() -> JSONDecoder {
+    /// The keys are snake_case, which does not match `JSONStore.makeDecoder()`'s
+    /// configuration for our own files. Dates are read by `ModelsResponse.Model`
+    /// itself, tolerating fractional seconds.
+    static func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
         return decoder
     }
 }

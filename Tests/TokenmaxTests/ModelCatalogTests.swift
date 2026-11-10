@@ -49,9 +49,7 @@ struct ModelCatalogTests {
     """
 
     private func decoded() throws -> [CatalogModel] {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = ClaudeModelCatalogClient.makeDecoder()
         let data = try #require(Self.payload.data(using: .utf8))
         return try decoder.decode(ModelsResponse.self, from: data).data.map {
             CatalogModel(
@@ -153,13 +151,37 @@ struct ModelCatalogTests {
             "low": {"supported": true}, "ultra": {"supported": true},
             "off": {"supported": false}}}}]}
         """
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = ClaudeModelCatalogClient.makeDecoder()
         let data = try #require(json.data(using: .utf8))
         let levels = try decoder.decode(ModelsResponse.self, from: data).data[0]
             .capabilities?.effort?.supportedLevels
 
         #expect(levels == ["low", "ultra"])
+    }
+
+    @Test("A created_at with fractional seconds still decodes, and a mistyped one costs only the date")
+    func toleratesDateShapes() throws {
+        let json = """
+        {"data": [
+          {"id": "a", "display_name": "A", "created_at": "2026-01-02T03:04:05.678Z"},
+          {"id": "b", "display_name": "B", "created_at": 12345},
+          {"id": "c", "display_name": "C", "capabilities": "nonsense"}
+        ]}
+        """
+        let models = try ClaudeModelCatalogClient.makeDecoder()
+            .decode(ModelsResponse.self, from: Data(json.utf8)).data
+
+        #expect(models.map(\.id) == ["a", "b", "c"])
+        #expect(models[0].createdAt != nil)
+        #expect(models[1].createdAt == nil)
+        #expect(models[2].capabilities == nil)
+    }
+
+    @Test("A model with no id is still refused rather than invented")
+    func idStaysRequired() {
+        let json = #"{"data": [{"display_name": "No id"}]}"#
+        #expect(throws: (any Error).self) {
+            try ClaudeModelCatalogClient.makeDecoder().decode(ModelsResponse.self, from: Data(json.utf8))
+        }
     }
 }

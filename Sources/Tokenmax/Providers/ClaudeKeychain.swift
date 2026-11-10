@@ -70,9 +70,31 @@ enum ClaudeKeychain {
         struct OAuth: Decodable {
             let accessToken: String
             let refreshToken: String?
-            /// Epoch **milliseconds**.
-            let expiresAt: Double?
+            /// Epoch milliseconds in practice. Read leniently — a number, a
+            /// numeric string or an ISO-8601 string — because a retyped expiry
+            /// must not read as "the credentials could not be read": the token
+            /// is fine, and `isExpired` is only a hint (see
+            /// `ClaudeCodeProvider.loadCredentials`).
+            let expiresAt: Date?
             let subscriptionType: String?
+
+            private enum CodingKeys: String, CodingKey {
+                case accessToken, refreshToken, expiresAt, subscriptionType
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                accessToken = try container.decode(String.self, forKey: .accessToken)
+                refreshToken = try? container.decodeIfPresent(String.self, forKey: .refreshToken)
+                subscriptionType = try? container.decodeIfPresent(String.self, forKey: .subscriptionType)
+                if let number = try? container.decode(Double.self, forKey: .expiresAt) {
+                    expiresAt = DateNormalizer.fromEpoch(number)
+                } else if let string = try? container.decode(String.self, forKey: .expiresAt) {
+                    expiresAt = DateNormalizer.fromString(string.trimmingCharacters(in: .whitespaces))
+                } else {
+                    expiresAt = nil
+                }
+            }
         }
 
         let claudeAiOauth: OAuth
@@ -252,8 +274,7 @@ enum ClaudeKeychain {
             return Credentials(
                 accessToken: oauth.accessToken,
                 refreshToken: oauth.refreshToken,
-                // Stored as epoch milliseconds.
-                expiresAt: oauth.expiresAt.map { Date(timeIntervalSince1970: $0 / 1000) },
+                expiresAt: oauth.expiresAt,
                 subscriptionType: oauth.subscriptionType
             )
         } catch {

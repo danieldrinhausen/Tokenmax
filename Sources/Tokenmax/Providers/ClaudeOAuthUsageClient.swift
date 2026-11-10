@@ -20,7 +20,16 @@ struct OAuthUsageResponse: Decodable, Sendable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            utilization = try container.decodeIfPresent(Double.self, forKey: .utilization)
+            // One mistyped field must not fail the whole read. A number is the
+            // documented shape; a numeric string has been seen from sibling
+            // endpoints, and costs nothing to accept.
+            if let number = try? container.decode(Double.self, forKey: .utilization) {
+                utilization = number
+            } else if let string = try? container.decode(String.self, forKey: .utilization) {
+                utilization = Double(string.trimmingCharacters(in: .whitespaces))
+            } else {
+                utilization = nil
+            }
             limitDollars = try? container.decodeIfPresent(Double.self, forKey: .limitDollars)
             remainingDollars = try? container.decodeIfPresent(Double.self, forKey: .remainingDollars)
 
@@ -50,6 +59,17 @@ struct OAuthUsageResponse: Decodable, Sendable {
         private enum CodingKeys: String, CodingKey {
             case isEnabled = "is_enabled"
             case utilization
+        }
+
+        /// Per field, for the same reason as `Window`: `is_enabled` is the value
+        /// the automation's "never spend credits" guard reads, and a mistyped
+        /// `utilization` beside it must not take it down. A mistyped
+        /// `is_enabled` itself stays nil — unknown, which the guard reads as
+        /// "do not spend".
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            isEnabled = try? container.decodeIfPresent(Bool.self, forKey: .isEnabled)
+            utilization = try? container.decodeIfPresent(Double.self, forKey: .utilization)
         }
     }
 
@@ -121,11 +141,14 @@ struct OAuthUsageResponse: Decodable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        fiveHour = try container.decodeIfPresent(Window.self, forKey: .fiveHour)
-        sevenDay = try container.decodeIfPresent(Window.self, forKey: .sevenDay)
-        sevenDayOpus = try container.decodeIfPresent(Window.self, forKey: .sevenDayOpus)
-        sevenDaySonnet = try container.decodeIfPresent(Window.self, forKey: .sevenDaySonnet)
-        extraUsage = try container.decodeIfPresent(ExtraUsage.self, forKey: .extraUsage)
+        // Per block: one malformed window used to fail the whole response with
+        // a raw DecodingError. It now drops to nil, and `driftedKeys` still
+        // calls it drift when that leaves no window at all.
+        fiveHour = try? container.decodeIfPresent(Window.self, forKey: .fiveHour)
+        sevenDay = try? container.decodeIfPresent(Window.self, forKey: .sevenDay)
+        sevenDayOpus = try? container.decodeIfPresent(Window.self, forKey: .sevenDayOpus)
+        sevenDaySonnet = try? container.decodeIfPresent(Window.self, forKey: .sevenDaySonnet)
+        extraUsage = try? container.decodeIfPresent(ExtraUsage.self, forKey: .extraUsage)
         // The credit and the resets are extras. A malformed block drops just
         // that block rather than failing the read the quota meters depend on.
         let dollars = try? container.decodeIfPresent(Window.self, forKey: .iguanaNecktie)
@@ -324,7 +347,16 @@ actor ClaudeOAuthUsageClient {
             throw UsageClientError.badStatus(http.statusCode)
         }
 
-        let decoded = try JSONDecoder().decode(OAuthUsageResponse.self, from: data)
+        let decoded: OAuthUsageResponse
+        do {
+            decoded = try JSONDecoder().decode(OAuthUsageResponse.self, from: data)
+        } catch {
+            // Not a JSON object at all — a sign-in page, say. Reported as drift
+            // rather than as a raw DecodingError ("The data couldn't be
+            // read…"): it is Tokenmax that cannot read the answer.
+            Log.shared.write("usage: SCHEMA DRIFT — body is not a usage response")
+            throw UsageClientError.schemaDrift(["<not JSON>"])
+        }
         try checkForDrift(decoded, data: data)
 
         let fetchedAt = now()
@@ -363,6 +395,17 @@ actor ClaudeOAuthUsageClient {
             "five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet", "extra_usage",
             "iguana_necktie", "cinder_cove", "cedar_ember",
         ]
+
+        // A window key that is present and not null yet decoded to nothing is a
+        // block this app can no longer read, however familiar its name. Without
+        // this a retyped `five_hour` — the only window — would pass as an
+        // account with nothing to report.
+        let windowKeys = ["five_hour", "seven_day", "seven_day_opus", "seven_day_sonnet"]
+        let unreadable = windowKeys.filter { key in
+            guard let value = object?[key] else { return false }
+            return !(value is NSNull)
+        }
+        if !unreadable.isEmpty { return unreadable }
 
         guard !keys.isEmpty, keys.isDisjoint(with: known) else { return nil }
         return keys.sorted()

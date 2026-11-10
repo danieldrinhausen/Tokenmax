@@ -95,6 +95,35 @@ struct ClaudeOAuthUsageClientTests {
         #expect(StubURLProtocol.requestCount == 2)
     }
 
+    @Test("A 200 that is not JSON at all is reported as schema drift, not a raw decoding error")
+    func nonJSONIsDrift() async {
+        let (session, _) = ScriptedURLProtocol.session([.http(status: 200, body: "<html>Sign in</html>")])
+        let client = ClaudeOAuthUsageClient(session: session)
+
+        do {
+            _ = try await client.fetch(accessToken: "tok", cliVersion: "2.1.220")
+            Issue.record("expected a throw")
+        } catch let error as UsageClientError {
+            guard case .schemaDrift = error else { Issue.record("got \(error)"); return }
+        } catch {
+            Issue.record("a raw \(type(of: error)) escaped: \(error)")
+        }
+    }
+
+    @Test("A 200 whose only window is mistyped is schema drift; one readable window is not")
+    func mistypedOnlyWindowIsDrift() async throws {
+        let (drifted, _) = ScriptedURLProtocol.session([.http(status: 200, body: #"{"five_hour": "soon"}"#)])
+        await #expect(throws: UsageClientError.self) {
+            _ = try await ClaudeOAuthUsageClient(session: drifted).fetch(accessToken: "t", cliVersion: "2.1.220")
+        }
+
+        let (partial, _) = ScriptedURLProtocol.session([
+            .http(status: 200, body: #"{"five_hour": "soon", "seven_day": {"utilization": 4, "resets_at": 1785500000}}"#),
+        ])
+        let (response, _) = try await ClaudeOAuthUsageClient(session: partial).fetch(accessToken: "t", cliVersion: "2.1.220")
+        #expect(response.sevenDay?.utilization == 4)
+    }
+
     @Test("401 is surfaced as needing re-authentication, not a generic failure")
     func mapsUnauthorized() async throws {
         StubURLProtocol.reset(body: "{}", status: 401)

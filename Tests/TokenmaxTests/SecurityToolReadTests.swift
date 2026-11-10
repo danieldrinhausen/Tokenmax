@@ -35,6 +35,23 @@ struct SecurityToolReadTests {
         #expect(credentials.expiresAt == Date(timeIntervalSince1970: 1_774_000_000))
     }
 
+    @Test("An expiry sent as a string, or as nonsense, never makes the credentials unreadable")
+    func tolerantExpiry() throws {
+        func credentials(_ expiry: String) throws -> ClaudeKeychain.Credentials {
+            try read(status: 0, stdout: #"{"claudeAiOauth":{"accessToken":"a","expiresAt":\#(expiry)}}"#)
+        }
+        #expect(try credentials(#""1774000000000""#).expiresAt == Date(timeIntervalSince1970: 1_774_000_000))
+        #expect(try credentials(#""2026-03-20T09:46:40Z""#).expiresAt != nil)
+        #expect(try credentials(#"{"nested": true}"#).expiresAt == nil)
+        #expect(try credentials(#""soon""#).expiresAt == nil)
+    }
+
+    @Test("A missing access token is still malformed, not silently empty")
+    func accessTokenStaysRequired() {
+        let result = error(status: 0, stdout: #"{"claudeAiOauth":{"expiresAt":1}}"#)
+        guard case .malformed = result else { Issue.record("got \(String(describing: result))"); return }
+    }
+
     @Test("Exit 44 is a missing item, not a denial")
     func missingItem() {
         let result = error(

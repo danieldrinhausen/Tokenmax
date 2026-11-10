@@ -84,6 +84,23 @@ struct ModelsResponse: Decodable, Sendable {
         var createdAt: Date?
         var capabilities: Capabilities?
 
+        private enum CodingKeys: String, CodingKey {
+            case id, displayName, createdAt, capabilities
+        }
+
+        /// `created_at` goes through `DateNormalizer`: the decoder's `.iso8601`
+        /// strategy rejects fractional seconds, and one such date would have
+        /// thrown away the whole list. A date or capability block this app
+        /// cannot read costs only that field.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            displayName = try? container.decodeIfPresent(String.self, forKey: .displayName)
+            createdAt = (try? container.decodeIfPresent(String.self, forKey: .createdAt))
+                .flatMap(DateNormalizer.fromString)
+            capabilities = try? container.decodeIfPresent(Capabilities.self, forKey: .capabilities)
+        }
+
         struct Capabilities: Decodable, Sendable {
             var effort: Effort?
         }
