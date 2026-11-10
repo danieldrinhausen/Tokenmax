@@ -391,6 +391,29 @@ enum NotificationScheduler {
         }
     }
 
+    /// The `userInfo` key recording the instant a reminder was meant to fire.
+    static let fireDateKey = "fireAt"
+
+    /// An interval trigger is an absolute instant counted from now, so it fires
+    /// at the right moment through a DST change or a time-zone change. The
+    /// calendar trigger it replaces was built from wall-clock components, which
+    /// are ambiguous when an hour repeats at fall-back and are re-read in the
+    /// new zone when the user travels. At least one second, which is all the
+    /// system accepts.
+    static func triggerInterval(for fireDate: Date, now: Date) -> TimeInterval {
+        max(1, fireDate.timeIntervalSince(now))
+    }
+
+    /// When a pending request will fire. The recorded instant wins because an
+    /// interval trigger does not reliably report an absolute date once pending;
+    /// a request written by an older build has none and carries a calendar
+    /// trigger, which can still be asked. Anything else is unknown, and unknown
+    /// is re-issued.
+    static func scheduledFireDate(recordedFireTime: Double?, trigger: UNNotificationTrigger?) -> Date? {
+        if let recordedFireTime { return Date(timeIntervalSince1970: recordedFireTime) }
+        return (trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+    }
+
     /// Cancels any stale pending request for this window, then schedules or
     /// delivers the current one. Safe to call on every refresh.
     ///
@@ -427,7 +450,10 @@ enum NotificationScheduler {
             // rolled. Compare the actual fire time and only skip a true no-op.
             if let current = pending.first(where: { $0.identifier == identifier }) {
                 let update = pendingUpdate(
-                    scheduledFireDate: (current.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate(),
+                    scheduledFireDate: scheduledFireDate(
+                        recordedFireTime: current.content.userInfo[fireDateKey] as? Double,
+                        trigger: current.trigger
+                    ),
                     scheduledBody: current.content.body,
                     desiredFireDate: fireDate,
                     desiredBody: body,
@@ -441,18 +467,21 @@ enum NotificationScheduler {
             content.title = title
             content.body = body
             content.categoryIdentifier = NotificationManager.categoryIdentifier
-            content.userInfo = ["windowKind": kind.rawValue, "providerID": providerID]
+            content.userInfo = [
+                "windowKind": kind.rawValue,
+                "providerID": providerID,
+                fireDateKey: fireDate.timeIntervalSince1970,
+            ]
             if playSound { content.sound = .default }
             NotificationIcon.attach(to: content)
 
-            let components = Calendar.current.dateComponents(
-                [.year, .month, .day, .hour, .minute, .second],
-                from: fireDate
-            )
             let request = UNNotificationRequest(
                 identifier: identifier,
                 content: content,
-                trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                trigger: UNTimeIntervalNotificationTrigger(
+                    timeInterval: triggerInterval(for: fireDate, now: Date()),
+                    repeats: false
+                )
             )
 
             do {

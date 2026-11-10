@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UserNotifications
 
 @testable import Tokenmax
 
@@ -787,5 +788,60 @@ struct SnoozeSurvivalTests {
         state.snoozeCounts["gone"] = 5
         state.markFired("b", fingerprint: "f")
         #expect(state.snoozeCounts == ["a": 2])
+    }
+}
+
+@Suite("Reminder triggers are absolute instants")
+struct ReminderTriggerTests {
+    private let now = Date(timeIntervalSince1970: 1_785_500_000)
+
+    @Test("The trigger interval is the time until the fire date, and never below a second")
+    func triggerInterval() {
+        #expect(NotificationScheduler.triggerInterval(for: now.addingTimeInterval(1800), now: now) == 1800)
+        #expect(NotificationScheduler.triggerInterval(for: now.addingTimeInterval(0.2), now: now) == 1)
+        #expect(NotificationScheduler.triggerInterval(for: now.addingTimeInterval(-30), now: now) == 1)
+    }
+
+    @Test("The recorded fire instant is what a pending request is compared by")
+    func recordedFireTimeWins() {
+        let fire = now.addingTimeInterval(3600)
+        // An interval trigger knows nothing absolute once pending; the record decides.
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        #expect(NotificationScheduler.scheduledFireDate(
+            recordedFireTime: fire.timeIntervalSince1970, trigger: trigger
+        ) == fire)
+    }
+
+    @Test("An older request is read from its calendar trigger, and an unknown one is not guessed at")
+    func fallsBackToCalendarTrigger() {
+        let components = DateComponents(year: 2030, month: 1, day: 2, hour: 3, minute: 4, second: 5)
+        let calendar = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let legacy = NotificationScheduler.scheduledFireDate(recordedFireTime: nil, trigger: calendar)
+        #expect(legacy == calendar.nextTriggerDate())
+        #expect(legacy != nil)
+
+        let interval = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        #expect(NotificationScheduler.scheduledFireDate(recordedFireTime: nil, trigger: interval) == nil)
+        #expect(NotificationScheduler.scheduledFireDate(recordedFireTime: nil, trigger: nil) == nil)
+    }
+
+    @Test("Replacing, keeping and refreshing a pending reminder behave the same on a recorded date")
+    func pendingUpdateOnRecordedDate() {
+        let fire = now.addingTimeInterval(3600)
+        func update(scheduled: Date?, body: String = "b", desired: Date) -> NotificationScheduler.PendingUpdate {
+            NotificationScheduler.pendingUpdate(
+                scheduledFireDate: scheduled, scheduledBody: "b", desiredFireDate: desired,
+                desiredBody: body, now: now
+            )
+        }
+        #expect(update(scheduled: fire, desired: fire) == .keep)
+        #expect(update(scheduled: fire, desired: fire.addingTimeInterval(0.4)) == .keep)
+        #expect(update(scheduled: fire, desired: fire.addingTimeInterval(600)) == .replace)
+        #expect(update(scheduled: fire, body: "changed", desired: fire) == .replace)
+        // Unknown means re-issue.
+        #expect(update(scheduled: nil, desired: fire) == .replace)
+        // About to fire: left alone.
+        let imminent = now.addingTimeInterval(30)
+        #expect(update(scheduled: imminent, desired: fire) == .keep)
     }
 }

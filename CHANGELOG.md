@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Reminders fire at the right moment across a clock change or a trip.** They were scheduled for a
+  wall-clock time, which is ambiguous when an hour repeats as the clocks go back and is re-read in
+  the new zone if you change time zone. They are now scheduled for an absolute instant counted from
+  now, and refreshed on every sync as before.
+
 - **Reset-time jitter across a bucket edge can no longer look like a new window.** The opener's cycle
   and the queue's per-window limits identify a window by its reset time rounded to five minutes. Two
   readings a second apart that straddled a rounding edge got different identities, so an opener
