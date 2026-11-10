@@ -145,9 +145,14 @@ enum ClaudeTaskRunner {
             "AWS_BEARER_TOKEN_BEDROCK",
         ]
         var result = parent.filter { !denied.contains($0.key) }
-        if result["PATH"] == nil {
-            result["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
-        }
+        // Merged rather than only defaulted: an app launched from the Dock or a
+        // login item gets launchd's minimal PATH, which is present, so a
+        // "fill when missing" fallback never ran and node or Homebrew tools
+        // were not found. Appended, so anything the user's own PATH put first
+        // still wins.
+        let present = (result["PATH"] ?? "").split(separator: ":").map(String.init)
+        let standard = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+        result["PATH"] = (present + standard.filter { !present.contains($0) }).joined(separator: ":")
         return result
     }
 

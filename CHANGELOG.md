@@ -18,6 +18,10 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Queued tasks can find Homebrew tools when Tokenmax was opened from the Dock.** An app launched
+  that way inherits launchd's minimal `PATH`, so `node`, `npm` and the like were missing for the
+  task. The standard Homebrew and `/usr/local` directories are now appended when absent.
+
 - **Queued tasks no longer inherit the Bedrock, Vertex or Foundry switches.** `ANTHROPIC_API_KEY`
   and friends were already stripped from a task's environment; `CLAUDE_CODE_USE_BEDROCK`,
   `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY` and `AWS_BEARER_TOKEN_BEDROCK` were not, and

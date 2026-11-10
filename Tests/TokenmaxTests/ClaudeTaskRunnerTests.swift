@@ -263,7 +263,17 @@ struct ClaudeTaskRunnerTests {
         // needs the project's toolchain on PATH.
         #expect(environment["NODE_ENV"] == "development")
         #expect(environment["GIT_AUTHOR_NAME"] == "Someone")
-        #expect(environment["PATH"] == "/usr/bin")
+        #expect(environment["PATH"]?.hasPrefix("/usr/bin") == true)
+    }
+
+    @Test("Homebrew paths are appended to a minimal PATH, after what was there")
+    func environmentMergesStandardPaths() {
+        let environment = ClaudeTaskRunner.environment(from: ["PATH": "/usr/bin:/bin:/custom/bin"])
+        #expect(environment["PATH"] == "/usr/bin:/bin:/custom/bin:/opt/homebrew/bin:/usr/local/bin")
+
+        // Nothing is duplicated when the PATH is already complete.
+        let full = ClaudeTaskRunner.environment(from: ["PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"])
+        #expect(full["PATH"] == "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin")
     }
 
     @Test("Cloud-provider billing switches are stripped, and lookalikes survive")
