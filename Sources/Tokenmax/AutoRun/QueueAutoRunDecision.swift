@@ -331,16 +331,10 @@ enum QueueAutoRun {
         resetAt: Date,
         providerID: String = TokenmaxProvider.claudeCode.rawValue
     ) -> String {
-        let bucket = NotificationScheduler.identifierBucket
-        let bucketed = Date(
-            timeIntervalSince1970: (resetAt.timeIntervalSince1970 / bucket).rounded() * bucket
-        )
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
         // Preserve existing Claude state files while keeping Codex windows
         // independent when the two providers happen to reset together.
         let prefix = providerID == TokenmaxProvider.claudeCode.rawValue ? "autorun-" : "autorun-\(providerID)-"
-        return prefix + formatter.string(from: bucketed)
+        return prefix + WindowIdentity.timestamp(resetAt)
     }
 
     // MARK: - The window being burnt

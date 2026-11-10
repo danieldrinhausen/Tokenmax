@@ -652,8 +652,9 @@ lift rather than reading its own cache back. If three attempts cannot confirm a 
 cycle is recorded unverified and **permanently** stops — chasing an unconfirmable state with more
 real requests is the one thing this feature must not do.
 
-The cycle identity is the expired reset time, bucketed to absorb the endpoint's second-level jitter,
-and it is written to disk *before* the process is spawned — so a crash mid-run cannot produce a
+The cycle identity is the expired reset time, bucketed to absorb the endpoint's second-level jitter
+(and a reading that lands in the neighbouring bucket still counts as the same cycle, so jitter
+across a bucket edge cannot look like a fresh window), and it is written to disk *before* the process is spawned — so a crash mid-run cannot produce a
 second opener. A run that provably never reached Claude (the CLI is missing or will not start, or it
 refused with an error that billed nothing) spent nothing and may retry, up to three times, five
 minutes apart. Anything ambiguous counts as spent and ends the cycle: a run interrupted by a quit or

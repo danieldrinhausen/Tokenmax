@@ -494,6 +494,39 @@ struct QueueAutoRunTests {
         #expect(a != far)
     }
 
+    @Test("Runs recorded in the adjacent bucket still count against the window across a boundary")
+    func windowCountSurvivesBucketBoundaryJitter() {
+        // 149.5s into a bucket, so one second later rounds into the next one.
+        let before = Date(timeIntervalSince1970: 1_785_000_000 + 149.5)
+        let after = before.addingTimeInterval(1)
+        #expect(QueueAutoRun.windowID(resetAt: before) != QueueAutoRun.windowID(resetAt: after))
+
+        var state = QueueAutoRunState()
+        var previous = TaskRunRecord(
+            taskID: UUID(), taskTitle: "Earlier task",
+            windowID: QueueAutoRun.windowID(resetAt: before), trigger: .automatic,
+            startedAt: now.addingTimeInterval(-600), model: "sonnet",
+            workingDirectory: realDirectory, status: .completed
+        )
+        previous.finishedAt = now.addingTimeInterval(-300)
+        state.record(previous)
+
+        #expect(state.automaticRuns(inWindow: QueueAutoRun.windowID(resetAt: after)).count == 1)
+        // A window a whole session later is a different window.
+        #expect(state.automaticRuns(inWindow: QueueAutoRun.windowID(resetAt: after.addingTimeInterval(5 * 3600))).isEmpty)
+        // Another provider's window at the same instant is not this one.
+        #expect(state.automaticRuns(inWindow: QueueAutoRun.windowID(resetAt: after, providerID: "codex")).isEmpty)
+    }
+
+    @Test("A paused window stays paused across the same boundary")
+    func pauseSurvivesBucketBoundaryJitter() {
+        let before = Date(timeIntervalSince1970: 1_785_000_000 + 149.5)
+        var state = QueueAutoRunState()
+        state.pause(QueueAutoRun.windowID(resetAt: before))
+        #expect(state.isPaused(QueueAutoRun.windowID(resetAt: before.addingTimeInterval(1))))
+        #expect(!state.isPaused(QueueAutoRun.windowID(resetAt: before.addingTimeInterval(5 * 3600))))
+    }
+
     @Test("The window's total runtime budget is enforced")
     func maximumRuntimePerWindow() {
         let resetAt = now.addingTimeInterval(30 * 60)

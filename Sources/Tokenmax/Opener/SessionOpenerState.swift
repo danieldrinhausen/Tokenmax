@@ -100,7 +100,10 @@ struct SessionOpenerState: Codable, Sendable, Equatable {
     // MARK: - Queries
 
     func attempts(for cycleID: String) -> [SessionOpenerAttempt] {
-        attempts.filter { $0.cycleID == cycleID }
+        // Not `==`: a reset time read across a bucket boundary yields the
+        // adjacent cycle id, and an attempt recorded under that one must still
+        // count, or the same window is opened twice. See `WindowIdentity`.
+        attempts.filter { WindowIdentity.isSame($0.cycleID, cycleID) }
     }
 
     /// A cycle is settled once any attempt may have reached Claude. Only

@@ -203,13 +203,7 @@ enum SessionOpener {
     /// identifiers use — is what makes "already opened this cycle" hold: a
     /// one-second drift would miss the lookup and open the window twice.
     static func cycleID(expiredResetAt: Date) -> String {
-        let bucket = NotificationScheduler.identifierBucket
-        let bucketed = Date(
-            timeIntervalSince1970: (expiredResetAt.timeIntervalSince1970 / bucket).rounded() * bucket
-        )
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return "opener-" + formatter.string(from: bucketed)
+        "opener-" + WindowIdentity.timestamp(expiredResetAt)
     }
 
     /// Every guard that can be decided from data already in hand.

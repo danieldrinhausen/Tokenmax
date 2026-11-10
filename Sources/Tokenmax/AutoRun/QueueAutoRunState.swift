@@ -240,7 +240,9 @@ struct QueueAutoRunState: Codable, Sendable, Equatable {
     /// Runs Tokenmax started by itself in this window. Manual runs are excluded
     /// deliberately — see `RunTrigger`.
     func automaticRuns(inWindow windowID: String) -> [TaskRunRecord] {
-        runs.filter { $0.windowID == windowID && $0.trigger == .automatic }
+        // Adjacent-bucket ids are the same window; see `WindowIdentity`. Without
+        // that, jitter across a bucket edge would reset the per-window caps.
+        runs.filter { WindowIdentity.isSame($0.windowID, windowID) && $0.trigger == .automatic }
     }
 
     /// Total automatic runtime spent in this window. An unfinished run counts
@@ -280,7 +282,7 @@ struct QueueAutoRunState: Codable, Sendable, Equatable {
     }
 
     func isPaused(_ windowID: String) -> Bool {
-        pausedWindowIDs.contains(windowID)
+        pausedWindowIDs.contains { WindowIdentity.isSame($0, windowID) }
     }
 
     // MARK: - Mutation
@@ -297,7 +299,7 @@ struct QueueAutoRunState: Codable, Sendable, Equatable {
     }
 
     mutating func pause(_ windowID: String) {
-        guard !pausedWindowIDs.contains(windowID) else { return }
+        guard !isPaused(windowID) else { return }
         pausedWindowIDs.append(windowID)
         if pausedWindowIDs.count > 40 {
             pausedWindowIDs.removeFirst(pausedWindowIDs.count - 40)
@@ -305,6 +307,6 @@ struct QueueAutoRunState: Codable, Sendable, Equatable {
     }
 
     mutating func resume(_ windowID: String) {
-        pausedWindowIDs.removeAll { $0 == windowID }
+        pausedWindowIDs.removeAll { WindowIdentity.isSame($0, windowID) }
     }
 }

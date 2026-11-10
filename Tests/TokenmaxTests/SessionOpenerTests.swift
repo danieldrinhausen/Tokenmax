@@ -388,6 +388,49 @@ struct SessionOpenerTests {
         #expect(a == c)
     }
 
+    /// The two readings are one second apart, so they are the same instant for
+    /// every practical purpose, but they round into adjacent 300s buckets.
+    @Test("An attempt is still found when jitter reads the reset across a bucket boundary")
+    func settledCycleSurvivesBucketBoundaryJitter() {
+        let before = Date(timeIntervalSince1970: 1_785_000_000 + 149.5)
+        let after = before.addingTimeInterval(1)
+        #expect(SessionOpener.cycleID(expiredResetAt: before) != SessionOpener.cycleID(expiredResetAt: after))
+
+        var state = SessionOpenerState()
+        state.lastKnownSessionResetAt = after
+        state.record(SessionOpenerAttempt(
+            cycleID: SessionOpener.cycleID(expiredResetAt: before),
+            startedAt: now.addingTimeInterval(-60), outcome: .sent, model: "haiku"
+        ))
+        #expect(skipReason(input(state: state, now: now.addingTimeInterval(3600))) == .alreadyOpenedThisCycle)
+    }
+
+    @Test("Attempts count toward the cap across the same boundary")
+    func attemptCapSurvivesBucketBoundaryJitter() {
+        let before = Date(timeIntervalSince1970: 1_785_000_000 + 149.5)
+        var state = SessionOpenerState()
+        state.lastKnownSessionResetAt = before.addingTimeInterval(1)
+        for index in 0 ..< SessionOpener.maxAttemptsPerCycle {
+            state.record(SessionOpenerAttempt(
+                cycleID: SessionOpener.cycleID(expiredResetAt: before),
+                startedAt: now.addingTimeInterval(Double(index) * -1000),
+                outcome: .failed, model: "haiku"
+            ))
+        }
+        #expect(skipReason(input(state: state, now: now.addingTimeInterval(86400))) == .attemptsExhausted)
+    }
+
+    @Test("A genuinely later window is never mistaken for a settled one")
+    func laterWindowStillOpens() {
+        var state = SessionOpenerState()
+        state.record(SessionOpenerAttempt(
+            cycleID: SessionOpener.cycleID(expiredResetAt: expiredResetAt.addingTimeInterval(-5 * 3600)),
+            startedAt: now.addingTimeInterval(-5 * 3600), outcome: .verified, model: "haiku"
+        ))
+        state.lastKnownSessionResetAt = expiredResetAt
+        #expect(SessionOpener.decide(input(state: state)).cycleID != nil)
+    }
+
     @Test("Different cycles get different ids")
     func cycleIDDistinguishesWindows() {
         let a = SessionOpener.cycleID(expiredResetAt: expiredResetAt)

@@ -159,13 +159,7 @@ enum NotificationScheduler {
         resetAt: Date,
         providerID: String = TokenmaxProvider.claudeCode.rawValue
     ) -> String {
-        let bucketed = Date(
-            timeIntervalSince1970: (resetAt.timeIntervalSince1970 / identifierBucket)
-                .rounded() * identifierBucket
-        )
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return identifierPrefix(for: kind, providerID: providerID) + formatter.string(from: bucketed)
+        identifierPrefix(for: kind, providerID: providerID) + WindowIdentity.timestamp(resetAt)
     }
 
     /// Below this much time to reset there is no longer room to actually spend
