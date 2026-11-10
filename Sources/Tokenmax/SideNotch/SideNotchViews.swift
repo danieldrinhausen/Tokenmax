@@ -112,6 +112,7 @@ struct SideNotchRailView: View {
             if inside { coordinator.pointerEnteredProvider(presentation.provider) }
         }
         .accessibilityLabel("Show \(presentation.provider.displayName) usage")
+        .accessibilityValue(presentation.accessibilityValue)
         .animation(reduceMotion ? nil : .smooth(duration: 0.18), value: isSelected)
     }
 
@@ -266,11 +267,16 @@ struct SideNotchDetailView: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 9))
+            // One line: the panel's height is an estimate of 22pt per line, so a
+            // wrapped line would push the last one out of the bubble. The tooltip
+            // carries what truncation drops.
             Text(text)
                 .font(.system(size: 9))
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .foregroundStyle(.white.opacity(0.62))
-        .help(help)
+        .help("\(text)\n\(help)")
     }
 
     private func detailRow(_ meter: SideNotchMeterPresentation) -> some View {

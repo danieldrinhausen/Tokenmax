@@ -42,6 +42,20 @@ struct SideNotchProviderPresentation: Equatable, Identifiable, Sendable {
     var detailMeters: [SideNotchMeterPresentation] {
         [outer, inner].filter { $0.window != nil }
     }
+
+    /// What the rail button's ring says to a screen reader, which cannot see it:
+    /// each window's share left, or that its reading is out of date — the ring
+    /// shows "—" then, and a stale number read aloud would be a claim about now.
+    var accessibilityValue: String {
+        let meters = detailMeters
+        guard !meters.isEmpty else { return "No quota reading" }
+        return meters.map { meter in
+            let state = meter.isStale
+                ? "reading out of date"
+                : meter.window.map(UsageWindowPresentation.remainingText(for:)) ?? "unknown"
+            return "\(meter.shortLabel), \(state)"
+        }.joined(separator: "; ")
+    }
 }
 
 struct SideNotchDetailDimensions: Equatable, Sendable {

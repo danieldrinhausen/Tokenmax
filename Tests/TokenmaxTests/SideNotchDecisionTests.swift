@@ -76,6 +76,18 @@ struct SideNotchDecisionTests {
         #expect(claude.midY != codex.midY)
     }
 
+    @Test("The detail panel never starts left of the visible area, even beside a rail near its edge")
+    func detailStaysOnScreen() {
+        let visible = CGRect(x: 80, y: 30, width: 1800, height: 970)
+        let rail = CGRect(x: 200, y: 400, width: 88, height: 160)
+        let frame = SideNotchLayoutDecision.detailFrame(
+            railFrame: rail, visibleScreen: visible,
+            detailSize: CGSize(width: 340, height: 220), providerIndex: 0,
+            railHeaderHeight: 22, providerRowHeight: 68
+        )
+        #expect(frame.minX == visible.minX)
+    }
+
     @Test("Screen-edge placement retains the established right-hand centre")
     func sidePlacementFrame() {
         let visible = CGRect(x: 0, y: 0, width: 1200, height: 800)

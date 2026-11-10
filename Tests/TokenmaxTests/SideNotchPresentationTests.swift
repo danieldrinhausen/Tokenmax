@@ -186,6 +186,27 @@ struct SideNotchPresentationTests {
         #expect(model.availableResetLines.isEmpty)
     }
 
+    @Test("A rail button announces each window's share left, and says so when the reading is stale")
+    func accessibilityValueStatesTheReading() throws {
+        let fresh = try #require(make(
+            layout: MenuBarRings([.claudeWeekly, .claudeSession]),
+            enabledProviders: [.claudeCode],
+            snapshot: { snapshot($0) },
+            isStale: { _ in false }
+        ).first)
+        #expect(fresh.accessibilityValue.contains("Current session, 70% left"))
+        #expect(fresh.accessibilityValue.contains("Weekly limit, 40% left"))
+
+        let stale = try #require(make(
+            layout: MenuBarRings([.claudeWeekly, .claudeSession]),
+            enabledProviders: [.claudeCode],
+            snapshot: { snapshot($0) },
+            isStale: { _ in true }
+        ).first)
+        #expect(stale.accessibilityValue.contains("reading out of date"))
+        #expect(!stale.accessibilityValue.contains("%"))
+    }
+
     @Test("A weekly-only plan does not reserve space for an absent session")
     func weeklyOnlyDetailIsShorter() throws {
         let full = try #require(make(

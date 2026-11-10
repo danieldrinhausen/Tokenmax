@@ -105,7 +105,9 @@ enum SideNotchLayoutDecision {
             + providerRowHeight / 2
         let targetCenterY = railFrame.maxY - cellCenterFromTop
         return CGRect(
-            x: railFrame.minX - detailSize.width,
+            // Never past the visible area's left edge: a rail dragged near it, or
+            // a Dock on that side, would otherwise put the panel off screen.
+            x: max(visibleScreen.minX, railFrame.minX - detailSize.width),
             y: min(
                 visibleScreen.maxY - detailSize.height,
                 max(visibleScreen.minY, targetCenterY - detailSize.height / 2)

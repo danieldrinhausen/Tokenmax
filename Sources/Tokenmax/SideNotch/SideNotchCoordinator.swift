@@ -220,11 +220,13 @@ final class SideNotchCoordinator: ObservableObject {
         }
 
         ensurePanels()
+        // Built once and handed on: each build walks both providers' snapshots.
+        let current = presentations
         if let selected = state.selectedProvider,
-           !presentations.contains(where: { $0.provider == selected }) {
+           !current.contains(where: { $0.provider == selected }) {
             state = .rail
         }
-        applyPanelState()
+        applyPanelState(current)
     }
 
     private func ensurePanels() {
@@ -240,7 +242,7 @@ final class SideNotchCoordinator: ObservableObject {
         detailPanel = detail
     }
 
-    private func applyPanelState() {
+    private func applyPanelState(_ known: [SideNotchProviderPresentation]? = nil) {
         guard settingsStore.settings.sideNotch.enabled, sessionIsActive, let screen = currentScreen else {
             hidePanels()
             return
@@ -250,6 +252,7 @@ final class SideNotchCoordinator: ObservableObject {
             Log.shared.write("side notch: visible on \(screen.localizedName)")
         }
         suppression = nil
+        let presentations = known ?? self.presentations
         let providerCount = max(1, presentations.count)
         let expandedHeight = Self.railHeaderHeight + CGFloat(providerCount) * Self.providerRowHeight
         let size = state == .peek ? Self.peekSize : NSSize(width: Self.railWidth, height: expandedHeight)
