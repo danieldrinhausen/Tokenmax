@@ -18,6 +18,13 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Reset-time jitter across a bucket edge can no longer look like a new window.** The opener's cycle
+  and the queue's per-window limits identify a window by its reset time rounded to five minutes. Two
+  readings a second apart that straddled a rounding edge got different identities, so an opener
+  already sent, or a queue already at its one-task-per-window cap, could look unspent. Identities one
+  bucket apart now count as the same window; real windows are hours apart, so this only ever
+  suppresses. The identifier formatter is also built once rather than every second.
+
 - **Settings now brings the Dock icon and focus with it, and remembers where you left it.** The
   Settings window looked up the app delegate in a way that finds nothing under SwiftUI's lifecycle,
   so opening it never switched the app out of menu-bar-only mode. It also re-centred itself over the
