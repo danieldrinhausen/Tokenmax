@@ -699,3 +699,93 @@ struct RelativeTimeTests {
         #expect(RelativeTime.countdown(-500) == "0s")
     }
 }
+
+@Suite("Snoozed reminders survive syncs")
+struct SnoozeSurvivalTests {
+    private let window = "claude-session-2026-08-31T12:00:00Z"
+    private let nextWindow = "claude-session-2026-08-31T17:00:00Z"
+
+    private func remove(
+        _ existing: [String],
+        _ decision: SchedulingDecision,
+        current: String? = "claude-session-2026-08-31T12:00:00Z"
+    ) -> [String] {
+        NotificationScheduler.identifiersToRemove(
+            existing: existing, decision: decision, currentWindowIdentifier: current
+        )
+    }
+
+    @Test("A snooze survives the sync that decides the original already fired")
+    func snoozeSurvivesAlreadyFired() {
+        let removed = remove([window + "-snooze-1"], .skip(reason: .alreadyFiredForWindow))
+        #expect(removed.isEmpty)
+    }
+
+    @Test("A snooze survives a deliverNow for the same window")
+    func snoozeSurvivesDeliverNow() {
+        let decision = SchedulingDecision.deliverNow(identifier: window, title: "t", body: "b")
+        #expect(remove([window + "-snooze-1"], decision).isEmpty)
+    }
+
+    @Test("A snooze survives a schedule for the same window while stale originals are replaced")
+    func snoozeSurvivesSchedule() {
+        let decision = SchedulingDecision.schedule(
+            identifier: window, fireDate: Date(), title: "t", body: "b"
+        )
+        let removed = remove(["claude-session-2026-08-31T11:00:00Z", window, window + "-snooze-1"], decision)
+        #expect(removed == ["claude-session-2026-08-31T11:00:00Z"])
+    }
+
+    @Test("A snooze for a window that has reset is cleared once the next window is current")
+    func snoozeClearedWhenWindowMovedOn() {
+        let decision = SchedulingDecision.skip(reason: .alreadyFiredForWindow)
+        #expect(remove([window + "-snooze-2"], decision, current: nextWindow) == [window + "-snooze-2"])
+
+        let schedule = SchedulingDecision.schedule(identifier: nextWindow, fireDate: Date(), title: "t", body: "b")
+        #expect(remove([window + "-snooze-1"], schedule, current: nextWindow) == [window + "-snooze-1"])
+    }
+
+    @Test("A snooze is cleared when reminders or the rule are switched off, or the window has not started")
+    func snoozeClearedWhenReminderOff() {
+        for reason: SchedulingDecision.SkipReason in [
+            .remindersDisabled, .ruleDisabled, .windowNotStarted, .windowUnavailable,
+        ] {
+            #expect(remove([window + "-snooze-1"], .skip(reason: reason), current: nil) == [window + "-snooze-1"])
+        }
+    }
+
+    @Test("A snooze is kept when the window cannot be confirmed, and for the other not-now reasons")
+    func snoozeKeptWhenUnconfirmedOrNotNow() {
+        for reason: SchedulingDecision.SkipReason in [
+            .dataStale, .noResetTime, .noSnapshot, .quietHours, .notEnoughQuotaLeft, .queueEmpty, .resetTooSoon,
+        ] {
+            #expect(remove([window + "-snooze-1"], .skip(reason: reason), current: nil).isEmpty)
+            #expect(remove([window + "-snooze-1"], .skip(reason: reason)).isEmpty)
+        }
+    }
+
+    @Test("Original requests are still cleared exactly as before")
+    func originalsUnchanged() {
+        #expect(remove([window], .skip(reason: .alreadyFiredForWindow)) == [window])
+        #expect(remove([window], .skip(reason: .dataStale)).isEmpty)
+        let deliver = SchedulingDecision.deliverNow(identifier: window, title: "t", body: "b")
+        #expect(remove([window], deliver) == [window])
+    }
+
+    @Test("Snooze identifiers resolve to their window and plain identifiers are not snoozes")
+    func snoozeIdentifierParsing() {
+        #expect(NotificationScheduler.isSnooze(window + "-snooze-3"))
+        #expect(!NotificationScheduler.isSnooze(window))
+        #expect(NotificationScheduler.windowIdentifier(ofSnooze: window + "-snooze-3") == window)
+    }
+
+    @Test("Snooze counts are pruned with the fired records they belong to")
+    func snoozeCountsPruned() {
+        var state = NotificationState()
+        state.markFired("a", fingerprint: "f")
+        state.snoozeCounts["a"] = 2
+        state.snoozeCounts["gone"] = 5
+        state.markFired("b", fingerprint: "f")
+        #expect(state.snoozeCounts == ["a": 2])
+    }
+}

@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A snoozed reminder is no longer cancelled by the next refresh.** Snoozed copies share the
+  window's identifier prefix, so once the original had fired, the following sync decided "already
+  notified" and removed the snooze you had just asked for. A snooze now stays until its window
+  has reset or the reminder is switched off, and the snooze counters are pruned with the fired
+  records instead of growing forever.
+
 - **Quitting or crashing Tokenmax no longer leaves a paid run going.** Task processes are detached
   from the app so a timeout can stop everything they started, which also meant quitting left the
   CLI running with no one watching, and the next launch could start another task beside it. Quit

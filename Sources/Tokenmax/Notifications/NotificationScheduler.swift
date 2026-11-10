@@ -54,6 +54,19 @@ enum SchedulingDecision: Equatable, Sendable {
             default: true
             }
         }
+
+        /// Whether a snoozed copy should be torn down too. Far narrower than
+        /// `shouldCancelPending`: a snooze is a banner the user explicitly asked
+        /// for, and "already fired for this window" is the very state that
+        /// produced it. Only a confirmed end of the window, or the user turning
+        /// the reminder off, retires it; everything else is "cannot confirm" or
+        /// "not now", and the snooze is at most fifteen minutes from firing.
+        var shouldCancelSnoozes: Bool {
+            switch self {
+            case .remindersDisabled, .ruleDisabled, .windowUnavailable, .windowNotStarted: true
+            default: false
+            }
+        }
     }
 
     var identifier: String? {
@@ -335,6 +348,55 @@ enum NotificationScheduler {
         return .keep
     }
 
+    /// The suffix `NotificationCoordinator.snooze` appends to a window's
+    /// identifier. The part before it is the window's own identifier.
+    static let snoozeMarker = "-snooze-"
+
+    static func isSnooze(_ identifier: String) -> Bool {
+        identifier.contains(snoozeMarker)
+    }
+
+    static func windowIdentifier(ofSnooze identifier: String) -> String {
+        identifier.components(separatedBy: snoozeMarker).first ?? identifier
+    }
+
+    /// Which of the pending requests for a window this decision tears down.
+    ///
+    /// Snoozed copies share the window's identifier prefix, so the plain "all
+    /// existing" cleanups used to remove them: once the original had fired, the
+    /// next sync decided `alreadyFiredForWindow` and cancelled the snooze the
+    /// user had just asked for. A snooze now survives while its window is the
+    /// current one, and goes when the window has moved on (a different reset
+    /// time, so it would announce a window that is over) or the reminder was
+    /// switched off.
+    ///
+    /// `currentWindowIdentifier` is nil when the window's reset time is not
+    /// known; that is "cannot confirm", so a snooze is kept.
+    static func identifiersToRemove(
+        existing: [String],
+        decision: SchedulingDecision,
+        currentWindowIdentifier: String?
+    ) -> [String] {
+        let snoozes = existing.filter(isSnooze)
+        let primaries = existing.filter { !isSnooze($0) }
+        let current = decision.identifier ?? currentWindowIdentifier
+
+        let staleSnoozes = snoozes.filter { snooze in
+            if case let .skip(reason) = decision, reason.shouldCancelSnoozes { return true }
+            guard let current else { return false }
+            return windowIdentifier(ofSnooze: snooze) != current
+        }
+
+        switch decision {
+        case let .schedule(identifier, _, _, _):
+            return primaries.filter { $0 != identifier } + staleSnoozes
+        case .deliverNow:
+            return primaries + staleSnoozes
+        case let .skip(reason):
+            return (reason.shouldCancelPending ? primaries : []) + staleSnoozes
+        }
+    }
+
     /// Cancels any stale pending request for this window, then schedules or
     /// delivers the current one. Safe to call on every refresh.
     ///
@@ -347,16 +409,20 @@ enum NotificationScheduler {
         kind: UsageWindowKind,
         playSound: Bool,
         providerID: String = TokenmaxProvider.claudeCode.rawValue,
+        windowIdentifier: String? = nil,
         center: UNUserNotificationCenter = .current()
     ) async -> String? {
         let prefix = identifierPrefix(for: kind, providerID: providerID)
         let pending = await center.pendingNotificationRequests()
         let existing = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
+        let removable = identifiersToRemove(
+            existing: existing, decision: decision, currentWindowIdentifier: windowIdentifier
+        )
 
         switch decision {
         case let .schedule(identifier, fireDate, title, body):
             // Anything for this window that is not the current reset time is obsolete.
-            let obsolete = existing.filter { $0 != identifier }
+            let obsolete = removable
             if !obsolete.isEmpty {
                 center.removePendingNotificationRequests(withIdentifiers: obsolete)
             }
@@ -404,8 +470,8 @@ enum NotificationScheduler {
             return nil
 
         case let .deliverNow(identifier, title, body):
-            if !existing.isEmpty {
-                center.removePendingNotificationRequests(withIdentifiers: existing)
+            if !removable.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: removable)
             }
 
             let content = UNMutableNotificationContent()
@@ -429,9 +495,9 @@ enum NotificationScheduler {
             }
 
         case let .skip(reason):
-            if !existing.isEmpty, reason.shouldCancelPending {
-                center.removePendingNotificationRequests(withIdentifiers: existing)
-                Log.shared.write("notify: cleared \(existing.count) pending for \(kind.rawValue) (\(reason.rawValue))")
+            if !removable.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: removable)
+                Log.shared.write("notify: cleared \(removable.count) pending for \(kind.rawValue) (\(reason.rawValue))")
             } else if !existing.isEmpty {
                 Log.shared.write(
                     "notify: kept \(existing.count) pending for \(kind.rawValue) despite \(reason.rawValue)"

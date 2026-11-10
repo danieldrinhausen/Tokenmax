@@ -867,6 +867,11 @@ struct NotificationState: Codable, Sendable {
         if fired.count > 200 {
             fired.removeFirst(fired.count - 200)
         }
+
+        // Counts are keyed by the same window identifiers; once the record has
+        // aged out of `fired` its count can never matter again.
+        let live = Set(fired.map(\.identifier))
+        snoozeCounts = snoozeCounts.filter { live.contains($0.key) }
     }
 
     mutating func clearFired(_ identifier: String) {

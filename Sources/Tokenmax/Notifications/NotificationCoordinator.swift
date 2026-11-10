@@ -193,7 +193,8 @@ final class NotificationCoordinator: NSObject, ObservableObject {
                 ))
 
                 let deliveredNow = await NotificationScheduler.apply(
-                    decision, kind: kind, playSound: settings.playSound, providerID: provider.rawValue
+                    decision, kind: kind, playSound: settings.playSound, providerID: provider.rawValue,
+                    windowIdentifier: windowIdentifier
                 )
 
                 if let deliveredNow {
@@ -270,7 +271,7 @@ final class NotificationCoordinator: NSObject, ObservableObject {
 
     private func snooze(_ payload: NotificationSnoozePayload) async {
         let original = payload.identifier
-        let baseIdentifier = original.components(separatedBy: "-snooze-").first ?? original
+        let baseIdentifier = NotificationScheduler.windowIdentifier(ofSnooze: original)
         let count = (state.snoozeCounts[baseIdentifier] ?? 0) + 1
         state.snoozeCounts[baseIdentifier] = count
         persistState()
