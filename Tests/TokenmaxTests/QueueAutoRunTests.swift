@@ -401,6 +401,23 @@ struct QueueAutoRunTests {
         #expect(task(directory: root.path).workingDirectoryReadable)
     }
 
+    @Test("A named pipe in the folder does not hang the access probe", .timeLimit(.minutes(1)))
+    func fifoDoesNotBlockTheProbe() throws {
+        // Opening a FIFO read-only waits for a writer that never comes.
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("tokenmax-probe-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        #expect(mkfifo(root.appendingPathComponent("a-pipe").path, 0o644) == 0)
+        // Sorting first among the files is irrelevant; the regular file after it
+        // proves the scan moves past the pipe rather than stopping at it.
+        try "fine".write(to: root.appendingPathComponent("b-open.txt"), atomically: true, encoding: .utf8)
+        #expect(task(directory: root.path).workingDirectoryReadable)
+        try FileManager.default.removeItem(at: root.appendingPathComponent("b-open.txt"))
+        #expect(task(directory: root.path).workingDirectoryReadable)
+    }
+
     @Test("A readable folder is not mistaken for a blocked one")
     func readableDirectoryIsAllowed() {
         #expect(task().workingDirectoryReadable)

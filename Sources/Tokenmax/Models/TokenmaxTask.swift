@@ -213,12 +213,15 @@ struct TokenmaxTask: Codable, Identifiable, Sendable, Equatable {
         // large checkout.
         for name in names.prefix(64) {
             let path = url.appendingPathComponent(name).path
-            var isDirectory: ObjCBool = false
-            guard manager.fileExists(atPath: path, isDirectory: &isDirectory),
-                  !isDirectory.boolValue
-            else { continue }
+            // Only regular files: opening a FIFO for reading blocks until a
+            // writer shows up, which hangs this probe (and the run it guards)
+            // forever. lstat so a symlink to one is skipped, not followed.
+            var info = stat()
+            guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { continue }
 
-            let descriptor = open(path, O_RDONLY)
+            // O_NONBLOCK and O_NOFOLLOW as well, for the race where the entry
+            // is swapped for a FIFO or link between the lstat and the open.
+            let descriptor = open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW)
             if descriptor >= 0 {
                 close(descriptor)
                 return true

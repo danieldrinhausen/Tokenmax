@@ -18,6 +18,10 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A named pipe in a task's folder no longer freezes the access check.** The check that a folder
+  is readable opened one file in it, and opening a FIFO for reading waits forever for a writer. It
+  now looks only at regular files and never follows links or blocks.
+
 - **A Codex task no longer hangs when the server asks it a question.** The App Server can send a
   request of its own (an approval, an elicitation). Tokenmax read any line with an `id` as a
   reply to something it had sent, so these were never answered, the turn sat open until the
