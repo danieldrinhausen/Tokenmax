@@ -58,6 +58,15 @@ final class UsageRefreshCoordinator: ObservableObject {
     private var queuedRefresh: QueuedRefresh?
     private var consecutiveFailures = 0
     private var backoffUntil: Date?
+    /// One-shot retry armed by a failure, so recovery happens when the backoff
+    /// expires rather than at whichever timer tick follows it (up to five
+    /// minutes later). `backoffUntil` alone only *gates* the timer.
+    private var retryTask: Task<Void, Never>?
+    /// The wake handler waits this long before refreshing: the network is
+    /// usually not back yet when the notification fires, and a refresh then
+    /// only produces a transport error.
+    private var wakeTask: Task<Void, Never>?
+    private let wakeDelay: TimeInterval
 
     private struct QueuedRefresh {
         var reason: String
@@ -65,8 +74,6 @@ final class UsageRefreshCoordinator: ObservableObject {
         var retryDeniedKeychainAccess: Bool
         var waiters: [CheckedContinuation<Void, Never>]
     }
-
-    private static let backoffSchedule: [TimeInterval] = [30, 60, 120, 300]
 
     /// Kept internal for lifecycle tests. The timer itself is an implementation
     /// detail; the rule worth pinning is that any visible surface keeps the
@@ -76,8 +83,10 @@ final class UsageRefreshCoordinator: ObservableObject {
     init(
         provider: any UsageProvider = ClaudeCodeProvider(),
         settingsStore: SettingsStore,
-        snapshotURL: URL = FileLocations.usageSnapshotFile
+        snapshotURL: URL = FileLocations.usageSnapshotFile,
+        wakeDelay: TimeInterval = 8
     ) {
+        self.wakeDelay = wakeDelay
         self.provider = provider
         self.settingsStore = settingsStore
         self.snapshotURL = snapshotURL
@@ -118,6 +127,8 @@ final class UsageRefreshCoordinator: ObservableObject {
         }
         refreshTask?.cancel()
         refreshTask = nil
+        wakeTask?.cancel()
+        wakeTask = nil
         // Anyone waiting on a queued refresh is released, not run: the provider
         // was switched off, and what they asked for no longer applies.
         releaseQueuedRefresh()
@@ -238,16 +249,49 @@ final class UsageRefreshCoordinator: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                self?.resetBackoff()
-                await self?.refresh(reason: "wake")
-            }
+            Task { @MainActor in self?.handleWake() }
+        }
+    }
+
+    /// A wake clears the backoff (the network it was backing off from is gone)
+    /// but waits for Wi-Fi before asking. Repeated wake notifications restart
+    /// the wait rather than stacking refreshes.
+    private func handleWake() {
+        guard hasStarted else { return }
+        resetBackoff()
+        wakeTask?.cancel()
+        let generation = stopGeneration
+        let delay = wakeDelay
+        wakeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard let self, !Task.isCancelled, generation == self.stopGeneration else { return }
+            await self.refresh(reason: "wake")
         }
     }
 
     private func resetBackoff() {
         consecutiveFailures = 0
         backoffUntil = nil
+        retryTask?.cancel()
+        retryTask = nil
+    }
+
+    /// Arms the one-shot retry for after the backoff — and after the request
+    /// floor, which the retry would otherwise run into.
+    private func scheduleRetry(backoff: TimeInterval) {
+        retryTask?.cancel()
+        let generation = stopGeneration
+        retryTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let floorEndsAt = await self.nextNetworkRefreshAllowedAt()
+            let delay = RefreshBackoff.retryDelay(backoff: backoff, floorEndsAt: floorEndsAt, now: Date())
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, generation == self.stopGeneration, self.hasStarted else { return }
+            // Let go of the handle first: the refresh's own success path clears
+            // the backoff, and that must not cancel the task it is running in.
+            self.retryTask = nil
+            await self.refresh(reason: "retry")
+        }
     }
 
     private func releaseQueuedRefresh() {
@@ -395,14 +439,34 @@ final class UsageRefreshCoordinator: ObservableObject {
                 Log.shared.write("refresh(\(reason)): cancelled")
                 return
             }
+            if case let ProviderError.requestFloorActive(until) = error {
+                applyFloorWait(until: until, reason: reason)
+                return
+            }
             applyFailure(error, reason: reason)
         }
     }
 
+    /// A launch (or any call) inside the request floor with nothing to replay.
+    /// Nobody failed, so no streak and no backoff: the reading already on
+    /// screen — the snapshot loaded from disk — stays, honestly aged by its own
+    /// timestamp, and the floor's end is when to try again.
+    private func applyFloorWait(until: Date, reason: String) {
+        Log.shared.write("refresh(\(reason)): inside the request floor until \(until); keeping the current reading")
+        if state.snapshot == nil, case .loading = state {
+            state = .unavailable(
+                lastGood: nil,
+                message: ProviderError.requestFloorActive(until: until).localizedDescription
+            )
+        }
+        scheduleRetry(backoff: 0)
+    }
+
     private func applyFailure(_ error: Error, reason: String) {
         consecutiveFailures += 1
-        let index = min(consecutiveFailures - 1, Self.backoffSchedule.count - 1)
-        backoffUntil = Date().addingTimeInterval(Self.backoffSchedule[index])
+        let backoff = RefreshBackoff.delay(afterConsecutiveFailures: consecutiveFailures)
+        backoffUntil = Date().addingTimeInterval(backoff)
+        if RefreshBackoff.isRetryable(error) { scheduleRetry(backoff: backoff) }
 
         Log.shared.write("refresh(\(reason)): failed (\(consecutiveFailures)): \(error.localizedDescription)")
 
@@ -443,7 +507,8 @@ final class UsageRefreshCoordinator: ObservableObject {
             // statusline-only mode keeps any last good reading on screen with
             // the message underneath, exactly like a transient failure. It is
             // not an auth state — there is nothing the user must grant.
-            case .noWindowsReturned, .statuslineNoData, .underlying:
+            // `.requestFloorActive` is handled before this function is reached.
+            case .noWindowsReturned, .statuslineNoData, .underlying, .requestFloorActive:
                 break
             }
         }

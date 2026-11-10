@@ -1332,4 +1332,19 @@ struct PersistenceCompatibilityTests {
         #expect(unknown.remindersEnabled)
         #expect(reserve.menuBarTextMeasure == .reserve)
     }
+
+    @Test("The persisted request floor tolerates a missing, retyped or unknown field and keeps the one that is readable")
+    func requestFloorToleratesBadFields() throws {
+        let empty = try decode(UsageRequestFloor.self, "{}")
+        #expect(empty.lastRequestAt == nil && empty.retryAfterUntil == nil)
+
+        let retyped = try decode(UsageRequestFloor.self, """
+        { "lastRequestAt": "2026-11-10T10:00:00Z", "retryAfterUntil": "soon", "somethingNew": 1 }
+        """)
+        #expect(retyped.lastRequestAt != nil)
+        #expect(retyped.retryAfterUntil == nil)
+
+        let wrongShape = try decode(UsageRequestFloor.self, #"{ "lastRequestAt": [1] }"#)
+        #expect(wrongShape.lastRequestAt == nil)
+    }
 }

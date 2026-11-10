@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -432,5 +433,94 @@ struct UsageRefreshLifecycleTests {
         for _ in 0..<20 { await Task.yield() }
 
         #expect(provider.fetchCount == 1)
+    }
+
+    // MARK: - Wake, and a launch inside the request floor
+
+    @Test("A wake waits before refreshing instead of asking before the network is back")
+    func wakeIsDelayed() async throws {
+        let provider = GatedProvider(holdFirst: false)
+        let coordinator = UsageRefreshCoordinator(
+            provider: provider,
+            settingsStore: SettingsStore(),
+            snapshotURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("tokenmax-test-\(UUID().uuidString).json"),
+            wakeDelay: 0.4
+        )
+        coordinator.start()
+        try await waitUntil { provider.fetchCount == 1 }
+        for _ in 0..<20 { await Task.yield() }
+
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(provider.fetchCount == 1)
+
+        try await waitUntil { provider.fetchCount == 2 }
+        #expect(provider.fetchCount == 2)
+        coordinator.stop()
+    }
+
+    @Test("Stopping before the wake delay ends cancels the wake refresh")
+    func stopCancelsPendingWake() async throws {
+        let provider = GatedProvider(holdFirst: false)
+        let coordinator = UsageRefreshCoordinator(
+            provider: provider,
+            settingsStore: SettingsStore(),
+            snapshotURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("tokenmax-test-\(UUID().uuidString).json"),
+            wakeDelay: 0.3
+        )
+        coordinator.start()
+        try await waitUntil { provider.fetchCount == 1 }
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didWakeNotification, object: nil)
+        try await Task.sleep(for: .milliseconds(50))
+        coordinator.stop()
+        try await Task.sleep(for: .milliseconds(500))
+
+        #expect(provider.fetchCount == 1)
+    }
+
+    /// The bug: a launch inside the persisted floor either hit the endpoint or
+    /// reported an error over a perfectly good snapshot on disk.
+    @Test("A launch inside the request floor keeps the saved snapshot as stale data, not unavailable")
+    func launchInsideFloorKeepsSnapshot() async {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tokenmax-test-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        JSONStore.save(UsageSnapshot(
+            providerID: "claude-code", planName: "Pro", windows: [],
+            fetchedAt: Date().addingTimeInterval(-3600), fetchDuration: 0.1, errorMessage: nil
+        ), to: url)
+        let provider = GatedProvider(
+            holdFirst: false, failure: ProviderError.requestFloorActive(until: Date().addingTimeInterval(120))
+        )
+        let coordinator = UsageRefreshCoordinator(provider: provider, settingsStore: SettingsStore(), snapshotURL: url)
+
+        await coordinator.refresh(reason: "launch")
+
+        guard case let .loaded(snapshot) = coordinator.state else {
+            Issue.record("state became \(coordinator.state)")
+            return
+        }
+        #expect(snapshot.planName == "Pro")
+        #expect(coordinator.isStale)
+        coordinator.stop()
+    }
+
+    @Test("Inside the floor with no snapshot at all, the state says so rather than counting a failure")
+    func floorWithNothingToShow() async {
+        let provider = GatedProvider(
+            holdFirst: false, failure: ProviderError.requestFloorActive(until: Date().addingTimeInterval(120))
+        )
+        let coordinator = makeCoordinator(provider)
+
+        await coordinator.refresh(reason: "launch")
+        #expect(isUnavailable(coordinator.state))
+
+        // No backoff was armed, so an immediate follow-up is not turned away.
+        provider.fail(with: nil)
+        await coordinator.refresh(reason: "again")
+        #expect(coordinator.state.snapshot?.planName == "Fetch 2")
+        coordinator.stop()
     }
 }

@@ -335,7 +335,10 @@ labels it. Causes, in order of likelihood:
 
 - **Rate limiting.** The client floors network calls at one per 180 seconds; the
   UI ticks more often than that and those ticks are served from cache. This is
-  normal and resolves itself.
+  normal and resolves itself. The floor survives a relaunch, so a reading
+  shown right after launch can be the saved one, marked stale, until the floor
+  ends. A 429 with a `Retry-After` extends it; after waking from sleep, Tokenmax
+  waits a few seconds for the network before asking.
 - **Tokenmax's saved credential was rejected.** An active Claude Code
   conversation can still work on an existing connection, while the keychain
   credential Tokenmax reads remains old. Tokenmax deliberately never refreshes

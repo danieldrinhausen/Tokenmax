@@ -29,7 +29,12 @@ final class ClaudeCodeProvider: UsageProvider {
     private let dataSource: @Sendable () -> ClaudeDataSource
 
     init(
-        client: ClaudeOAuthUsageClient = ClaudeOAuthUsageClient(),
+        // The floor is remembered across launches in the real app only; tests build
+        // their own client, and a file shared between them would leak one test's
+        // floor into the next.
+        client: ClaudeOAuthUsageClient = ClaudeOAuthUsageClient(
+            floorFile: RuntimeEnvironment.isTesting ? nil : FileLocations.usageRequestFloorFile
+        ),
         readStatusline: @escaping @Sendable () -> (StatuslinePayload, Date)? = { StatuslineUsageReader.read() },
         readCredentials: @escaping @Sendable () throws -> ClaudeKeychain.Credentials = { try ClaudeKeychain.readCredentials() },
         invalidateCredentials: @escaping @Sendable () -> Void = { ClaudeKeychain.invalidateCache() },
@@ -253,6 +258,9 @@ final class ClaudeCodeProvider: UsageProvider {
             return credentials.refreshToken == nil
                 ? ProviderError.needsReauthentication
                 : ProviderError.tokenExpired
+        }
+        if let error = error as? UsageClientError, case let .withinFloor(until) = error {
+            return ProviderError.requestFloorActive(until: until)
         }
         return ProviderError.underlying(error.localizedDescription)
     }

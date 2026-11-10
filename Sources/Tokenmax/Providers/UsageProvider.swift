@@ -45,6 +45,10 @@ enum ProviderError: Error, LocalizedError, Equatable {
     /// queue has to refuse on it, and matching on a message string to do that
     /// would break the first time the wording changed.
     case apiKeyConfigured(String)
+    /// The request floor is still running and there is nothing to replay. Not a
+    /// failure — see `UsageClientError.withinFloor`. The coordinator keeps the
+    /// reading it has and retries when the floor lifts.
+    case requestFloorActive(until: Date)
     case underlying(String)
 
     var errorDescription: String? {
@@ -60,6 +64,8 @@ enum ProviderError: Error, LocalizedError, Equatable {
             "No status line reading yet. Usage appears once a Claude Code session responds; the keychain is never consulted in this mode."
         case let .apiKeyConfigured(name):
             "\(name) is authenticated with an API key. It can run tasks, but this account has no subscription quota meter."
+        case let .requestFloorActive(until):
+            "Usage was requested a moment ago; Tokenmax asks again at \(until.formatted(date: .omitted, time: .shortened))."
         case let .underlying(message): message
         }
     }

@@ -238,9 +238,17 @@ enum UsageClientError: Error, LocalizedError {
     /// *renamed* window decodes to all-nil and would otherwise be reported as
     /// "no quota data" rather than "this app can no longer read the response".
     case schemaDrift([String])
+    /// Not a failure: the request floor is still running and there is nothing
+    /// cached to replay, which is what a launch inside it looks like (the floor
+    /// is persisted, the response is not). The coordinator keeps whatever it
+    /// already shows — the last snapshot, as stale data — and tries again when
+    /// the floor lifts, rather than reporting an error nobody caused.
+    case withinFloor(until: Date)
 
     var errorDescription: String? {
         switch self {
+        case let .withinFloor(until):
+            "Usage was requested a moment ago; Tokenmax asks again at \(until.formatted(date: .omitted, time: .shortened))."
         case .rateLimited: "Anthropic rate-limited the usage request."
         case .unauthorized: "Claude Code needs to be re-authenticated."
         case .forbidden:
@@ -250,6 +258,77 @@ enum UsageClientError: Error, LocalizedError {
         case let .schemaDrift(keys):
             "The usage response has changed shape (\(keys.joined(separator: ", "))). Tokenmax needs updating."
         }
+    }
+}
+
+/// The request floor as it is remembered across launches: two timestamps and
+/// nothing else. Not the response and nothing sensitive — only *when* the
+/// endpoint was last asked and when it said to wait until — so a relaunch or a
+/// crash loop cannot fire a request the moment it starts. Every field is
+/// optional and decoded leniently, like every other file here.
+struct UsageRequestFloor: Codable, Equatable, Sendable {
+    var lastRequestAt: Date?
+    var retryAfterUntil: Date?
+
+    /// A `Retry-After` longer than this is treated as this long. It can only
+    /// ever lengthen the floor, but a typo'd header must not park the meter for
+    /// days, and an hour is already far beyond anything a rate limit means.
+    static let maximumRetryAfter: TimeInterval = 3600
+
+    init(lastRequestAt: Date? = nil, retryAfterUntil: Date? = nil) {
+        self.lastRequestAt = lastRequestAt
+        self.retryAfterUntil = retryAfterUntil
+    }
+
+    private enum CodingKeys: String, CodingKey { case lastRequestAt, retryAfterUntil }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        lastRequestAt = try? container.decodeIfPresent(Date.self, forKey: .lastRequestAt)
+        retryAfterUntil = try? container.decodeIfPresent(Date.self, forKey: .retryAfterUntil)
+    }
+
+    /// The earliest instant the endpoint may be asked again. The server's
+    /// `Retry-After` is a minimum on top of the 180s floor, never a
+    /// replacement for it.
+    func nextRequestAllowedAt(minimumInterval: TimeInterval) -> Date? {
+        let fromFloor = lastRequestAt?.addingTimeInterval(minimumInterval)
+        switch (fromFloor, retryAfterUntil) {
+        case let (floor?, retry?): return max(floor, retry)
+        case let (floor?, nil): return floor
+        case let (nil, retry?): return retry
+        case (nil, nil): return nil
+        }
+    }
+
+    /// A file written under another clock must not lock the endpoint out: a
+    /// request "in the future" is treated as made now, and a wait is capped.
+    func sanitised(now: Date) -> UsageRequestFloor {
+        var copy = self
+        if let last = copy.lastRequestAt, last > now { copy.lastRequestAt = now }
+        if let until = copy.retryAfterUntil {
+            copy.retryAfterUntil = until > now ? min(until, now.addingTimeInterval(Self.maximumRetryAfter)) : nil
+        }
+        return copy
+    }
+
+    /// `Retry-After` is either delta-seconds or an HTTP-date. nil when absent or
+    /// unreadable — an unreadable header changes nothing.
+    static func retryAfterDeadline(header: String?, now: Date) -> Date? {
+        guard let header = header?.trimmingCharacters(in: .whitespaces), !header.isEmpty else { return nil }
+        let wait: TimeInterval
+        if let seconds = TimeInterval(header) {
+            guard seconds >= 0, seconds.isFinite else { return nil }
+            wait = seconds
+        } else {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(identifier: "GMT")
+            formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+            guard let date = formatter.date(from: header) else { return nil }
+            wait = date.timeIntervalSince(now)
+        }
+        return now.addingTimeInterval(min(wait, maximumRetryAfter))
     }
 }
 
@@ -273,14 +352,44 @@ actor ClaudeOAuthUsageClient {
     private let now: @Sendable () -> Date
 
     private var cached: (response: OAuthUsageResponse, fetchedAt: Date)?
-    private var lastRequestAt: Date?
+    private var floor = UsageRequestFloor()
+    /// How the latest request ended, when it ended badly. While the floor runs
+    /// this is what a caller gets instead of the older cached success: replaying
+    /// that success reset the coordinator's failure streak and showed "loaded"
+    /// over a 429 that was still in force.
+    private var lastFailure: UsageClientError?
+    private let floorFile: URL?
 
+    /// `floorFile` persists the floor across launches. Nil (the default) keeps
+    /// it in memory, which is what every test wants: a shared file would hand one
+    /// test's floor to the next.
     init(
         session: URLSession = .shared,
+        floorFile: URL? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.session = session
+        self.floorFile = floorFile
         self.now = now
+        if let floorFile, let saved = JSONStore.load(UsageRequestFloor.self, from: floorFile) {
+            floor = saved.sanitised(now: now())
+        }
+    }
+
+    private func saveFloor() {
+        guard let floorFile else { return }
+        JSONStore.save(floor, to: floorFile, durable: false)
+    }
+
+    /// Errors that provably never put a request on the wire. Only these may
+    /// leave the floor unarmed: with no route, or no address to connect to,
+    /// the server cannot have counted anything, so the wake-from-sleep case
+    /// (Wi-Fi not up yet) does not cost a 180s wait. Deliberately narrow — a
+    /// timeout, a reset connection or a refused one may have delivered the
+    /// request, and for those the floor stays armed.
+    static func neverReachedServer(_ error: Error) -> Bool {
+        guard let code = (error as? URLError)?.code else { return false }
+        return code == .notConnectedToInternet || code == .dnsLookupFailed || code == .cannotFindHost
     }
 
     /// The earliest instant a call would actually hit the network rather than
@@ -292,8 +401,7 @@ actor ClaudeOAuthUsageClient {
     /// never advanced — failing a run that in fact succeeded. Reading the floor
     /// is the fix; weakening it is not.
     var nextRequestAllowedAt: Date {
-        guard let lastRequestAt else { return .distantPast }
-        return lastRequestAt.addingTimeInterval(Self.minimumRequestInterval)
+        floor.nextRequestAllowedAt(minimumInterval: Self.minimumRequestInterval) ?? .distantPast
     }
 
     /// Returns cached data when called inside the 180s window.
@@ -301,14 +409,22 @@ actor ClaudeOAuthUsageClient {
     func fetch(accessToken: String, cliVersion: String) async throws -> (OAuthUsageResponse, Date) {
         let current = now()
 
-        if let lastRequestAt, current.timeIntervalSince(lastRequestAt) < Self.minimumRequestInterval {
+        let allowedAt = nextRequestAllowedAt
+        if current < allowedAt {
+            if let lastFailure {
+                // The latest request failed and the floor is still running:
+                // say so again rather than hand back an older success.
+                Log.shared.write("usage: inside the request floor after a failure; repeating it (\(lastFailure.localizedDescription))")
+                throw lastFailure
+            }
             if let cached {
                 Log.shared.write("usage: served from cache (\(Int(current.timeIntervalSince(cached.fetchedAt)))s old)")
                 return (cached.response, cached.fetchedAt)
             }
-            // Floor is active but we have nothing cached — surface it rather
-            // than hammering the endpoint.
-            throw UsageClientError.rateLimited
+            // Floor is active but we have nothing cached — a launch inside a
+            // persisted floor. Surfaced as its own case rather than hammering
+            // the endpoint or reporting a rate limit nobody hit.
+            throw UsageClientError.withinFloor(until: allowedAt)
         }
 
         var request = URLRequest(url: endpoint)
@@ -319,9 +435,37 @@ actor ClaudeOAuthUsageClient {
         request.setValue("claude-code/\(cliVersion)", forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        lastRequestAt = current
+        // Armed before the I/O, not after: a request that is in flight when the
+        // app quits has still been counted.
+        let previousFloor = floor
+        floor.lastRequestAt = current
+        floor.retryAfterUntil = nil
+        saveFloor()
         Log.shared.write("usage: outbound request (ua=claude-code/\(cliVersion))")
 
+        do {
+            let result = try await send(request)
+            lastFailure = nil
+            return result
+        } catch let error as UsageClientError {
+            lastFailure = error
+            throw error
+        } catch {
+            // Not a client error: a cancellation, or a transport error that
+            // never reached the server (see `send`).
+            guard Self.neverReachedServer(error) else { throw error }
+            floor = previousFloor
+            saveFloor()
+            Log.shared.write("usage: request never left the machine (\(error.localizedDescription)); floor not armed")
+            throw UsageClientError.transport(error.localizedDescription)
+        }
+    }
+
+    /// The network half of `fetch`. Throws `UsageClientError` for anything the
+    /// server answered or the response got wrong, and the raw error for a
+    /// cancellation or a request that never left the machine, which `fetch`
+    /// treats differently from the rest.
+    private func send(_ request: URLRequest) async throws -> (OAuthUsageResponse, Date) {
         let data: Data
         let response: URLResponse
         do {
@@ -330,6 +474,7 @@ actor ClaudeOAuthUsageClient {
             // Handed up as a cancellation, not wrapped: once it is a message
             // string nothing can tell it from a dead network.
             if error.isCancellation { throw CancellationError() }
+            if Self.neverReachedServer(error) { throw error }
             throw UsageClientError.transport(error.localizedDescription)
         }
 
@@ -345,6 +490,14 @@ actor ClaudeOAuthUsageClient {
         case 403:
             throw UsageClientError.forbidden
         case 429:
+            // The server's own wait lengthens the floor and never shortens it.
+            if let until = UsageRequestFloor.retryAfterDeadline(
+                header: http.value(forHTTPHeaderField: "Retry-After"), now: now()
+            ) {
+                floor.retryAfterUntil = until
+                saveFloor()
+                Log.shared.write("usage: 429 with Retry-After; next request not before \(until)")
+            }
             throw UsageClientError.rateLimited
         default:
             throw UsageClientError.badStatus(http.statusCode)

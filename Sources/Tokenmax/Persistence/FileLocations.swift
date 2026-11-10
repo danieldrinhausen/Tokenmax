@@ -23,6 +23,9 @@ enum FileLocations {
     static var usageSnapshotFile: URL { supportDirectory.appendingPathComponent("usage-snapshot.json") }
     /// Kept separate from the legacy Claude snapshot so upgrading never has to
     /// rewrite or risk the user's last known Claude reading.
+    /// When the Claude usage endpoint was last asked, and any `Retry-After` it
+    /// sent. Timestamps only; see `UsageRequestFloor`.
+    static var usageRequestFloorFile: URL { supportDirectory.appendingPathComponent("usage-request-floor.json") }
     static var codexUsageSnapshotFile: URL { supportDirectory.appendingPathComponent("codex-usage-snapshot.json") }
     static var cursorUsageSnapshotFile: URL { supportDirectory.appendingPathComponent("cursor-usage-snapshot.json") }
     /// The fetched list of Claude models, cached so the task editor is

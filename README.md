@@ -367,7 +367,14 @@ request inside the floor would only replay the reading that was just rejected.
 Requests are floored at **one every 180 seconds** inside the client regardless of what the UI asks
 for — the endpoint throttles hard without the exact `User-Agent: claude-code/<version>` header, and
 this keeps well inside safe limits. The popover still ticks every 60s; those ticks are served from
-cache.
+cache. Three rules keep the floor honest. It is remembered across a relaunch (only the two
+timestamps are saved, never the reading), so a crash loop cannot fire a request each time it
+starts, and a launch inside it shows the last saved reading as stale rather than an error. A
+`Retry-After` on a 429 can only lengthen it. And once a request has failed, calls inside the floor
+repeat that failure instead of replaying an older success, so a rate limit cannot look like fresh
+data. A request that provably never left the machine (no network, no DNS) does not start the floor.
+After a failure Tokenmax retries once when its backoff and the floor have both ended, and after
+waking from sleep it waits a few seconds for Wi-Fi before asking.
 
 **Status line only** exists for people who do not want Tokenmax holding their Claude token at all.
 It reads nothing but the file the shim writes, so the keychain is never touched. The trade is

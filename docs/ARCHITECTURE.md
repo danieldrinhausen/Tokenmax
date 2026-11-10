@@ -553,6 +553,22 @@ left to callers: the `User-Agent: claude-code/<version>` header (without it,
 requests land in an aggressively rate-limited bucket) and the 180-second floor
 between network calls.
 
+Around the floor, deliberately: it is persisted as two timestamps
+(`UsageRequestFloor`, `usage-request-floor.json`; the response is not saved) so a
+relaunch or crash loop cannot ask at once. A launch inside it with nothing to
+replay throws `UsageClientError.withinFloor`, which the provider maps to
+`ProviderError.requestFloorActive` and the coordinator treats as *not a failure*:
+the snapshot loaded from disk stays on screen, aged by its own timestamp. A
+`Retry-After` on a 429 (seconds or an HTTP-date, capped at an hour) can only push
+the floor out. Inside the floor, a failed latest request is repeated rather than
+masked by the older cached success, so the coordinator's failure streak is not
+reset by a replay. Only `notConnectedToInternet`, `dnsLookupFailed` and
+`cannotFindHost` leave the floor unarmed, because nothing can have reached the
+server; a timeout or reset connection may have, so those keep it armed.
+`RefreshBackoff` holds the pure schedule: after a retryable failure the
+coordinator arms one retry for when both the backoff and the floor have ended,
+and a wake waits a few seconds before refreshing so Wi-Fi is back.
+
 ### 4. Claude Code's keychain blob
 
 `ClaudeKeychain` decodes another app's private credential format
