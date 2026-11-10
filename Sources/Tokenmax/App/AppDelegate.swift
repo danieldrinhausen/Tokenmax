@@ -1,8 +1,34 @@
 import AppKit
 
+/// Which of the app's windows are open, by name rather than by count.
+///
+/// A bare counter trusts every `onAppear` to be matched by one `onDisappear`.
+/// SwiftUI does not promise that for a `Window` scene (a second appear without
+/// a disappear is enough), and one extra increment leaves the count above zero
+/// forever, so the app never goes back to `.accessory` and keeps a Dock icon.
+/// A set makes both calls idempotent.
+struct OpenWindowTracker: Equatable {
+    private var open: Set<String> = []
+
+    var isEmpty: Bool { open.isEmpty }
+
+    /// True when this is what took the app from no windows to one.
+    mutating func opened(_ name: String) -> Bool {
+        let wasEmpty = open.isEmpty
+        open.insert(name)
+        return wasEmpty
+    }
+
+    /// True when this is what closed the last window.
+    mutating func closed(_ name: String) -> Bool {
+        guard open.remove(name) != nil else { return false }
+        return open.isEmpty
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var openWindowCount = 0
+    private var windows = OpenWindowTracker()
 
     private var appearanceObserver: NSKeyValueObservation?
 
@@ -40,9 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// An `.accessory` app cannot bring a real window forward, so flip to
     /// `.regular` while any window is open and back again afterwards.
-    func windowDidOpen() {
-        openWindowCount += 1
-        if openWindowCount == 1 {
+    func windowDidOpen(_ name: String) {
+        if windows.opened(name) {
             NSApp.setActivationPolicy(.regular)
         }
         raise()
@@ -89,9 +114,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func windowDidClose() {
-        openWindowCount = max(0, openWindowCount - 1)
-        if openWindowCount == 0 {
+    func windowDidClose(_ name: String) {
+        if windows.closed(name) {
             NSApp.setActivationPolicy(.accessory)
         }
     }

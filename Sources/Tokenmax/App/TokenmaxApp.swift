@@ -128,7 +128,7 @@ struct TokenmaxApp: App {
         // That lets a Side-Notch-only launch still open Settings from its own
         // context menu, using these installed shared objects.
         let environment = sharedEnvironment
-        let _ = settingsWindow.configure {
+        let _ = settingsWindow.configure(appDelegate: appDelegate) {
             NSHostingController(rootView: SettingsView().modifier(environment))
         }
 
@@ -147,8 +147,8 @@ struct TokenmaxApp: App {
         Window("Tokenmax Queue", id: TokenmaxWindow.queue) {
             QueueView()
                 .modifier(sharedEnvironment)
-                .onAppear { appDelegate.windowDidOpen() }
-                .onDisappear { appDelegate.windowDidClose() }
+                .onAppear { appDelegate.windowDidOpen(TokenmaxWindow.queue) }
+                .onDisappear { appDelegate.windowDidClose(TokenmaxWindow.queue) }
         }
         // Wide enough for both filter groups and the search field to sit on one
         // row without the queue opening in a state the user has to resize their

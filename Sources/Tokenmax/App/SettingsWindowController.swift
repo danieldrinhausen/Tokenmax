@@ -12,6 +12,13 @@ final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelega
     private var makeContentController: (() -> NSViewController)?
     private var window: NSWindow?
     private var countsAsOpenWindow = false
+    /// Handed in rather than found through `NSApp.delegate`: with
+    /// `@NSApplicationDelegateAdaptor` that is SwiftUI's own proxy, so
+    /// `as? AppDelegate` is nil and Settings never switched the app out of
+    /// `.accessory` (no Dock icon, and a window that cannot take focus).
+    private weak var appDelegate: AppDelegate?
+    private static let windowName = "settings"
+    private static let autosaveName = "TokenmaxSettings"
 
     override init() {
         super.init()
@@ -27,8 +34,9 @@ final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelega
     /// The App value can be rebuilt by SwiftUI. Configure only after its
     /// StateObjects are installed, or Settings would retain a parallel set of
     /// stores whose changes reach disk but not the live coordinators.
-    func configure(makeContentController: @escaping () -> NSViewController) {
+    func configure(appDelegate: AppDelegate, makeContentController: @escaping () -> NSViewController) {
         guard self.makeContentController == nil else { return }
+        self.appDelegate = appDelegate
         self.makeContentController = makeContentController
     }
 
@@ -40,7 +48,7 @@ final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelega
         let window = window ?? makeWindow()
         if !countsAsOpenWindow {
             countsAsOpenWindow = true
-            (NSApp.delegate as? AppDelegate)?.windowDidOpen()
+            appDelegate?.windowDidOpen(Self.windowName)
         }
 
         // A context menu can remain the active event target until this turn
@@ -65,7 +73,7 @@ final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelega
     func windowWillClose(_: Notification) {
         guard countsAsOpenWindow else { return }
         countsAsOpenWindow = false
-        (NSApp.delegate as? AppDelegate)?.windowDidClose()
+        appDelegate?.windowDidClose(Self.windowName)
     }
 
     private func makeWindow() -> NSWindow {
@@ -75,8 +83,11 @@ final class SettingsWindowController: NSObject, ObservableObject, NSWindowDelega
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 720, height: 600)
-        window.setFrameAutosaveName("TokenmaxSettings")
-        window.center()
+        // Centering after the autosave name is applied overwrote the frame it
+        // had just restored, so the window forgot where the user left it.
+        let hadSavedFrame = UserDefaults.standard.string(forKey: "NSWindow Frame \(Self.autosaveName)") != nil
+        window.setFrameAutosaveName(Self.autosaveName)
+        if !hadSavedFrame { window.center() }
         window.delegate = self
         self.window = window
         return window

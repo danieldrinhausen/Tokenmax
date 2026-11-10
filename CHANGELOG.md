@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Settings now brings the Dock icon and focus with it, and remembers where you left it.** The
+  Settings window looked up the app delegate in a way that finds nothing under SwiftUI's lifecycle,
+  so opening it never switched the app out of menu-bar-only mode. It also re-centred itself over the
+  position it had just restored. The Queue window's open/close bookkeeping is now idempotent, so a
+  repeated appearance cannot leave the Dock icon stuck.
+
 - **A failed update check no longer hides an update it already found.** Any failure replaced the
   "version X is available" badge with an error until the next success. The offer now stays, with the
   failure shown beside it. The time of the last check and its answer are also saved across
