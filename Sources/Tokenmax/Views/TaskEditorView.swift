@@ -273,7 +273,9 @@ struct TaskEditorView: View {
                     Text("Always allow automatic execution").tag(ExecutionMode.automatic)
                 }
                 .labelsHidden()
-                .frame(width: 218)
+                // Trailing, not the default centre: the picker sizes to its
+                // widest item and would otherwise drift left of the row's edge.
+                .frame(width: 218, alignment: .trailing)
             }
             .padding(10)
             .background(settingBackground, in: RoundedRectangle(cornerRadius: 9))
@@ -396,7 +398,7 @@ struct TaskEditorView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 150)
+                    .frame(width: 150, alignment: .trailing)
                 }
 
                 ForEach(providerWarnings, id: \.self) { warning in
@@ -626,7 +628,7 @@ struct TaskEditorView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 160)
+                    .frame(width: 160, alignment: .trailing)
                 }
                 .padding(10)
                 .background(settingBackground, in: RoundedRectangle(cornerRadius: 9))

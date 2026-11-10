@@ -55,7 +55,9 @@ struct RunOutputView: View {
             replyBar
             footer
         }
-        .frame(width: 620, height: 620)
+        // Flexible so a small queue window or display can shrink the sheet instead
+        // of clipping its reply bar; the ideal size is the old fixed one.
+        .frame(minWidth: 460, idealWidth: 620, maxWidth: 720, minHeight: 360, idealHeight: 620, maxHeight: 820)
         .onAppear(perform: load)
         .onChange(of: threadSignature) { load() }
     }
