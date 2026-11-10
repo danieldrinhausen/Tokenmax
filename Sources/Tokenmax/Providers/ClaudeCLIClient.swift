@@ -33,7 +33,26 @@ enum ClaudeCLIClient {
         "/usr/bin/claude",
     ]
 
-    static func locate() -> URL? {
+    /// `locate` and `version` run on every usage refresh and, for the opener and
+    /// the queue, on a one-second tick. Uncached, a `claude` that only a login
+    /// shell can find costs a shell spawn (up to 15s) each time.
+    static let cache = ClaudeCLICache(
+        resolveLocation: { resolveLocation() },
+        resolveVersion: { cli in
+            guard let output = run(cli, arguments: ["--version"]) else { return nil }
+            // "2.1.220 (Claude Code)" -> "2.1.220"
+            let token = output.split(separator: " ").first.map(String.init) ?? ""
+            return token.isEmpty ? nil : token
+        }
+    )
+
+    static func locate() -> URL? { cache.locate() }
+
+    /// Forget what was learned, for the button that exists to give a current
+    /// answer.
+    static func invalidateCache() { cache.invalidate() }
+
+    private static func resolveLocation() -> URL? {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let candidates = searchPaths.map { URL(fileURLWithPath: $0) } + [
             home.appendingPathComponent(".local/bin/claude"),
@@ -58,11 +77,7 @@ enum ClaudeCLIClient {
     static var isInstalled: Bool { locate() != nil }
 
     static func version() -> String {
-        guard let cli = locate() else { return fallbackVersion }
-        guard let output = run(cli, arguments: ["--version"]) else { return fallbackVersion }
-        // "2.1.220 (Claude Code)" -> "2.1.220"
-        let token = output.split(separator: " ").first.map(String.init) ?? ""
-        return token.isEmpty ? fallbackVersion : token
+        cache.version() ?? fallbackVersion
     }
 
     /// Local only — no API call, no quota. Safe to poll, though the session
@@ -134,6 +149,89 @@ enum ClaudeCLIClient {
     }
 }
 
+
+/// Thread-safe memo of where the CLI lives and what it reports as its version.
+///
+/// A hit is re-validated with a stat, so an uninstall or an update that moves
+/// the binary falls straight through to a fresh search instead of serving a
+/// dead path. A miss is remembered only briefly: installing the CLI should be
+/// noticed within a moment, but "not installed" must not cost a login-shell
+/// spawn per call. A failed version read is never cached, so it is retried
+/// rather than pinning the fallback.
+///
+/// The lock is not held while resolving. Two callers may both search once,
+/// which is cheaper than one of them (possibly the main actor) waiting on the
+/// other's 15s shell.
+final class ClaudeCLICache: @unchecked Sendable {
+    static let missLifetime: TimeInterval = 30
+    static let versionLifetime: TimeInterval = 600
+
+    private let resolveLocation: @Sendable () -> URL?
+    private let resolveVersion: @Sendable (URL) -> String?
+    private let isExecutable: @Sendable (URL) -> Bool
+    private let now: @Sendable () -> Date
+
+    private let lock = NSLock()
+    private var location: URL?
+    private var missedAt: Date?
+    private var cachedVersion: (path: String, value: String, readAt: Date)?
+
+    init(
+        resolveLocation: @escaping @Sendable () -> URL?,
+        resolveVersion: @escaping @Sendable (URL) -> String?,
+        isExecutable: @escaping @Sendable (URL) -> Bool = { FileManager.default.isExecutableFile(atPath: $0.path) },
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
+        self.resolveLocation = resolveLocation
+        self.resolveVersion = resolveVersion
+        self.isExecutable = isExecutable
+        self.now = now
+    }
+
+    func locate() -> URL? {
+        lock.lock()
+        let known = location
+        let missed = missedAt
+        lock.unlock()
+
+        if let known, isExecutable(known) { return known }
+        if known == nil, let missed, now().timeIntervalSince(missed) < Self.missLifetime { return nil }
+
+        let found = resolveLocation()
+        lock.lock()
+        location = found
+        missedAt = found == nil ? now() : nil
+        lock.unlock()
+        return found
+    }
+
+    /// nil when there is no CLI or it did not answer; the caller supplies the
+    /// fallback.
+    func version() -> String? {
+        guard let cli = locate() else { return nil }
+
+        lock.lock()
+        let cached = cachedVersion
+        lock.unlock()
+        if let cached, cached.path == cli.path, now().timeIntervalSince(cached.readAt) < Self.versionLifetime {
+            return cached.value
+        }
+
+        guard let value = resolveVersion(cli) else { return nil }
+        lock.lock()
+        cachedVersion = (cli.path, value, now())
+        lock.unlock()
+        return value
+    }
+
+    func invalidate() {
+        lock.lock()
+        location = nil
+        missedAt = nil
+        cachedVersion = nil
+        lock.unlock()
+    }
+}
 
 /// Synchronizes the result of a pipe-draining worker without capturing a mutable
 /// local variable in concurrently executing code.

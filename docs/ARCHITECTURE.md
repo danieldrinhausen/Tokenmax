@@ -376,6 +376,14 @@ structural, not configurable:
   credits being enabled says nothing about proximity to the line.
 - The opener runs with every tool disabled, in a fresh temp directory, with an
   allowlisted environment, and refuses to run under an API key.
+- The opener records its attempt *before* spawning, as `.inFlight`, and a run
+  is `.failed` (retryable) only when the request provably never went out.
+  Interrupted, timed-out and unreadable runs settle the cycle: ambiguity
+  resolves to "do not spend".
+- The opener's slow gates (`claude auth status`, locating the CLI) await on
+  detached tasks, and the decision is re-made after the last await; nothing
+  between that re-decision and `open` suspends, which is what stops two ticks
+  both opening. `ClaudeCLIClient` memoises the CLI's location and version.
 
 **Codex reaches the same guarantees by different means**, and the difference is
 deliberate rather than an omission. Its documented boundary is a sandbox, not a

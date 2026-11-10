@@ -53,6 +53,11 @@ final class SessionOpenerCoordinator: ObservableObject {
     private static let cliCacheLifetime: TimeInterval = 300
     private var cachedCLIInstalled: (value: Bool, readAt: Date)?
 
+    /// The gate and the CLI probe can take seconds (a process, a login shell),
+    /// so they await off the main actor. This keeps the one-second tick from
+    /// stacking a second evaluation behind a slow one.
+    private var isEvaluating = false
+
     /// Both gates cached together: `authStatus` spawns a process and the
     /// settings check reads a file, neither worth doing every second while a
     /// gate is holding the opener back.
@@ -115,6 +120,8 @@ final class SessionOpenerCoordinator: ObservableObject {
 
     // MARK: - Evaluation
 
+    /// Synchronous on purpose: it reads only what `refreshCLIInstalled` last
+    /// learned, so it can be re-run after any await without touching a process.
     private func makeInput(now: Date = Date()) -> SessionOpener.Input {
         let snapshot = usage.state.snapshot
         return SessionOpener.Input(
@@ -128,19 +135,22 @@ final class SessionOpenerCoordinator: ObservableObject {
             awaitingTokenRenewal: usage.isAwaitingTokenRenewal,
             statuslineOnly: settingsStore.settings.claudeDataSource == .statuslineOnly,
             dataAge: snapshot.map { now.timeIntervalSince($0.fetchedAt) } ?? .greatestFiniteMagnitude,
-            cliInstalled: cliInstalled(),
+            // Unread means unknown, and unknown must not read as installed.
+            cliInstalled: cachedCLIInstalled?.value ?? false,
             state: state,
             now: now
         )
     }
 
-    private func cliInstalled() -> Bool {
-        if let cachedCLIInstalled, Date().timeIntervalSince(cachedCLIInstalled.readAt) < Self.cliCacheLifetime {
-            return cachedCLIInstalled.value
+    /// `locate()` may spawn a login shell, so a stale answer is re-read on a
+    /// detached task rather than on the main actor.
+    private func refreshCLIInstalled(force: Bool = false) async {
+        if !force, let cachedCLIInstalled, Date().timeIntervalSince(cachedCLIInstalled.readAt) < Self.cliCacheLifetime {
+            return
         }
-        let value = ClaudeCLIClient.isInstalled
+        if force { ClaudeCLIClient.invalidateCache() }
+        let value = await Task.detached(priority: .userInitiated) { ClaudeCLIClient.isInstalled }.value
         cachedCLIInstalled = (value, Date())
-        return value
     }
 
     /// Records the current session reset time so the opener still knows a window
@@ -153,7 +163,9 @@ final class SessionOpenerCoordinator: ObservableObject {
     }
 
     private func evaluate() async {
-        guard !isRunning else { return }
+        guard !isRunning, !isEvaluating else { return }
+        isEvaluating = true
+        defer { isEvaluating = false }
 
         learnResetTime()
 
@@ -172,6 +184,11 @@ final class SessionOpenerCoordinator: ObservableObject {
             return
         }
 
+        await refreshCLIInstalled()
+        // Evaluation suspends below; anything that started a run meanwhile
+        // (the manual button) has already recorded its attempt.
+        guard !isRunning else { return }
+
         let input = makeInput()
         var outcome = SessionOpener.decide(input)
 
@@ -189,8 +206,14 @@ final class SessionOpenerCoordinator: ObservableObject {
             }
         }
 
-        if case .open = outcome, let gate = expensiveGate() {
-            outcome = .skip(reason: gate)
+        if case .open = outcome {
+            let gate = await expensiveGate()
+            // The gate awaited a process, so the decision is made again from
+            // current state: nothing between this re-decision and `open`
+            // suspends, which is what keeps two evaluations from both opening.
+            guard !isRunning else { return }
+            outcome = SessionOpener.decide(makeInput())
+            if case .open = outcome, let gate { outcome = .skip(reason: gate) }
         }
 
         publish(outcome)
@@ -233,13 +256,13 @@ final class SessionOpenerCoordinator: ObservableObject {
     ///
     /// `force` is for the manual controls, where the user has just changed
     /// something and expects the answer to reflect it.
-    private func expensiveGate(force: Bool = false) -> SessionOpenerDecision.SkipReason? {
+    private func expensiveGate(force: Bool = false) async -> SessionOpenerDecision.SkipReason? {
         if !force, let cachedGate, Date().timeIntervalSince(cachedGate.readAt) < Self.gateCacheLifetime {
             return cachedGate.reason
         }
         if force { cachedAuth = nil }
 
-        var reason = SessionOpener.authGate(authStatus())
+        var reason = SessionOpener.authGate(await authStatus())
         if reason == nil {
             let data = try? Data(contentsOf: FileLocations.claudeSettingsFile)
             reason = SessionOpener.settingsGate(data)
@@ -248,11 +271,13 @@ final class SessionOpenerCoordinator: ObservableObject {
         return reason
     }
 
-    private func authStatus() -> ClaudeAuthStatus? {
+    /// `claude auth status` polls a child for up to 15s, so it never runs on the
+    /// main actor.
+    private func authStatus() async -> ClaudeAuthStatus? {
         if let cachedAuth, Date().timeIntervalSince(cachedAuth.readAt) < Self.authCacheLifetime {
             return cachedAuth.status
         }
-        let status = ClaudeCLIClient.authStatus()
+        let status = await Task.detached(priority: .userInitiated) { ClaudeCLIClient.authStatus() }.value
         cachedAuth = (status, Date())
         return status
     }
@@ -378,14 +403,18 @@ final class SessionOpenerCoordinator: ObservableObject {
 
     /// Evaluates every guard, including the two expensive ones, and returns the
     /// verdict without spending anything.
-    func checkEligibility() -> SessionOpenerDecision {
+    func checkEligibility() async -> SessionOpenerDecision {
         learnResetTime()
         // The button exists to give a current answer, so nothing is served from
         // cache: the user may have just edited ~/.claude/settings.json.
-        cachedCLIInstalled = nil
+        await refreshCLIInstalled(force: true)
         var outcome = SessionOpener.decide(makeInput())
-        if case .open = outcome, let gate = expensiveGate(force: true) {
-            outcome = .skip(reason: gate)
+        if case .open = outcome {
+            let gate = await expensiveGate(force: true)
+            // Decided again after the await, as in `evaluate`, so the verdict
+            // `sendNow` acts on is never older than its last suspension.
+            outcome = SessionOpener.decide(makeInput())
+            if case .open = outcome, let gate { outcome = .skip(reason: gate) }
         }
         publish(outcome)
         return outcome
@@ -395,8 +424,8 @@ final class SessionOpenerCoordinator: ObservableObject {
     /// the button bypasses the *schedule*, never the safety conditions.
     @discardableResult
     func sendNow() async -> SessionOpenerDecision {
-        let outcome = checkEligibility()
-        guard case let .open(cycleID) = outcome else { return outcome }
+        let outcome = await checkEligibility()
+        guard case let .open(cycleID) = outcome, !isRunning else { return outcome }
         await open(cycleID: cycleID, reason: "manual")
         return outcome
     }

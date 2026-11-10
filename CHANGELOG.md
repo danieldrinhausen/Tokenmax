@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Tokenmax no longer freezes while it looks for the Claude CLI.** The opener's checks, and the
+  sign-in button, ran `claude auth status` and a login-shell search on the main thread, each able
+  to wait up to 15 seconds. They now run in the background, and where the CLI is and which
+  version it reports are remembered, so every usage refresh stops asking.
+
 - **An opener run that may have reached Claude is never retried.** The record written before the CLI
   starts was stored as "failed", which is the one outcome that permits a retry, so a quit or crash
   mid-request let the next launch send a second opener. The same went for a run that timed out

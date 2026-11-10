@@ -108,7 +108,7 @@ struct SessionOpenerSettingsView: View {
 
                 HStack {
                     Button("Check eligibility") {
-                        _ = opener.checkEligibility()
+                        Task { _ = await opener.checkEligibility() }
                     }
                     Button("Send opener now") {
                         confirmingSend = true
@@ -131,7 +131,7 @@ struct SessionOpenerSettingsView: View {
         } message: {
             Text("This sends a real Claude Code request using \(SessionOpenerSettings.modelDisplayName(settingsStore.settings.sessionOpener.model)) and consumes a small amount of your session and weekly quota. The safety conditions still apply — if any of them fails, nothing is sent.")
         }
-        .onAppear { _ = opener.checkEligibility() }
+        .onAppear { Task { _ = await opener.checkEligibility() } }
     }
 
     private func delayLabel(_ seconds: Int) -> String {

@@ -28,7 +28,12 @@ final class ClaudeSignInCoordinator: ObservableObject {
         self.usage = usage
     }
 
-    var isBusy: Bool { activity != .idle }
+    /// Between the click and the process: finding the CLI can spawn a login
+    /// shell, so it happens off the main actor, and a second click in that gap
+    /// must not start a second sign-in.
+    @Published private var isLocating = false
+
+    var isBusy: Bool { activity != .idle || isLocating }
 
     func start() {
         guard !isBusy else { return }
@@ -36,7 +41,16 @@ final class ClaudeSignInCoordinator: ObservableObject {
         cancelled = false
         timedOut = false
 
-        guard let cli = ClaudeCLIClient.locate() else {
+        isLocating = true
+        Task { [weak self] in
+            let cli = await Task.detached(priority: .userInitiated) { ClaudeCLIClient.locate() }.value
+            self?.launch(cli: cli)
+        }
+    }
+
+    private func launch(cli: URL?) {
+        isLocating = false
+        guard let cli else {
             finish(.cliMissing)
             return
         }
