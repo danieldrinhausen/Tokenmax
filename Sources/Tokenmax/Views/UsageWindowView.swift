@@ -54,7 +54,8 @@ struct UsageWindowView: View {
                 Capsule()
                     .fill(Color.secondary.opacity(0.22))
 
-                if let remaining, !isStale {
+                // Nothing when exhausted — `fillFraction` — as in the menu bar.
+                if let remaining, !isStale, UsageWindowPresentation.fillFraction(for: window, isStale: isStale) != nil {
                     Capsule()
                         .fill(barColor(remaining))
                         .frame(width: max(6, geometry.size.width * (remaining / 100)))

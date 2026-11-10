@@ -423,10 +423,10 @@ struct QueueAutomationSettingsView: View {
             lines.append("Estimated \(estimate) min · limit \(task.maximumRuntimeMinutes) min")
         }
         if let session = usage.state.snapshot?.sessionWindow?.remainingPercent {
-            lines.append("Session quota \(Int(session.rounded()))% remaining")
+            lines.append("Session quota \(UsageWindow.displayPercent(forRemaining: session))% remaining")
         }
         if let weekly = usage.state.snapshot?.weeklyWindow?.remainingPercent {
-            lines.append("Weekly quota \(Int(weekly.rounded()))% remaining")
+            lines.append("Weekly quota \(UsageWindow.displayPercent(forRemaining: weekly))% remaining")
         }
         return lines
     }

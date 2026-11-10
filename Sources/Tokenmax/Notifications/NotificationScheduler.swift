@@ -288,7 +288,7 @@ enum NotificationScheduler {
         }
 
         let countdown = RelativeTime.countdown(timeUntilReset)
-        let percent = Int(remainingPercent.rounded())
+        let percent = UsageWindow.displayPercent(forRemaining: remainingPercent)
 
         guard let queuedTaskCount else {
             return "Your \(windowName) resets in \(countdown). Approximately \(percent)% remains."

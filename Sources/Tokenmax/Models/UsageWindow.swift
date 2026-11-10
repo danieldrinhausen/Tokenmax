@@ -76,8 +76,23 @@ struct UsageWindow: Codable, Identifiable, Sendable, Equatable {
         return max(0, min(100, 100 - usedPercent))
     }
 
+    /// At or below this a window reads "Limit reached" and its bar draws nothing.
+    static let exhaustedRemainingPercent = 0.5
+
     var isExhausted: Bool {
-        (remainingPercent ?? 100) <= 0.5
+        (remainingPercent ?? 100) <= Self.exhaustedRemainingPercent
+    }
+
+    /// The whole percentage every surface prints for a remaining share. One rule
+    /// so they cannot disagree: it never says 100% unless the window is full
+    /// (99.6% left is 99, not a rounded-up claim of untouched), and it says 0
+    /// exactly when `isExhausted` does, so "0%" and "Limit reached" never
+    /// contradict a "1%" elsewhere for the same reading.
+    static func displayPercent(forRemaining remaining: Double) -> Int {
+        let clamped = max(0, min(100, remaining))
+        if clamped <= exhaustedRemainingPercent { return 0 }
+        if clamped >= 100 { return 100 }
+        return min(99, Int(clamped.rounded()))
     }
 
     /// No window is currently running.

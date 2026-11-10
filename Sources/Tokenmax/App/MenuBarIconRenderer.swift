@@ -443,7 +443,7 @@ enum MenuBarIconRenderer {
     /// the bars refuse to draw.
     static func numberText(for meter: Meter) -> String {
         guard let fraction = meter.fraction else { return "--" }
-        return "\(Int(max(0, min(100, fraction)).rounded()))%"
+        return "\(UsageWindow.displayPercent(forRemaining: fraction))%"
     }
 
     /// A glow is only ever drawn on a lit, trusted icon. Templating would
@@ -471,7 +471,7 @@ enum MenuBarIconRenderer {
             style: style,
             meters: meters.map {
                 Meter(
-                    fraction: $0.fraction.map { Double(Int($0.rounded())) },
+                    fraction: $0.fraction.map { Double(UsageWindow.displayPercent(forRemaining: $0)) },
                     isAlerting: $0.isAlerting,
                     isReady: $0.isReady
                 )
@@ -544,7 +544,7 @@ enum MenuBarIconRenderer {
             return
         }
 
-        let clamped = max(0, min(1, fraction / 100))
+        let clamped = Double(UsageWindow.displayPercent(forRemaining: fraction)) / 100
         guard clamped > 0 else { return }
 
         // Always render at least a nub so "1% left" is visibly distinct from 0.
@@ -621,7 +621,7 @@ enum MenuBarIconRenderer {
             return
         }
 
-        let clamped = max(0, min(1, fraction / 100))
+        let clamped = Double(UsageWindow.displayPercent(forRemaining: fraction)) / 100
         guard clamped > 0 else { return }
 
         let fill = arc(centre: centre, radius: radius, sweep: max(minimumSweep, clamped))

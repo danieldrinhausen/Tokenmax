@@ -76,7 +76,7 @@ enum UsageWindowPresentation {
     static func remainingText(for window: UsageWindow) -> String {
         guard let remaining = window.remainingPercent else { return "Unknown" }
         if window.isExhausted { return "Limit reached" }
-        return "\(Int(remaining.rounded()))% left"
+        return "\(UsageWindow.displayPercent(forRemaining: remaining))% left"
     }
 
     /// The fraction of the bar to fill, or nil when there is nothing to draw.
@@ -86,6 +86,9 @@ enum UsageWindowPresentation {
     /// "Stale" beside it instead.
     static func fillFraction(for window: UsageWindow, isStale: Bool) -> Double? {
         guard !isStale, let remaining = window.remainingPercent else { return nil }
+        // Nothing when exhausted, like the menu bar: callers give any fill a
+        // minimum width, which would draw a nub under "Limit reached".
+        guard !window.isExhausted else { return nil }
         return max(0, min(1, remaining / 100))
     }
 

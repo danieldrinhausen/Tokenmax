@@ -149,7 +149,7 @@ struct MenuBarPopoverView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Good time to spend quota")
                     .font(.system(size: 11, weight: .semibold))
-                Text("\(Int(opportunity.remainingPercent.rounded()))% left, resetting in \(RelativeTime.countdown(opportunity.timeUntilReset(now: clock.now)))")
+                Text("\(UsageWindow.displayPercent(forRemaining: opportunity.remainingPercent))% left, resetting in \(RelativeTime.countdown(opportunity.timeUntilReset(now: clock.now)))")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }

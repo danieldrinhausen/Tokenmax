@@ -178,7 +178,7 @@ private struct SideNotchProviderRing: View {
 
     private var percentText: String {
         guard let remaining = presentation.outer.remainingPercent else { return "—" }
-        return "\(Int(remaining.rounded()))%"
+        return "\(UsageWindow.displayPercent(forRemaining: remaining))%"
     }
 }
 

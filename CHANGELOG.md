@@ -18,6 +18,13 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A window with 99.6% left no longer reads "100%", and a half percent no longer reads "1%" beside
+  "Limit reached".** Every surface now rounds through one rule: 100% only when the window is full, 0%
+  exactly when it shows "Limit reached". A window at that point also draws no bar fill in the popover
+  and the queue, as the menu bar already did, instead of a stub under "Limit reached". The menu bar
+  icon is cached by the percentage it draws, so a 0.4% reading can no longer be shown with the
+  picture of a 0% one.
+
 - **The queue no longer freezes the app while it checks your Claude login.** Before an automatic or
   manual run, the queue asked `claude auth status` on the main thread, which can take up to 15
   seconds; the menu bar and every window hung for that long. It now asks in the background and
