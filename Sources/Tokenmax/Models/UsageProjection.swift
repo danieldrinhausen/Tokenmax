@@ -21,6 +21,21 @@ extension UsageWindowKind {
     }
 }
 
+extension UsageWindow {
+    /// How long this window runs, or nil when that is not honestly known.
+    ///
+    /// A length the source reported wins over the kind's: Codex tags a
+    /// five-hour per-model limit and a weekly one alike, so the kind says
+    /// nothing about either. Without a reported length a Codex per-model window
+    /// has no length at all, since a 7-day assumption would project a
+    /// five-hour window as if it were nearly untouched.
+    var length: TimeInterval? {
+        if let windowMinutes, windowMinutes > 0 { return TimeInterval(windowMinutes) * 60 }
+        if source == .codexAppServer, kind == .modelSpecificWeekly { return nil }
+        return kind.duration
+    }
+}
+
 /// Where the current rate of spending lands a window before it resets.
 enum UsageOutlook: Equatable, Sendable {
     /// Spending is behind an even burn, leaving this much spare at reset.
@@ -76,7 +91,7 @@ struct UsageProjection: Equatable, Sendable {
         guard !window.isExhausted else { return nil }
         guard let resetAt = window.resetAt else { return nil }
 
-        guard let duration = window.kind.duration else { return nil }
+        guard let duration = window.length else { return nil }
         let timeUntilReset = resetAt.timeIntervalSince(now)
         guard timeUntilReset > 0, timeUntilReset < duration else { return nil }
 

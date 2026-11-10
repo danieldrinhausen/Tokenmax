@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Codex per-model windows are paced over their real length.** Every per-model window was assumed
+  to be seven days, so a five-hour one projected nonsense. The length Codex reports is now kept with
+  the window (and saved with it) and used for the pace line; a window with no reported length is
+  not projected. A long primary window plus a secondary one also no longer share the id
+  `codex.weekly`, which keyed reminders and per-window counts on the wrong window.
+
 - **A rate limit can no longer hide behind an older reading, and a relaunch no longer re-asks at
   once.** Inside the 180-second floor after a failed request, Tokenmax replayed the previous good
   reading as success, which reset its failure count and showed "loaded" over a 429 still in force.

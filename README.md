@@ -520,8 +520,10 @@ time for the session window, and weekday plus time for the weekly window since t
 several days out.
 
 Everything comes from the reset time and the window length, so it is correct on the first reading
-and after a relaunch — no history to accumulate. The lengths come from the endpoint's own field
-names: `five_hour` and `seven_day`.
+and after a relaunch — no history to accumulate. For Claude the lengths come from the endpoint's own
+field names: `five_hour` and `seven_day`. Codex states each window's length itself, and that is what
+is used, so a five-hour per-model limit is paced over five hours rather than a week; a Codex window
+that does not say how long it runs gets no pace line rather than a guessed one.
 
 The numbers match [CodexBar](https://github.com/steipete/CodexBar) exactly, which is where this
 arithmetic was taken from; its `UsagePace.swift` computes the same `used − expected`. Both halves

@@ -64,6 +64,12 @@ struct UsageWindow: Codable, Identifiable, Sendable, Equatable {
     var observedAt: Date
     var source: UsageSource
     var confidence: UsageConfidence
+    /// How long the window runs, in minutes, when the source says. Codex reports
+    /// it per limit (`windowDurationMins`); the Claude endpoint does not, and its
+    /// length comes from the kind. Optional so snapshots written before this
+    /// existed still load, and so "the source did not say" stays distinct from
+    /// any particular length.
+    var windowMinutes: Int?
 
     var remainingPercent: Double? {
         guard let usedPercent else { return nil }
