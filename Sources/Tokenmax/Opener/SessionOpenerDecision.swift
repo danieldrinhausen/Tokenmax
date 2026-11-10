@@ -127,6 +127,14 @@ enum SessionOpener {
     /// bounds that: a network blip must not silently burn the cycle, and it must
     /// not retry forever either.
     static let maxAttemptsPerCycle = 3
+
+    /// What a finished run is recorded as. A failure only counts as `.failed`,
+    /// and so only permits a retry, when the request provably never went out.
+    /// A timeout or unparseable exit is `.unverified`: the cycle is settled.
+    static func outcome(for result: ClaudeOpenerRunner.Result) -> SessionOpenerOutcome {
+        if result.succeeded { return .sent }
+        return result.nothingSent ? .failed : .unverified
+    }
     static let retryInterval: TimeInterval = 300
 
     /// How old the last good reading may be and still be acted on when the only

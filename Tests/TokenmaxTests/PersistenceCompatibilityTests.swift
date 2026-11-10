@@ -1027,6 +1027,20 @@ struct PersistenceCompatibilityTests {
         #expect(state.isSettled("opener-x"))
     }
 
+    @Test("An in-flight opener attempt round-trips and an outcome from a newer build settles the cycle")
+    func openerInFlightOutcome() throws {
+        let state = try decode(SessionOpenerState.self, """
+        { "attempts": [
+            { "cycleID": "a", "startedAt": "2026-08-01T12:00:00Z", "outcome": "inFlight" },
+            { "cycleID": "b", "startedAt": "2026-08-01T12:00:00Z", "outcome": "someFutureOutcome" }
+        ] }
+        """)
+        #expect(state.attempts[0].outcome == .inFlight)
+        #expect(state.isSettled("a"))
+        #expect(state.attempts[1].outcome == .unverified)
+        #expect(state.isSettled("b"))
+    }
+
     // MARK: - Round trip
 
     @Test("A failed save is reported to safety-critical callers")

@@ -453,6 +453,69 @@ struct SessionOpenerTests {
         #expect(skipReason(input(state: state, now: muchLater)) == .attemptsExhausted)
     }
 
+    @Test("An attempt interrupted before the CLI answered does not permit a retry")
+    func interruptedAttemptSettlesTheCycle() {
+        var state = stateWithExpiredWindow()
+        state.record(SessionOpenerAttempt(
+            cycleID: SessionOpener.cycleID(expiredResetAt: expiredResetAt),
+            startedAt: now, outcome: .inFlight, model: "haiku"
+        ))
+        #expect(skipReason(input(state: state, now: now.addingTimeInterval(3600)))
+            == .alreadyOpenedThisCycle)
+    }
+
+    @Test("A timed-out or unparseable run is recorded as spent, not failed")
+    func ambiguousFailureDoesNotPermitRetry() {
+        let timeout = ClaudeOpenerRunner.Result(
+            succeeded: false, errorMessage: "The CLI did not answer within 90s."
+        )
+        #expect(SessionOpener.outcome(for: timeout) == .unverified)
+        #expect(SessionOpener.outcome(for: ClaudeOpenerRunner.parse(stdout: "not json")) == .unverified)
+
+        var state = stateWithExpiredWindow()
+        state.record(SessionOpenerAttempt(
+            cycleID: SessionOpener.cycleID(expiredResetAt: expiredResetAt),
+            startedAt: now, outcome: SessionOpener.outcome(for: timeout), model: "haiku"
+        ))
+        #expect(skipReason(input(state: state, now: now.addingTimeInterval(3600)))
+            == .alreadyOpenedThisCycle)
+    }
+
+    @Test("A CLI that would not start, or refused with a free error, still permits a retry")
+    func definiteFailureStillRetries() {
+        let spawn = ClaudeOpenerRunner.Result(
+            succeeded: false, errorMessage: "Could not start the CLI: x", nothingSent: true
+        )
+        #expect(SessionOpener.outcome(for: spawn) == .failed)
+
+        let refused = ClaudeOpenerRunner.parse(
+            stdout: #"{"is_error": true, "result": "Not logged in", "total_cost_usd": 0}"#
+        )
+        #expect(SessionOpener.outcome(for: refused) == .failed)
+
+        var state = stateWithExpiredWindow()
+        state.record(SessionOpenerAttempt(
+            cycleID: SessionOpener.cycleID(expiredResetAt: expiredResetAt),
+            startedAt: now, outcome: .failed, model: "haiku"
+        ))
+        let later = now.addingTimeInterval(SessionOpener.retryInterval + 1)
+        #expect(SessionOpener.decide(input(state: state, now: later)).cycleID != nil)
+    }
+
+    @Test("An error envelope that billed something is not treated as a free failure")
+    func costlyErrorIsAmbiguous() {
+        let costly = ClaudeOpenerRunner.parse(
+            stdout: #"{"is_error": true, "result": "boom", "total_cost_usd": 0.002}"#
+        )
+        #expect(SessionOpener.outcome(for: costly) == .unverified)
+    }
+
+    @Test("A successful run is recorded as sent")
+    func successIsSent() {
+        let ok = ClaudeOpenerRunner.parse(stdout: #"{"is_error": false, "result": "OK"}"#)
+        #expect(SessionOpener.outcome(for: ok) == .sent)
+    }
+
     // MARK: - Gates
 
     @Test("Only a first-party Claude subscription passes the auth gate")

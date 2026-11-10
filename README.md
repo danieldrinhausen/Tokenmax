@@ -654,8 +654,11 @@ real requests is the one thing this feature must not do.
 
 The cycle identity is the expired reset time, bucketed to absorb the endpoint's second-level jitter,
 and it is written to disk *before* the process is spawned — so a crash mid-run cannot produce a
-second opener. A run that never reached Claude spent nothing and may retry, up to three times,
-five minutes apart.
+second opener. A run that provably never reached Claude (the CLI is missing or will not start, or it
+refused with an error that billed nothing) spent nothing and may retry, up to three times, five
+minutes apart. Anything ambiguous counts as spent and ends the cycle: a run interrupted by a quit or
+crash, one that timed out after 90 seconds, or one whose output could not be read, because the
+request may already have been accepted.
 
 Settings shows the live verdict, the last attempt, **Check eligibility** (evaluates every guard and
 spends nothing) and **Send opener now** (behind a confirmation; the safety conditions still apply).

@@ -273,7 +273,9 @@ final class SessionOpenerCoordinator: ObservableObject {
         var attempt = SessionOpenerAttempt(
             cycleID: cycleID,
             startedAt: startedAt,
-            outcome: .failed,
+            // Not `.failed`: that permits a retry, and a record that is still
+            // this one after a crash is a request that may have been sent.
+            outcome: .inFlight,
             model: model,
             errorMessage: "Interrupted before the CLI answered."
         )
@@ -289,7 +291,7 @@ final class SessionOpenerCoordinator: ObservableObject {
             ClaudeOpenerRunner.run(model: model, effort: effort)
         }.value
 
-        attempt.outcome = result.succeeded ? .sent : .failed
+        attempt.outcome = SessionOpener.outcome(for: result)
         attempt.resultText = result.text
         attempt.errorMessage = result.errorMessage
         attempt.costUSD = result.costUSD
@@ -299,7 +301,10 @@ final class SessionOpenerCoordinator: ObservableObject {
         lastAttempt = attempt
 
         guard result.succeeded else {
-            Log.shared.write("opener: failed — \(result.errorMessage ?? "unknown")")
+            Log.shared.write(
+                "opener: failed — \(result.errorMessage ?? "unknown")"
+                    + (result.nothingSent ? "" : " (may have been sent; no retry this cycle)")
+            )
             return
         }
 

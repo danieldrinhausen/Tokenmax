@@ -19,6 +19,12 @@ enum ClaudeOpenerRunner {
         var sessionID: String?
         var costUSD: Double?
         var errorMessage: String?
+        /// True only when the request provably never reached Anthropic: the CLI
+        /// was missing or would not start, or it answered with a structured
+        /// error and no cost. A timeout, a crash or unparseable output could
+        /// each have followed a request that was accepted, so they stay false
+        /// and the cycle is treated as spent.
+        var nothingSent: Bool = false
     }
 
     /// The `--print` result envelope. Only the fields worth recording.
@@ -101,7 +107,11 @@ enum ClaudeOpenerRunner {
             text: envelope.result,
             sessionID: envelope.sessionId,
             costUSD: envelope.totalCostUsd,
-            errorMessage: ok ? nil : (envelope.result ?? "The CLI reported an error.")
+            errorMessage: ok ? nil : (envelope.result ?? "The CLI reported an error."),
+            // An error envelope that billed nothing is the CLI saying the
+            // request was refused (not signed in, rate limited). Any cost means
+            // something ran, so that stays ambiguous.
+            nothingSent: !ok && (envelope.totalCostUsd ?? 0) == 0
         )
     }
 
@@ -112,7 +122,7 @@ enum ClaudeOpenerRunner {
         guard let cli = ClaudeCLIClient.locate() else {
             return Result(
                 succeeded: false, text: nil, sessionID: nil, costUSD: nil,
-                errorMessage: "The claude CLI could not be found."
+                errorMessage: "The claude CLI could not be found.", nothingSent: true
             )
         }
 
@@ -125,7 +135,8 @@ enum ClaudeOpenerRunner {
         } catch {
             return Result(
                 succeeded: false, text: nil, sessionID: nil, costUSD: nil,
-                errorMessage: "Could not create a working directory: \(error.localizedDescription)"
+                errorMessage: "Could not create a working directory: \(error.localizedDescription)",
+                nothingSent: true
             )
         }
         defer { try? FileManager.default.removeItem(at: workingDirectory) }
@@ -150,7 +161,8 @@ enum ClaudeOpenerRunner {
         } catch {
             return Result(
                 succeeded: false, text: nil, sessionID: nil, costUSD: nil,
-                errorMessage: "Could not start the CLI: \(error.localizedDescription)"
+                errorMessage: "Could not start the CLI: \(error.localizedDescription)",
+                nothingSent: true
             )
         }
 
@@ -181,6 +193,8 @@ enum ClaudeOpenerRunner {
             Thread.sleep(forTimeInterval: 2)
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             group.wait()
+            // Deliberately not `nothingSent`: the request may well have reached
+            // Anthropic before the CLI went quiet.
             Log.shared.write("opener: timed out after \(Int(timeout))s")
             return Result(
                 succeeded: false, text: nil, sessionID: nil, costUSD: nil,
@@ -197,9 +211,12 @@ enum ClaudeOpenerRunner {
         guard process.terminationStatus == 0 else {
             let detail = stderr.isEmpty ? "exit code \(process.terminationStatus)" : stderr
             Log.shared.write("opener: CLI failed (\(detail))")
+            // An exit code alone does not say whether the request got out; only
+            // a structured, free error envelope on stdout does.
             return Result(
                 succeeded: false, text: nil, sessionID: nil, costUSD: nil,
-                errorMessage: "The CLI failed: \(detail)"
+                errorMessage: "The CLI failed: \(detail)",
+                nothingSent: parse(stdout: stdout).nothingSent
             )
         }
 

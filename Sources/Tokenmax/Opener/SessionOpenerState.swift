@@ -9,8 +9,13 @@ enum SessionOpenerOutcome: String, Codable, Sendable, Equatable {
     /// The CLI answered but the reset never advanced within the verification
     /// budget. Deliberately terminal — see `SessionOpenerCoordinator`.
     case unverified
-    /// The process never produced a usable result. Treated as "probably spent
-    /// nothing", which is why it alone permits a retry.
+    /// The attempt was recorded before the CLI was spawned and never updated:
+    /// Tokenmax quit or crashed with the request possibly in flight. Settles the
+    /// cycle like `.unverified`; an older build reading it decodes it as that.
+    case inFlight
+    /// The process provably never sent a request (see
+    /// `ClaudeOpenerRunner.Result.nothingSent`). Treated as "spent nothing",
+    /// which is why it alone permits a retry.
     case failed
 }
 
@@ -98,8 +103,9 @@ struct SessionOpenerState: Codable, Sendable, Equatable {
         attempts.filter { $0.cycleID == cycleID }
     }
 
-    /// A cycle is settled once any attempt actually reached Claude. Only
-    /// `.failed` — where nothing was confirmed spent — leaves it open.
+    /// A cycle is settled once any attempt may have reached Claude. Only
+    /// `.failed` — where nothing was sent — leaves it open; an interrupted or
+    /// timed-out attempt is ambiguous, and ambiguity resolves to "do not spend".
     func isSettled(_ cycleID: String) -> Bool {
         attempts(for: cycleID).contains { $0.outcome != .failed }
     }

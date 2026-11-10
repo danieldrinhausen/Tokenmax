@@ -210,7 +210,14 @@ struct SessionOpenerSettingsView: View {
         case .sent:
             return "\(time) · \(model) · sent, verifying"
         case .unverified:
+            // An error message here means the run failed ambiguously, as
+            // opposed to answering and never being seen to open a window.
+            if let message = attempt.errorMessage {
+                return "\(time) · \(model) · may have been sent — \(message) Not retrying this cycle."
+            }
             return "\(time) · \(model) · sent, but no new window was confirmed"
+        case .inFlight:
+            return "\(time) · \(model) · interrupted — it may have been sent, so it will not be retried this cycle"
         case .failed:
             return "\(time) · \(model) · failed — \(attempt.errorMessage ?? "unknown error")"
         }

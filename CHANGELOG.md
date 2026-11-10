@@ -18,6 +18,13 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **An opener run that may have reached Claude is never retried.** The record written before the CLI
+  starts was stored as "failed", which is the one outcome that permits a retry, so a quit or crash
+  mid-request let the next launch send a second opener. The same went for a run that timed out
+  after 90 seconds. Only a run that provably never sent a request (CLI missing, would not start, or
+  an error that billed nothing) can retry now; interrupted and timed-out runs settle the cycle, and
+  Settings says so.
+
 - **A snoozed reminder is no longer cancelled by the next refresh.** Snoozed copies share the
   window's identifier prefix, so once the original had fired, the following sync decided "already
   notified" and removed the snooze you had just asked for. A snooze now stays until its window
