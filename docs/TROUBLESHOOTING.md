@@ -488,6 +488,10 @@ on your Mac, so both messages are about Cursor.app:
    sign-in when it runs, and Tokenmax never does. If Cursor itself asks you to
    sign in, do that, then click Refresh.
 
+A database Cursor is writing at that moment can be too busy to read. That is
+reported as "could not read Cursor's sign-in" and retried, not as signed out: a
+read that fails is never taken to mean there is no login.
+
 `make doctor` checks the first half without printing the token.
 
 ### Cursor's API meter is nearly empty but Auto is fine

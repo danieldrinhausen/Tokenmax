@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A busy Cursor database is no longer read as "signed out", and one odd value no longer reads as
+  schema drift.** Only a successful row was checked while reading Cursor's sign-in, so a database
+  Cursor held locked looked empty. Busy or failing reads are now a transient failure that keeps the
+  last reading. A mistyped field inside Cursor's plan block used to discard the whole block and be
+  reported as "Cursor's usage response has changed shape"; each field now stands alone.
+
 - **Codex per-model windows are paced over their real length.** Every per-model window was assumed
   to be seven days, so a five-hour one projected nonsense. The length Codex reports is now kept with
   the window (and saved with it) and used for the pace line; a window with no reported length is

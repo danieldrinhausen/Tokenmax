@@ -27,15 +27,49 @@ struct CursorUsageSummary: Decodable, Sendable {
         let apiPercentUsed: Double?
         /// 0–100. What Cursor's dashboard calls "your included total usage".
         let totalPercentUsed: Double?
+
+        private enum CodingKeys: String, CodingKey {
+            case enabled, used, limit, remaining, autoPercentUsed, apiPercentUsed, totalPercentUsed
+        }
+
+        /// Per field. `try?` on the whole block used to turn one mistyped
+        /// number into a nil plan, which `driftedKeys` then read as "Cursor
+        /// renamed everything" — a false schema-drift report for what was a
+        /// single odd value.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = try? container.decodeIfPresent(Bool.self, forKey: .enabled)
+            used = try? container.decodeIfPresent(Double.self, forKey: .used)
+            limit = try? container.decodeIfPresent(Double.self, forKey: .limit)
+            remaining = try? container.decodeIfPresent(Double.self, forKey: .remaining)
+            autoPercentUsed = try? container.decodeIfPresent(Double.self, forKey: .autoPercentUsed)
+            apiPercentUsed = try? container.decodeIfPresent(Double.self, forKey: .apiPercentUsed)
+            totalPercentUsed = try? container.decodeIfPresent(Double.self, forKey: .totalPercentUsed)
+        }
     }
 
     struct OnDemand: Decodable, Sendable {
         let enabled: Bool?
+
+        private enum CodingKeys: String, CodingKey { case enabled }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            enabled = try? container.decodeIfPresent(Bool.self, forKey: .enabled)
+        }
     }
 
     struct IndividualUsage: Decodable, Sendable {
         let plan: Plan?
         let onDemand: OnDemand?
+
+        private enum CodingKeys: String, CodingKey { case plan, onDemand }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            plan = try? container.decodeIfPresent(Plan.self, forKey: .plan)
+            onDemand = try? container.decodeIfPresent(OnDemand.self, forKey: .onDemand)
+        }
     }
 
     let billingCycleStart: Date?
@@ -143,7 +177,11 @@ enum CursorStateStore {
         sqlite3_bind_text(statement, 2, membershipKey, -1, transient)
 
         var values: [String: String] = [:]
-        while sqlite3_step(statement) == SQLITE_ROW {
+        // Every step result is read: `SQLITE_BUSY` after the timeout looks, to a
+        // loop that only waits for ROW, exactly like "no rows" — and no rows
+        // meant "signed out", which is a diagnosis (and a state) the user did
+        // nothing to earn. Only a clean DONE is a genuine absence.
+        while try hasRow(sqlite3_step(statement), database: database) {
             guard let key = sqlite3_column_text(statement, 0), let value = sqlite3_column_text(statement, 1) else {
                 continue
             }
@@ -156,6 +194,22 @@ enum CursorStateStore {
 
         let membership = values[membershipKey].flatMap { $0.isEmpty ? nil : $0 }
         return CursorCredentials(accessToken: token, userID: userID, membershipType: membership)
+    }
+
+    /// True for a row, false for the end of the results, and a transient
+    /// `unreadable` for anything else (busy, locked, I/O error). The caller
+    /// reports that as an ordinary failure, which keeps the last reading and
+    /// tries again — never as signed out.
+    static func hasRow(_ code: Int32, database: OpaquePointer?) throws -> Bool {
+        switch code {
+        case SQLITE_ROW: return true
+        case SQLITE_DONE: return false
+        case SQLITE_BUSY, SQLITE_LOCKED:
+            throw CursorStateError.unreadable("Cursor's state database is busy; Tokenmax will try again.")
+        default:
+            let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "read failed"
+            throw CursorStateError.unreadable(message)
+        }
     }
 
     /// Values are stored bare today. A JSON-encoded string is accepted too, so

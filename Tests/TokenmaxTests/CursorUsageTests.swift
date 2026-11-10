@@ -71,6 +71,27 @@ struct CursorUsageDecodingTests {
         #expect(summary.individualUsage?.plan?.totalPercentUsed == 12)
     }
 
+    @Test("One mistyped plan field costs that field, never the plan, and so is not false drift")
+    func mistypedPlanFieldIsNotDrift() throws {
+        let data = Data("""
+        { "individualUsage": { "plan": { "apiPercentUsed": "93", "autoPercentUsed": 1, "used": [] },
+                               "onDemand": { "enabled": "yes" } } }
+        """.utf8)
+        let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: data)
+
+        #expect(summary.individualUsage?.plan?.autoPercentUsed == 1)
+        #expect(summary.individualUsage?.plan?.apiPercentUsed == nil)
+        #expect(summary.individualUsage?.onDemand?.enabled == nil)
+        #expect(CursorUsageClient.driftedKeys(summary, data: data) == nil)
+    }
+
+    @Test("A plan of the wrong type is still reported as drift when nothing else is readable")
+    func unreadablePlanBlockStillDrifts() throws {
+        let data = Data(#"{ "individualUsage": { "plan": "free" } }"#.utf8)
+        let summary = try JSONDecoder().decode(CursorUsageSummary.self, from: data)
+        #expect(CursorUsageClient.driftedKeys(summary, data: data) != nil)
+    }
+
     @Test("Plan identifiers become display names")
     func planNames() {
         #expect(CursorProvider.planName("pro") == "Pro")
@@ -194,6 +215,41 @@ struct CursorStateStoreTests {
     func noTokenIsSignedOut() throws {
         let url = try database([CursorStateStore.membershipKey: "pro"])
         #expect(throws: CursorStateError.signedOut) { try CursorStateStore.read(from: url) }
+    }
+
+    /// The bug: only `SQLITE_ROW` was ever checked, so a busy database read as
+    /// an empty one and Cursor was reported signed out.
+    @Test("A busy or failing read is transient and unreadable, never an absence of rows")
+    func stepResultsAreClassified() throws {
+        #expect(try CursorStateStore.hasRow(SQLITE_ROW, database: nil))
+        #expect(try !CursorStateStore.hasRow(SQLITE_DONE, database: nil))
+        for code in [SQLITE_BUSY, SQLITE_LOCKED, SQLITE_IOERR, SQLITE_CORRUPT, SQLITE_ERROR] {
+            do {
+                _ = try CursorStateStore.hasRow(code, database: nil)
+                Issue.record("code \(code) was read as the end of the results")
+            } catch let error as CursorStateError {
+                guard case .unreadable = error else { Issue.record("got \(error)"); continue }
+            }
+        }
+    }
+
+    @Test("A busy database reaches the provider as an ordinary failure, not as not-authenticated")
+    func busyIsNotSignedOut() async throws {
+        let url = try database([CursorStateStore.accessTokenKey: token(sub: "user_9")])
+        // Hold the write lock so the reader's wait runs out.
+        var writer: OpaquePointer?
+        try #require(sqlite3_open(url.path, &writer) == SQLITE_OK)
+        defer { sqlite3_close(writer) }
+        try #require(sqlite3_exec(writer, "BEGIN EXCLUSIVE", nil, nil, nil) == SQLITE_OK)
+
+        let provider = CursorProvider(stateDatabase: url)
+        do {
+            _ = try await provider.fetchUsage()
+            Issue.record("expected a failure")
+        } catch let error as ProviderError {
+            guard case .underlying = error else { Issue.record("got \(error)"); return }
+        }
+        sqlite3_exec(writer, "ROLLBACK", nil, nil, nil)
     }
 
     @Test("A signed-out Cursor fails before any request is made, naming Cursor")
