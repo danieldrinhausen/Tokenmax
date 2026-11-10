@@ -728,6 +728,17 @@ enum QueueAutoRun {
         return nil
     }
 
+    /// Whether a task whose run record was found unfinished at launch must stop
+    /// being picked up.
+    ///
+    /// A ready task here is the crash window in `run()` — record saved, status
+    /// not yet — and leaving it ready would have the queue spend the quota a
+    /// second time on work that may already have been paid for. Every other
+    /// status is already out of the queue, or was settled by the user since.
+    static func needsAttentionAfterInterruption(_ status: TaskStatus) -> Bool {
+        status == .running || status == .ready
+    }
+
     /// The Codex counterpart of `accountGate`.
     ///
     /// An API-key Codex can run tasks perfectly well, which is exactly why this

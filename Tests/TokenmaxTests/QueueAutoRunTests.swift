@@ -1301,4 +1301,20 @@ struct QueueAutoRunTests {
         ))
         #expect(decision.skipReason == .noSessionWindow)
     }
+
+    // MARK: - Recovery
+
+    @Test("A ready task with an unfinished run record is taken out of the queue at launch")
+    func interruptedRecordOnReadyTaskNeedsAttention() {
+        // The crash window in run(): record persisted, status not yet running.
+        #expect(QueueAutoRun.needsAttentionAfterInterruption(.ready))
+        #expect(QueueAutoRun.needsAttentionAfterInterruption(.running))
+    }
+
+    @Test("Recovery leaves a task the user already settled alone")
+    func recoveryIgnoresSettledTasks() {
+        for status in [TaskStatus.completed, .needsAttention, .archived] {
+            #expect(!QueueAutoRun.needsAttentionAfterInterruption(status))
+        }
+    }
 }

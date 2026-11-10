@@ -16,6 +16,13 @@ versions follow [semver](https://semver.org/).
   nothing. One or the other, not both: two readings need a divider and a legend the menu bar has
   no room for. **Until reset** stays the default and nothing changes for an existing install.
 
+### Fixed
+
+- **A crash while a task was starting no longer runs it twice.** The run record is saved before
+  the task is marked running, and recovery at launch only looked at running tasks — so a crash
+  between the two left the task Ready with an unfinished record, and the queue picked it up and
+  spent the quota again. Any task with an unfinished record now goes to Needs attention.
+
 ## [0.1.18] - 2026-11-08
 
 ### Added

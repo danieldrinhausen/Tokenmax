@@ -146,6 +146,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// the manual terminal path, where a task legitimately stays `.running`
     /// across a restart while the user works in the terminal it opened. Only
     /// tasks Tokenmax itself started have a record, and only those are touched.
+    ///
+    /// `.ready` counts as well as `.running`: `run()` persists the record before
+    /// it sets the task running, so a crash between the two leaves a ready task
+    /// with an unfinished record. Reordering the writes instead would trade that
+    /// for a `.running` task with *no* record — indistinguishable from the
+    /// legitimate terminal path, and so never recovered. See
+    /// `QueueAutoRun.needsAttentionAfterInterruption`.
     private func recoverInterruptedRuns() {
         let unfinished = state.unfinishedRuns
         guard !unfinished.isEmpty else { return }
@@ -156,7 +163,9 @@ final class QueueAutoRunCoordinator: ObservableObject {
             run.errorMessage = "Tokenmax was interrupted while this task was running."
             state.record(run)
 
-            if let task = taskStore.tasks.first(where: { $0.id == run.taskID }), task.status == .running {
+            if let task = taskStore.tasks.first(where: { $0.id == run.taskID }),
+               QueueAutoRun.needsAttentionAfterInterruption(task.status)
+            {
                 taskStore.markNeedsAttention(task, message: run.errorMessage ?? "Interrupted.")
             }
             Log.shared.write("autorun: recovered interrupted run \(run.id) (\(run.taskTitle))")

@@ -674,7 +674,8 @@ The opener fires shortly after wake. Neither is something an app can work around
 **Does any of this survive a crash?**
 Yes. All writes are atomic, the opener records its cycle *before* spawning
 anything (so a crash cannot produce a second opener), and runs found unfinished
-at launch are marked interrupted rather than silently retried.
+at launch are marked interrupted, and their task moved to Needs attention,
+rather than silently retried.
 
 **How do I get rid of it completely?**
 Quit, delete `/Applications/Tokenmax.app`, and remove
