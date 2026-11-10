@@ -31,9 +31,15 @@ final class UpdateCheckCoordinator: ObservableObject {
     /// the version — it is only an answer to "why has it not just checked?".
     @Published private(set) var lastSuppression: UpdateCheckSuppression?
 
+    /// Why the most recent check could not complete. Kept apart from `state`
+    /// so a failure can be shown without taking an offer already found off the
+    /// screen. Cleared by the next check that succeeds.
+    @Published private(set) var lastFailure: String?
+
     private let client: GitHubReleaseClient
     private let settingsStore: SettingsStore
     private let now: () -> Date
+    private let recordURL: URL?
 
     private var hasStarted = false
     private var timer: Timer?
@@ -42,11 +48,18 @@ final class UpdateCheckCoordinator: ObservableObject {
     init(
         settingsStore: SettingsStore,
         client: GitHubReleaseClient = GitHubReleaseClient(),
-        now: @escaping () -> Date = { Date() }
+        now: @escaping () -> Date = { Date() },
+        recordURL: URL? = FileLocations.updateCheckFile
     ) {
         self.settingsStore = settingsStore
         self.client = client
         self.now = now
+        self.recordURL = recordURL
+
+        if let recordURL, let record = JSONStore.load(UpdateCheckRecord.self, from: recordURL) {
+            lastCheckedAt = record.lastCheckedAt
+            state = UpdateCheck.restoredState(from: record, currentVersion: AppInfo.version)
+        }
     }
 
     func start() {
@@ -91,12 +104,27 @@ final class UpdateCheckCoordinator: ObservableObject {
 
         lastSuppression = nil
         inFlight = true
+        // What to fall back to if the check fails: an offer already found stays.
+        let previous = state
         state = .checking
         defer { inFlight = false }
 
         do {
             let release = try await client.latestRelease()
             lastCheckedAt = now()
+            lastFailure = nil
+            if let recordURL {
+                // Derived, and cheap to lose: one extra request is the cost.
+                JSONStore.save(
+                    UpdateCheckRecord(
+                        lastCheckedAt: lastCheckedAt,
+                        latestTag: release.tag,
+                        releasePage: release.page.absoluteString
+                    ),
+                    to: recordURL,
+                    durable: false
+                )
+            }
 
             switch UpdateCheck.offer(currentVersion: AppInfo.version, latestTag: release.tag) {
             case let .available(version):
@@ -113,12 +141,16 @@ final class UpdateCheckCoordinator: ObservableObject {
         } catch let error as UpdateCheckError {
             // No `lastCheckedAt` on failure, so the next tick retries in an
             // hour rather than a day. Stale data postpones; it never cancels.
-            state = .unavailable(error.summary)
-            Log.shared.write("update: check failed — \(error.summary)")
+            fail(error.summary, previous: previous)
         } catch {
-            state = .unavailable(error.localizedDescription)
-            Log.shared.write("update: check failed — \(error.localizedDescription)")
+            fail(error.localizedDescription, previous: previous)
         }
+    }
+
+    private func fail(_ message: String, previous: UpdateCheckState) {
+        state = UpdateCheck.stateAfterFailure(previous: previous, message: message)
+        lastFailure = message
+        Log.shared.write("update: check failed — \(message)")
     }
 
     /// The offered version, when there is one. Lets a view ask the one question

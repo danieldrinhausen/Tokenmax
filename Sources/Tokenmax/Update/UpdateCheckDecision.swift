@@ -79,3 +79,55 @@ enum UpdateCheck {
         return latest > current ? .available(latest) : .none(.notNewer)
     }
 }
+
+/// What survives a relaunch, so the daily cadence is real and a found update
+/// is still on screen after a restart.
+///
+/// Without `lastCheckedAt` every launch looked like a first check and asked
+/// GitHub again, so "once a day" held only for a Mac that never restarted. The
+/// tag and page are kept too: skipping today's check because yesterday's ran
+/// would otherwise blank the badge that check found, until the day was up.
+struct UpdateCheckRecord: Codable, Equatable, Sendable {
+    var lastCheckedAt: Date?
+    var latestTag: String?
+    var releasePage: String?
+
+    init(lastCheckedAt: Date? = nil, latestTag: String? = nil, releasePage: String? = nil) {
+        self.lastCheckedAt = lastCheckedAt
+        self.latestTag = latestTag
+        self.releasePage = releasePage
+    }
+
+    /// Tolerant like every persisted shape here: a missing or mistyped field is
+    /// "never checked", which only costs one request.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        lastCheckedAt = (try? container.decodeIfPresent(Date.self, forKey: .lastCheckedAt)) ?? nil
+        latestTag = (try? container.decodeIfPresent(String.self, forKey: .latestTag)) ?? nil
+        releasePage = (try? container.decodeIfPresent(String.self, forKey: .releasePage)) ?? nil
+    }
+}
+
+extension UpdateCheck {
+    /// The offer is re-derived from the remembered tag against the version
+    /// running *now*: the user may have updated since the check, and a stored
+    /// "available" must not outlive the update it announced.
+    static func restoredState(from record: UpdateCheckRecord, currentVersion: String) -> UpdateCheckState {
+        guard let tag = record.latestTag else { return .idle }
+        switch offer(currentVersion: currentVersion, latestTag: tag) {
+        case let .available(version):
+            guard let page = record.releasePage.flatMap(URL.init(string:)) else { return .idle }
+            return .available(version, page: page)
+        case .none:
+            return .upToDate
+        }
+    }
+
+    /// A failed check says it could not complete, but never replaces an offer
+    /// already found: being unable to ask again does not make the release go
+    /// away. Stale data postpones; it never cancels.
+    static func stateAfterFailure(previous: UpdateCheckState, message: String) -> UpdateCheckState {
+        if case .available = previous { return previous }
+        return .unavailable(message)
+    }
+}

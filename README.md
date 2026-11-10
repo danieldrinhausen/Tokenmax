@@ -854,7 +854,8 @@ token itself.
 It makes exactly one request that is not about your quota: once a day it asks `api.github.com`
 whether a newer release has been published, so it can tell you. That is an unauthenticated GET for
 a public list — nothing about you or your usage is sent, and nothing is downloaded or installed as
-a result. **Settings → About → Check for updates automatically** switches it off, and off means no
+a result. The time of the last check and the answer are kept in `update-check.json`, so a relaunch
+does not ask again before the day is up and a release already found stays on screen. **Settings → About → Check for updates automatically** switches it off, and off means no
 request is made rather than an answer ignored.
 
 Codex quota is read locally rather than over the network: Tokenmax starts a short-lived

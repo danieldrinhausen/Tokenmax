@@ -689,8 +689,10 @@ stops appearing, that is where it went.
 `GitHubReleaseClient` reads `tag_name` and `html_url` from
 `/repos/.../releases/latest`.
 
-- **Failure mode:** the update check reports that it could not complete. Nothing
-  else in the app depends on it.
+- **Failure mode:** the update check reports that it could not complete, and an
+  offer already found stays on screen beside that message. Nothing else in the
+  app depends on it. The last check's time and answer persist in
+  `update-check.json`, so the once-a-day cadence survives a relaunch.
 - **Detection:** `UpdateCheckError.schemaDrift`, surfaced in Settings → About and
   the log. A check that fails never claims "up to date".
 - **Note:** an unauthenticated caller gets 60 requests an hour per IP. At one

@@ -33,6 +33,8 @@ enum FileLocations {
     static var codexModelCatalogFile: URL {
         supportDirectory.appendingPathComponent("codex-model-catalog.json")
     }
+    /// When GitHub was last asked about a newer release, and what it answered.
+    static var updateCheckFile: URL { supportDirectory.appendingPathComponent("update-check.json") }
     static var notificationStateFile: URL { supportDirectory.appendingPathComponent("notification-state.json") }
     /// Which reset cycles the session opener has already acted on. Not derived
     /// data — losing it would let the same cycle be opened twice.

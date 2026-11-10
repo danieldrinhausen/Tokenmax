@@ -111,3 +111,68 @@ struct UpdateCheckDecisionTests {
         }
     }
 }
+
+@Suite("Update check keeps what it found")
+struct UpdateCheckPersistenceTests {
+    private let page = URL(string: "https://github.com/x/y/releases/tag/v0.2.0")!
+
+    @Test("A failed check never replaces an offer already found")
+    func failureKeepsAvailable() {
+        let offered = UpdateCheckState.available(AppVersion("0.2.0")!, page: page)
+        #expect(UpdateCheck.stateAfterFailure(previous: offered, message: "offline") == offered)
+    }
+
+    @Test("A failed check with nothing found still says it could not complete, never up to date")
+    func failureWithoutOfferIsUnavailable() {
+        for previous in [UpdateCheckState.idle, .upToDate, .unavailable("old")] {
+            #expect(UpdateCheck.stateAfterFailure(previous: previous, message: "offline") == .unavailable("offline"))
+        }
+    }
+
+    @Test("A remembered newer release is offered again after a relaunch")
+    func restoresOffer() {
+        let record = UpdateCheckRecord(
+            lastCheckedAt: Date(), latestTag: "v0.2.0", releasePage: page.absoluteString
+        )
+        #expect(UpdateCheck.restoredState(from: record, currentVersion: "0.1.9")
+            == .available(AppVersion("0.2.0")!, page: page))
+    }
+
+    @Test("A remembered offer is dropped once the running build has caught up")
+    func restoredOfferDoesNotOutliveTheUpdate() {
+        let record = UpdateCheckRecord(
+            lastCheckedAt: Date(), latestTag: "v0.2.0", releasePage: page.absoluteString
+        )
+        #expect(UpdateCheck.restoredState(from: record, currentVersion: "0.2.0") == .upToDate)
+        #expect(UpdateCheck.restoredState(from: record, currentVersion: "0.3.0") == .upToDate)
+    }
+
+    @Test("Nothing remembered, or an offer without a page, restores to idle rather than guessing")
+    func restoresIdleWhenIncomplete() {
+        #expect(UpdateCheck.restoredState(from: UpdateCheckRecord(), currentVersion: "0.1.0") == .idle)
+        let noPage = UpdateCheckRecord(lastCheckedAt: Date(), latestTag: "v9.0.0", releasePage: nil)
+        #expect(UpdateCheck.restoredState(from: noPage, currentVersion: "0.1.0") == .idle)
+    }
+
+    @Test("A check that ran recently is held off after a relaunch because the time was saved")
+    func persistedTimeHoldsTheCadence() throws {
+        let checked = Date(timeIntervalSince1970: 1_800_000_000)
+        let data = try JSONStore.makeEncoder().encode(UpdateCheckRecord(lastCheckedAt: checked, latestTag: "v0.1.0"))
+        let record = try JSONStore.makeDecoder().decode(UpdateCheckRecord.self, from: data)
+        #expect(record.lastCheckedAt == checked)
+        #expect(UpdateCheck.decide(
+            enabled: true, lastCheckedAt: record.lastCheckedAt, now: checked.addingTimeInterval(3600)
+        ) == .skip(.checkedRecently))
+    }
+
+    @Test("A record with missing or mistyped fields still loads as never checked")
+    func tolerantRecord() throws {
+        let empty = try JSONStore.makeDecoder().decode(UpdateCheckRecord.self, from: Data("{}".utf8))
+        #expect(empty == UpdateCheckRecord())
+        let bad = try JSONStore.makeDecoder().decode(
+            UpdateCheckRecord.self,
+            from: Data(#"{ "lastCheckedAt": "yesterday", "latestTag": 4, "releasePage": [] }"#.utf8)
+        )
+        #expect(bad == UpdateCheckRecord())
+    }
+}

@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A failed update check no longer hides an update it already found.** Any failure replaced the
+  "version X is available" badge with an error until the next success. The offer now stays, with the
+  failure shown beside it. The time of the last check and its answer are also saved across
+  launches, so Tokenmax asks GitHub once a day as intended rather than at every launch, and a
+  release it found is still offered after a restart.
+
 - **Saved state survives a power cut.** Files were written twice (a temp file, then a second copy
   swapped in) and never flushed, so a power loss right after a save could leave an empty file where
   the opener's or the queue's record of spent quota had been. A save is now a single write to a

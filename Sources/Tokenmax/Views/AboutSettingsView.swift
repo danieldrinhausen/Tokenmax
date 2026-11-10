@@ -39,6 +39,15 @@ struct AboutSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // An offer survives a failed check, so the failure needs its own
+                // line or the last check would look as though it had worked.
+                if let failure = updates.lastFailure, updates.availableVersion != nil {
+                    Text("The last check could not complete: \(failure)")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 // The suppression is named rather than left as silence — "why
                 // has it not noticed the new version?" has an answer on screen.
                 if let suppression = updates.lastSuppression, suppression != .notNewer {

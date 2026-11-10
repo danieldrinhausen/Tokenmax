@@ -52,7 +52,8 @@ Dock icon to quit from.
 
 The version you are running sits beside the name at the top of the popover, and
 in **Settings → About** with the build number. Tokenmax checks GitHub once a day
-for a newer release and links to it when there is one; it never installs
+for a newer release and links to it when there is one (a release it has found
+stays offered across a relaunch and a failed check); it never installs
 anything itself. Switch the check off in the same place.
 
 **3. Decide what the icon should show.**
