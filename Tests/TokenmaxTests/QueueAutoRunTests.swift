@@ -1454,4 +1454,39 @@ struct QueueAutoRunTests {
             #expect(!reason.explanation.isEmpty)
         }
     }
+
+    // MARK: - Ask notifications
+
+    @Test("An ask offer is announced once, however many times the decision is re-made")
+    func askOfferIsAnnouncedOnce() {
+        var gate = AskNotificationGate()
+        let offer = QueueAutoRunDecision.ask(taskID: UUID(), windowID: "w")
+        let first = gate.shouldNotify(for: offer)
+        let repeats = (0..<5).map { _ in gate.shouldNotify(for: offer) }
+        #expect(first)
+        #expect(!repeats.contains(true))
+    }
+
+    @Test("A different task or a new window is announced afresh")
+    func newAskOfferIsAnnounced() {
+        var gate = AskNotificationGate()
+        let task = UUID()
+        let first = gate.shouldNotify(for: .ask(taskID: task, windowID: "w1"))
+        let otherTask = gate.shouldNotify(for: .ask(taskID: UUID(), windowID: "w1"))
+        let otherWindow = gate.shouldNotify(for: .ask(taskID: task, windowID: "w2"))
+        #expect(first && otherTask && otherWindow)
+    }
+
+    @Test("An offer that lapses and returns is announced again, and other verdicts never notify")
+    func lapsedAskOfferIsAnnouncedAgain() {
+        var gate = AskNotificationGate()
+        let offer = QueueAutoRunDecision.ask(taskID: UUID(), windowID: "w")
+        let first = gate.shouldNotify(for: offer)
+        let skip = gate.shouldNotify(for: .skip(reason: .quietHours))
+        let run = gate.shouldNotify(for: .run(taskID: UUID(), windowID: "w"))
+        let preview = gate.shouldNotify(for: .preview(taskID: UUID(), windowID: "w"))
+        let returned = gate.shouldNotify(for: offer)
+        #expect(first && returned)
+        #expect(!skip && !run && !preview)
+    }
 }

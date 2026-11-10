@@ -58,6 +58,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// Set when a run finishes; cleared once a snapshot fetched after it lands.
     private var freshUsageNeededAfter: Date?
     private var hasStarted = false
+    private var askGate = AskNotificationGate()
 
     /// Same reasoning as `SessionOpenerCoordinator`: locating the CLI can spawn
     /// a login shell, which is not something to do on a one-second tick.
@@ -276,11 +277,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
         guard settingsStore.settings.queueAutoRun.enabled else {
             publish(.skip(reason: .disabled))
             pendingRun = nil
+            askGate.reset()
             return
         }
         guard !statePersistenceFailed else {
             publish(.skip(reason: .statePersistenceFailed))
             pendingRun = nil
+            askGate.reset()
             return
         }
 
@@ -325,6 +328,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         else {
             publish(.skip(reason: .disabled))
             pendingRun = nil
+            askGate.reset()
             return
         }
 
@@ -343,10 +347,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
         case let .run(taskID, windowID):
             schedulePendingRun(taskID: taskID, windowID: windowID)
         case let .ask(taskID, windowID):
-            notifyEligible(taskID: taskID, windowID: windowID)
+            // The decision stays `.ask` every second it holds; the banner goes
+            // out once per offer.
+            if askGate.shouldNotify(for: outcome) { notifyEligible(taskID: taskID, windowID: windowID) }
         case .preview, .skip:
             break
         }
+        if case .ask = outcome {} else { askGate.reset() }
     }
 
     /// Takes tasks whose appointment went by unheeded out of the ready queue.
@@ -677,6 +684,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             // A run by hand ends any countdown: left to expire it would start
             // the same task again the moment this one finished.
             cancelPending(reason: "a run started")
+            askGate.reset()
             pruneRunLogs()
             activeRun = record
             lastRun = record

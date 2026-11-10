@@ -833,3 +833,33 @@ enum QueueAutoRun {
         }
     }
 }
+
+/// Remembers which "ask" offer has already been announced.
+///
+/// The decision is re-made every second and stays `.ask` for as long as the
+/// task is eligible; announcing each tick posted the same banner once a second.
+/// Keyed on task and window, so a different task or a new window is announced
+/// and the same offer is not.
+struct AskNotificationGate: Equatable, Sendable {
+    private struct Offer: Equatable, Sendable {
+        var taskID: UUID
+        var windowID: String
+    }
+
+    private var announced: Offer?
+
+    /// True when `decision` is an offer not yet announced. Anything that is not
+    /// an offer forgets the last one, so it is announced again if it returns.
+    mutating func shouldNotify(for decision: QueueAutoRunDecision) -> Bool {
+        guard case let .ask(taskID, windowID) = decision else {
+            announced = nil
+            return false
+        }
+        let offer = Offer(taskID: taskID, windowID: windowID)
+        guard offer != announced else { return false }
+        announced = offer
+        return true
+    }
+
+    mutating func reset() { announced = nil }
+}

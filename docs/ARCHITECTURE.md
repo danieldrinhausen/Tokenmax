@@ -432,6 +432,11 @@ notification's `userInfo`. `beginRun` adds `runnableGate`: the queue's own start
 path refuses a task that is not `ready`. `run()` does not, because a reply and a
 retry legitimately run completed tasks.
 
+`evaluate` runs at 1 Hz and an `.ask` verdict holds for as long as the task is
+eligible, so the banner is gated by `AskNotificationGate` — once per task and
+window, forgotten when the verdict stops being `.ask`. `publish` dedupes the
+decision, not the side effect, which is why the gate is separate.
+
 `ClaudeTaskRunner.environment` and `ClaudeOpenerRunner.environment` differ on
 purpose — a denylist for the runner (real projects need a working `PATH`), an
 allowlist for the opener (which needs nothing). The comment there says not to

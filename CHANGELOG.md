@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Ask before running no longer repeats its banner every second.** The queue is re-evaluated once
+  a second and an eligible task stayed eligible, so the same *Tokenmax found an eligible task*
+  banner was posted again each tick. It is now posted once per task and window, and again only if
+  the offer lapses and returns or a different task is offered.
+
 - **A countdown, or a banner's Start button, no longer skips the checks.** The start-delay
   countdown ran its task when it ended without looking again, so a task you ran by hand while it
   counted down ran a second time, a countdown the Mac slept through fired on pre-sleep readings,
