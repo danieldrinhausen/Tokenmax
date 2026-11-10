@@ -635,6 +635,14 @@ final class QueueAutoRunCoordinator: ObservableObject {
     }
 
     private func finish(record: TaskRunRecord, task: TokenmaxTask, result: ClaudeTaskRunner.Result) async {
+        // Read and cleared here, before the await at the end of this function.
+        // Cleared any later — it used to be a `defer` — it stayed set for the
+        // whole post-run refresh wait, up to minutes, in which a run started by
+        // hand got no quota-exhaustion stop and its own cancel could be
+        // misreported as this one's.
+        let stoppedForQuota = stoppedForQuotaExhaustion
+        stoppedForQuotaExhaustion = false
+
         var record = record
         record.status = result.status
         record.finishedAt = Date()
@@ -661,14 +669,11 @@ final class QueueAutoRunCoordinator: ObservableObject {
         lastRun = record
         progressText = nil
         runTask = nil
-        // Read once below, then cleared so it cannot colour the next run.
-        defer { stoppedForQuotaExhaustion = false }
-
         switch result.status {
         case .completed:
             taskStore.setStatus(.completed, for: task)
             notifications.completed(record: record)
-        case .cancelled where stoppedForQuotaExhaustion:
+        case .cancelled where stoppedForQuota:
             // Not back to ready: ready is what the queue picks up again, and
             // the condition that stopped this run is still true.
             taskStore.markNeedsAttention(

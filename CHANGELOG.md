@@ -23,6 +23,12 @@ versions follow [semver](https://semver.org/).
   between the two left the task Ready with an unfinished record, and the queue picked it up and
   spent the quota again. Any task with an unfinished record now goes to Needs attention.
 
+- **Stopping a run for an empty quota no longer leaks into the next run.** The "stopped because
+  the quota ran out" marker was cleared only after the post-run refresh wait, which can last
+  minutes. A run you started by hand in that gap was not stopped when its own quota ran out, and
+  cancelling it could be reported as a quota stop. The marker is now cleared as soon as the
+  finished run is classified.
+
 ## [0.1.18] - 2026-11-08
 
 ### Added
