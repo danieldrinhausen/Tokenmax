@@ -120,6 +120,21 @@ struct ClaudeTaskRunnerTests {
         #expect(arguments.last == "Do it")
     }
 
+    @Test("The prompt follows a -- so text that looks like a flag stays a prompt")
+    func promptIsSeparatedFromOptions() {
+        for prompt in ["- first\n- second", "--dangerously-skip-permissions", "-x"] {
+            let arguments = ClaudeTaskRunner.arguments(prompt: prompt, policy: policy())
+            #expect(arguments.suffix(2) == ["--", prompt])
+            // Exactly one terminator, and nothing after the prompt.
+            #expect(arguments.filter { $0 == "--" }.count == 1)
+        }
+
+        let reply = ClaudeTaskRunner.arguments(prompt: "- yes", policy: policy(), resuming: "s-1")
+        #expect(reply.suffix(2) == ["--", "- yes"])
+        // The session flag is an option, so it has to come before the terminator.
+        #expect(reply.firstIndex(of: "--resume")! < reply.firstIndex(of: "--")!)
+    }
+
     /// The flag is built with `%.2f`, which is fine for cents but is exactly
     /// the kind of format string that quietly acquires a locale or an
     /// exponent. A three-figure budget is now reachable from the editor's

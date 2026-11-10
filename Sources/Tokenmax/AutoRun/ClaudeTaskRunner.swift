@@ -103,7 +103,11 @@ enum ClaudeTaskRunner {
             arguments += ["--resume", sessionID]
         }
 
-        arguments.append(prompt)
+        // `--` ends option parsing. Without it a prompt that opens with "-" (a
+        // markdown bullet list, say) is read as an option: the CLI rejects the
+        // run, which classifies as `.incompatibleCLI` and pauses the queue, and
+        // a prompt written to look like a flag could change the run's behaviour.
+        arguments += ["--", prompt]
         return arguments
     }
 

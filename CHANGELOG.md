@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A task prompt that starts with a dash no longer pauses the queue.** The prompt was passed as
+  the last argument with nothing marking it as text, so a prompt opening with `-` (a markdown
+  bullet list) was read as an option, rejected by the CLI and reported as *Update needed*, which
+  paused the queue; a prompt shaped like a flag could also change how the run behaved. It now
+  follows a `--`.
+
 - **Ask before running no longer repeats its banner every second.** The queue is re-evaluated once
   a second and an eligible task stayed eligible, so the same *Tokenmax found an eligible task*
   banner was posted again each tick. It is now posted once per task and window, and again only if
