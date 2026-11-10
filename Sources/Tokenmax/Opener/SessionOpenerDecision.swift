@@ -46,6 +46,11 @@ enum SessionOpenerDecision: Equatable, Sendable {
         // Gates that need a subprocess or a file read, applied by the coordinator.
         case notSubscriptionAuth
         case apiKeyConfigured
+        /// The file recording which cycles were already opened could not be
+        /// read, so a cycle that ended before that was noticed may have been
+        /// opened and cannot be proven otherwise. Ambiguity resolves to "do not
+        /// spend"; the next window is unaffected.
+        case spendRecordUnreadable
 
         /// A correct pause the user need not act on, versus something worth
         /// their attention. Drives the colour in Settings and the popover.
@@ -100,6 +105,8 @@ enum SessionOpenerDecision: Equatable, Sendable {
                 "Claude Code is not signed in to a Claude subscription. Run ‘claude login’, then refresh."
             case .apiKeyConfigured:
                 "An API key or cloud-provider billing is configured in ~/.claude/settings.json, so a run would be billed."
+            case .spendRecordUnreadable:
+                "Tokenmax could not read its record of which reset cycles it already opened (the unreadable file was set aside), so it will not open any cycle that ended before that was noticed. It resumes with the next window."
             }
         }
     }
@@ -240,6 +247,13 @@ enum SessionOpener {
         guard let expiredResetAt = input.state.lastKnownSessionResetAt,
               expiredResetAt <= input.now
         else { return .skip(reason: .noExpiredWindow) }
+
+        // A cycle that ended before the record was lost may have been opened
+        // already, and nothing says otherwise. A window that ends later cannot
+        // have been, so only the one in question is held back.
+        if let lost = input.state.recordLostAt, expiredResetAt <= lost {
+            return .skip(reason: .spendRecordUnreadable)
+        }
 
         let cycle = cycleID(expiredResetAt: expiredResetAt)
 

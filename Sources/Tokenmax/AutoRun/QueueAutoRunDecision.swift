@@ -51,6 +51,9 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         case pausedAfterFailure
         /// The pre-launch run record could not be committed to disk.
         case statePersistenceFailed
+        /// The run record could not be read, so this window's per-window run
+        /// counts are unknown and it may already have used its allowance.
+        case spendRecordUnreadable
         /// Nothing in the queue is marked for automatic execution.
         case noApprovedTask
         /// There are approved tasks, but none can finish before the deadline.
@@ -165,6 +168,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "Waiting for a fresh quota reading after the last task."
             case .pausedAfterFailure:
                 "Paused for this window because a task failed."
+            case .spendRecordUnreadable:
+                "Tokenmax could not read its record of which tasks already ran (the unreadable file was set aside), so it will not start automatic runs in a window that began before that was noticed. It resumes with the next window."
             case .statePersistenceFailed:
                 "The run record could not be saved, so nothing was started. Restart Tokenmax after checking free disk space and folder permissions."
             case .noApprovedTask:
@@ -615,6 +620,11 @@ enum QueueAutoRun {
 
         if input.state.isPaused(window) { return .skip(reason: .pausedAfterFailure) }
 
+        // Fail closed on a lost record: the counts below are the only thing
+        // that limits a window to its allowance, and an empty record would read
+        // as an untouched one. A window that opened after the loss is safe.
+        if windowMayHaveLostRuns(burn, state: input.state) { return .skip(reason: .spendRecordUnreadable) }
+
         // Inside the burn window? This is the auto-runner's own lead time, not
         // the reminder's — see `QueueAutoRunSettings`.
         let timeUntilReset = resetAt.timeIntervalSince(input.now)
@@ -650,6 +660,15 @@ enum QueueAutoRun {
         case .askBeforeRunning: return .ask(taskID: task.id, windowID: window)
         case .automatic: return .run(taskID: task.id, windowID: window)
         }
+    }
+
+    /// Whether `burn` began at or before the moment the run record was found
+    /// unreadable. A window of unknown length is assumed to have, which only
+    /// ever refuses.
+    static func windowMayHaveLostRuns(_ burn: BurnWindow, state: QueueAutoRunState) -> Bool {
+        guard let lost = state.recordLostAt else { return false }
+        guard let length = burn.window.length else { return true }
+        return burn.resetAt.addingTimeInterval(-length) <= lost
     }
 
     /// The guards on what is left to spend, shared by both paths.

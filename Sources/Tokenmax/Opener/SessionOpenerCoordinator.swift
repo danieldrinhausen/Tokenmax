@@ -70,12 +70,21 @@ final class SessionOpenerCoordinator: ObservableObject {
     /// comfortably.
     private static let maxVerifyAttempts = 3
 
-    init(usage: UsageRefreshCoordinator, clock: CountdownClock, settingsStore: SettingsStore) {
+    private let stateFile: URL
+
+    init(
+        usage: UsageRefreshCoordinator,
+        clock: CountdownClock,
+        settingsStore: SettingsStore,
+        stateFile: URL = FileLocations.sessionOpenerStateFile
+    ) {
         self.usage = usage
         self.clock = clock
         self.settingsStore = settingsStore
-        state = JSONStore.load(SessionOpenerState.self, from: FileLocations.sessionOpenerStateFile)
-            ?? SessionOpenerState()
+        self.stateFile = stateFile
+        // Fails closed on an unreadable file rather than starting as if nothing
+        // had ever been opened — see `SessionOpenerState.loadFailingClosed`.
+        state = SessionOpenerState.loadFailingClosed(from: stateFile)
         lastAttempt = state.mostRecentAttempt
     }
 
@@ -431,6 +440,6 @@ final class SessionOpenerCoordinator: ObservableObject {
     }
 
     private func persist() {
-        JSONStore.save(state, to: FileLocations.sessionOpenerStateFile)
+        JSONStore.save(state, to: stateFile)
     }
 }

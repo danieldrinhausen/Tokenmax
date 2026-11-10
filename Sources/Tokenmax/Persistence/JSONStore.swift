@@ -17,10 +17,29 @@ enum JSONStore {
         return decoder
     }
 
+    /// What a read found. `load` collapses the last two into nil, which is right
+    /// for a cache and wrong for a record of what has been spent: a file that
+    /// was never written (a fresh install) and one that was there but could not
+    /// be read (and is now set aside) must not both start from an empty record.
+    enum LoadOutcome<T> {
+        /// No file. A first run.
+        case absent
+        case loaded(T)
+        /// A file existed and could not be used. It has been quarantined if it
+        /// had any content; whatever it recorded is gone.
+        case unreadable
+    }
+
     static func load<T: Decodable>(_ type: T.Type, from url: URL) -> T? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        if case let .loaded(value) = loadOutcome(type, from: url) { return value }
+        return nil
+    }
+
+    static func loadOutcome<T: Decodable>(_ type: T.Type, from url: URL) -> LoadOutcome<T> {
+        guard FileManager.default.fileExists(atPath: url.path) else { return .absent }
+        guard let data = try? Data(contentsOf: url) else { return .unreadable }
         do {
-            return try makeDecoder().decode(type, from: data)
+            return .loaded(try makeDecoder().decode(type, from: data))
         } catch {
             Log.shared.write("JSONStore decode failed for \(url.lastPathComponent): \(error)")
             // The caller falls back to defaults and the next save writes over
@@ -30,7 +49,7 @@ enum JSONStore {
             if !data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }) {
                 quarantine(url)
             }
-            return nil
+            return .unreadable
         }
     }
 

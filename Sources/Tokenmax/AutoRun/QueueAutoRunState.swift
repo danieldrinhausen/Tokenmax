@@ -227,12 +227,41 @@ struct QueueAutoRunState: Codable, Sendable, Equatable {
     /// than the feature permanently.
     var pausedWindowIDs: [String] = []
 
+    /// Set when the file holding this record existed and could not be read, so
+    /// the per-window run counts it held are gone. Any window that had begun by
+    /// then may already have used its automatic allowance, and is treated as if
+    /// it had — see `QueueAutoRunDecision.SkipReason.spendRecordUnreadable`.
+    /// Kept in the state so a relaunch cannot forget it.
+    var recordLostAt: Date?
+
     init() {}
+
+    /// The state from `url`, failing closed: absent starts empty (a fresh
+    /// install), unreadable starts empty *and marked lost*, and the mark is
+    /// saved at once so the next launch does not find a valid-looking empty file.
+    static func loadFailingClosed(from url: URL, now: Date = Date()) -> QueueAutoRunState {
+        switch JSONStore.loadOutcome(QueueAutoRunState.self, from: url) {
+        case let .loaded(state): return state
+        case .absent: return QueueAutoRunState()
+        case .unreadable:
+            var state = QueueAutoRunState()
+            state.recordLostAt = now
+            JSONStore.save(state, to: url)
+            Log.shared.write("autorun: state file unreadable; windows already begun are treated as at their allowance")
+            return state
+        }
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         runs = try container.decodeIfPresent([TaskRunRecord].self, forKey: .runs) ?? []
         pausedWindowIDs = try container.decodeIfPresent([String].self, forKey: .pausedWindowIDs) ?? []
+        // A mark that is present but unreadable is still a mark: it says a record
+        // was lost, and dropping it would quietly reopen what it was holding
+        // closed. Read as "lost now" — later than any window that has begun.
+        if container.contains(.recordLostAt), (try? container.decodeNil(forKey: .recordLostAt)) != true {
+            recordLostAt = (try? container.decode(Date.self, forKey: .recordLostAt)) ?? Date()
+        }
     }
 
     // MARK: - Queries

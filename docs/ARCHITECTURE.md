@@ -347,6 +347,16 @@ cases fall back rather than throw) a newer file open in an older build.
 rather than failing. `PersistenceCompatibilityTests` guards this; if you add a
 field, add a case there.
 
+**An unreadable spend record fails closed.** The opener's and the queue's state
+files are the only record of what was already spent, so `JSONStore.loadOutcome`
+tells "no file" (a fresh install: start empty) from "a file that could not be
+read" (set aside; start empty *and marked* with `recordLostAt`, written at once
+so a relaunch cannot find a valid-looking empty file). The opener then refuses
+any cycle that ended before the loss (`spendRecordUnreadable`), and the queue
+treats a window that began before it as at its allowance. A window that begins
+after the loss is unaffected: anything spent in it is recorded normally. A
+retyped mark still counts as a mark.
+
 **A child outlives Tokenmax.** `SpawnedProcess` puts it in its own session, so
 quitting or crashing does not stop it. `applicationWillTerminate` stops the active
 run (`QueueAutoRunCoordinator.stopForTermination`), and the run record carries a

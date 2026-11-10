@@ -1347,4 +1347,22 @@ struct PersistenceCompatibilityTests {
         let wrongShape = try decode(UsageRequestFloor.self, #"{ "lastRequestAt": [1] }"#)
         #expect(wrongShape.lastRequestAt == nil)
     }
+
+    @Test("The spend records' lost-record mark is optional, and a retyped one still counts as a mark without costing the file")
+    func recordLostAtIsBackwardCompatible() throws {
+        let oldOpener = try decode(SessionOpenerState.self, #"{ "attempts": [], "forcedRefreshCycleIDs": [] }"#)
+        #expect(oldOpener.recordLostAt == nil)
+        let oldQueue = try decode(QueueAutoRunState.self, #"{ "runs": [], "pausedWindowIDs": ["autorun-x"] }"#)
+        #expect(oldQueue.recordLostAt == nil)
+        #expect(oldQueue.pausedWindowIDs == ["autorun-x"])
+
+        let retyped = try decode(QueueAutoRunState.self, #"{ "pausedWindowIDs": ["autorun-x"], "recordLostAt": "yesterday" }"#)
+        #expect(retyped.recordLostAt != nil)
+        #expect(retyped.pausedWindowIDs == ["autorun-x"])
+        let explicitNull = try decode(QueueAutoRunState.self, #"{ "recordLostAt": null }"#)
+        #expect(explicitNull.recordLostAt == nil)
+
+        let marked = try decode(SessionOpenerState.self, #"{ "recordLostAt": "2026-11-10T10:00:00Z" }"#)
+        #expect(marked.recordLostAt != nil)
+    }
 }

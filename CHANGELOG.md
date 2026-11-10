@@ -18,6 +18,13 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **An unreadable record of spent quota no longer lets the opener or the queue spend again.** When
+  `session-opener-state.json` or `queue-autorun-state.json` existed but could not be read, both
+  started as if nothing had ever been opened or run, which could repeat a spend. A missing file is
+  still a fresh install, but an unreadable one (set aside as before) now starts marked: the opener
+  refuses a cycle that had already ended, the queue treats a window that had already begun as at its
+  allowance, and Settings says why. Both resume with the next window.
+
 - **A failing Claude account source is no longer invisible while the status line fills in.** A 403
   or 429 from the usage endpoint was dropped as soon as the status line file supplied a reading.
   The reason is now shown under "Updated…" in the popover and saved with the reading; the reading

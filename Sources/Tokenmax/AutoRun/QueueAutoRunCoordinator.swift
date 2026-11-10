@@ -78,17 +78,17 @@ final class QueueAutoRunCoordinator: ObservableObject {
         taskStore: TaskStore,
         settingsStore: SettingsStore,
         notifications: AutoRunNotifier = AutoRunNotifier(),
-        persistState: @escaping (QueueAutoRunState) -> Bool = {
-            JSONStore.save($0, to: FileLocations.queueAutoRunStateFile)
-        }
+        stateFile: URL = FileLocations.queueAutoRunStateFile,
+        persistState: ((QueueAutoRunState) -> Bool)? = nil
     ) {
         self.usage = usage
         self.taskStore = taskStore
         self.settingsStore = settingsStore
         self.notifications = notifications
-        self.persistState = persistState
-        state = JSONStore.load(QueueAutoRunState.self, from: FileLocations.queueAutoRunStateFile)
-            ?? QueueAutoRunState()
+        self.persistState = persistState ?? { JSONStore.save($0, to: stateFile) }
+        // Fails closed on an unreadable file rather than starting as if no task
+        // had ever run — see `QueueAutoRunState.loadFailingClosed`.
+        state = QueueAutoRunState.loadFailingClosed(from: stateFile)
         lastRun = state.mostRecentRun
     }
 

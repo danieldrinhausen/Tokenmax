@@ -119,6 +119,14 @@ unreadable …`). The newest three copies are kept, per file. Fix or copy the
 values you want out of it; the same applies to `tokenmax.json` (your tasks) and
 the other state files.
 
+The opener's and the queue's own records are the exception to "starts over":
+losing them would forget what was already spent, so they start **marked**. The
+opener will not open a cycle that ended before the loss was noticed, and
+automatic queue runs wait out any window that had begun by then; both say so in
+Settings (`spendRecordUnreadable`), and both resume with the next window. Nothing
+for you to do except, optionally, check the `*.corrupt-*.json` copy for what had
+run.
+
 ### Tokenmax is slow to respond, or the fan spins up
 
 Fixed after 0.1.13; update if you are on that build or earlier. The countdown
@@ -716,6 +724,8 @@ Automation**. The common ones:
 - its **runtime limit**, not its estimate, does not fit before the safety margin
 - the reading is stale
 - automation is still in **preview only** mode
+- the **record of which tasks already ran was unreadable** — the window that had
+  begun by then is treated as spent; it resumes with the next window
 - the Claude data source is **Status line only** — a mode that cannot poll
   cannot confirm what a run just spent, so unattended Claude runs pause until
   the source is switched back; running a task by hand still works
@@ -819,6 +829,8 @@ The guards most often responsible:
 - **quiet hours**
 - **the Claude data source is Status line only** — the opener cannot verify its
   own run without polling, so it waits until the keychain source is restored
+- **its record of opened cycles was unreadable** — see [My settings went back to
+  the defaults](#my-settings-went-back-to-the-defaults); it resumes with the next window
 
 ### It says "unverified" and stopped permanently
 

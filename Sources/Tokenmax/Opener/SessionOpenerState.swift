@@ -87,14 +87,43 @@ struct SessionOpenerState: Codable, Sendable, Equatable {
     /// Cycles for which the coordinator already burned its one backoff-bypassing
     /// refresh. Bounded so a long stale spell cannot churn the network.
     var forcedRefreshCycleIDs: [String] = []
+    /// Set when the file that held this record existed and could not be read, so
+    /// what it said about cycles already opened is gone. Any cycle that had
+    /// already ended by then may have been opened, and is refused — see
+    /// `SessionOpenerDecision.SkipReason.spendRecordUnreadable`. Kept in the
+    /// state itself so a relaunch cannot forget why.
+    var recordLostAt: Date?
 
     init() {}
+
+    /// The state from `url`, failing closed. An absent file is a fresh install
+    /// and starts empty. A file that existed but could not be read starts empty
+    /// *and marked lost*, and the mark is written straight away: without that,
+    /// the next launch would find a perfectly valid empty file and believe it.
+    static func loadFailingClosed(from url: URL, now: Date = Date()) -> SessionOpenerState {
+        switch JSONStore.loadOutcome(SessionOpenerState.self, from: url) {
+        case let .loaded(state): return state
+        case .absent: return SessionOpenerState()
+        case .unreadable:
+            var state = SessionOpenerState()
+            state.recordLostAt = now
+            JSONStore.save(state, to: url)
+            Log.shared.write("opener: state file unreadable; cycles that ended before now will not be opened")
+            return state
+        }
+    }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         attempts = try container.decodeIfPresent([SessionOpenerAttempt].self, forKey: .attempts) ?? []
         lastKnownSessionResetAt = try container.decodeIfPresent(Date.self, forKey: .lastKnownSessionResetAt)
         forcedRefreshCycleIDs = try container.decodeIfPresent([String].self, forKey: .forcedRefreshCycleIDs) ?? []
+        // A mark that is present but unreadable is still a mark: it says a record
+        // was lost, and dropping it would quietly reopen what it was holding
+        // closed. Read as "lost now" — later than any window that has begun.
+        if container.contains(.recordLostAt), (try? container.decodeNil(forKey: .recordLostAt)) != true {
+            recordLostAt = (try? container.decode(Date.self, forKey: .recordLostAt)) ?? Date()
+        }
     }
 
     // MARK: - Queries
