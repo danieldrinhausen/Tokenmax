@@ -18,6 +18,14 @@ final class AutoRunNotifier {
         static let openQueue = "TOKENMAX_AUTORUN_OPEN_QUEUE"
     }
 
+    /// What the Start action needs to re-decide: which task, in which window,
+    /// the banner was about. Without them a banner tapped hours later could only
+    /// run whatever happens to be next.
+    enum UserInfoKey {
+        static let taskID = "autoRunTaskID"
+        static let windowID = "autoRunWindowID"
+    }
+
     private var settings: QueueAutoRunSettings = .init()
 
     func apply(_ settings: QueueAutoRunSettings) {
@@ -27,7 +35,7 @@ final class AutoRunNotifier {
     /// A task has become eligible. `startingInSeconds` is non-nil in automatic
     /// mode, where the countdown is already running and the banner is a chance
     /// to stop it rather than a request for permission.
-    func eligible(task: TokenmaxTask, startingInSeconds: Int?, autoStart: Bool) {
+    func eligible(task: TokenmaxTask, windowID: String, startingInSeconds: Int?, autoStart: Bool) {
         let body: String
         if let startingInSeconds {
             body = "\(task.title) starts in \(startingInSeconds) seconds."
@@ -39,7 +47,19 @@ final class AutoRunNotifier {
         post(
             title: autoStart ? "Tokenmax is starting a queued task" : "Tokenmax found an eligible task",
             body: body,
-            identifier: "autorun-eligible-\(task.id.uuidString)"
+            identifier: "autorun-eligible-\(task.id.uuidString)",
+            userInfo: [UserInfoKey.taskID: task.id.uuidString, UserInfoKey.windowID: windowID]
+        )
+    }
+
+    /// A start that was offered and then withdrawn. Not gated on a setting: the
+    /// banner said a task was about to run, and silence afterwards would leave
+    /// that standing.
+    func declined(task: TokenmaxTask, reason: QueueAutoRunDecision.SkipReason) {
+        post(
+            title: "Tokenmax did not start \(task.title)",
+            body: reason.explanation,
+            identifier: "autorun-declined-\(task.id.uuidString)"
         )
     }
 
@@ -85,11 +105,12 @@ final class AutoRunNotifier {
         return settings.pauseAfterFailure ? "Tokenmax paused the queue" : "A queued task failed"
     }
 
-    private func post(title: String, body: String, identifier: String) {
+    private func post(title: String, body: String, identifier: String, userInfo: [String: String] = [:]) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.categoryIdentifier = Self.categoryIdentifier
+        content.userInfo = userInfo
         NotificationIcon.attach(to: content)
 
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)

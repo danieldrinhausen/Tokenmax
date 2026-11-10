@@ -758,6 +758,14 @@ limit** — not its estimate — fits before the safety margin. Anything else, a
 Settings say which condition failed. Switching on **Never run when usage credits could be charged**
 adds one more condition; it is off by default, [for reasons below](#running-a-task-at-a-set-time).
 
+Those conditions are checked again at the moment a start takes effect — when the start-delay
+countdown ends, on **Start now**, and on the **Start** button of an *Ask before running* banner —
+not only when the task was first found eligible. A countdown is as old as your start delay, a banner can be
+hours old, and in between quota may have dropped, quiet hours begun, or you may have run the task
+yourself. If it is no longer the task the queue would choose, in the same window, nothing starts and
+a banner says why. A countdown the Mac slept through is cancelled rather than fired on pre-sleep
+readings; the queue then decides afresh. Running a task by hand cancels its countdown.
+
 ### Codex tasks
 
 Codex automation has its own switch — **Settings → Queue automation → Codex** — because trusting one

@@ -88,6 +88,20 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         case taskUnavailable
         case notResumable
 
+        // Reasons a decision already acted on is withdrawn at the moment it
+        // would take effect. See `QueueAutoRun.confirmStart`.
+        /// The countdown ran well past its start time — the Mac slept through
+        /// it — so the readings it was decided on are of unknown age.
+        case countdownStale
+        /// Some other task, or none, is now what the queue would run.
+        case taskNoLongerNext
+        /// The quota window it was decided against is not the current one.
+        case windowChanged
+        /// The task was started by hand, finished, edited or archived since.
+        case taskNotReady
+        /// The mode was switched to preview only after it was offered.
+        case previewOnlyMode
+
         /// A correct pause the user need not act on, versus something worth
         /// their attention. Drives the colour in Settings and the popover.
         var isNoteworthy: Bool {
@@ -175,6 +189,16 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "The task this run came from no longer exists."
             case .notResumable:
                 "This run's conversation was not saved, so it cannot be continued."
+            case .countdownStale:
+                "The countdown ran past its start time, most likely because the Mac was asleep, so it was cancelled. The queue decides again from fresh readings."
+            case .taskNoLongerNext:
+                "That task is no longer the one the queue would run, so nothing was started."
+            case .windowChanged:
+                "The quota window it was queued against has changed, so nothing was started."
+            case .taskNotReady:
+                "The task is no longer waiting in the queue, so nothing was started."
+            case .previewOnlyMode:
+                "Execution mode is preview only, so nothing was started."
             }
         }
     }
@@ -726,6 +750,52 @@ enum QueueAutoRun {
         if runInFlight { return .runInFlight }
         if !task.workingDirectoryExists { return .workingDirectoryMissing }
         return nil
+    }
+
+    // MARK: - Confirming a decision before it takes effect
+
+    /// How far past its start time a countdown may be found and still be
+    /// honoured. The countdown is checked once a second, so a few seconds is
+    /// load, not sleep; minutes is a closed lid.
+    static let staleCountdownTolerance: TimeInterval = 10
+
+    /// Whether a start that was decided earlier may still go ahead.
+    ///
+    /// A countdown, and an "ask" notification tapped hours later, are decisions
+    /// made on readings that have since aged, about a queue that has since
+    /// changed — a task may have been run by hand, quota may have dropped, quiet
+    /// hours may have begun. So the decision is made again at the moment of
+    /// acting, and the start proceeds only if it still names the same task in
+    /// the same window. Ambiguity is a refusal; the next tick decides afresh.
+    ///
+    /// `countdownEndedAt` is nil when a person is acting right now (Start now),
+    /// where lateness is not the issue.
+    static func confirmStart(
+        taskID: UUID,
+        windowID: String,
+        countdownEndedAt: Date?,
+        now: Date,
+        decision: QueueAutoRunDecision
+    ) -> QueueAutoRunDecision.SkipReason? {
+        if let ended = countdownEndedAt, now.timeIntervalSince(ended) > staleCountdownTolerance {
+            return .countdownStale
+        }
+        switch decision {
+        case let .skip(reason):
+            return reason
+        case .preview:
+            return .previewOnlyMode
+        case let .run(decidedTask, decidedWindow), let .ask(decidedTask, decidedWindow):
+            guard decidedTask == taskID else { return .taskNoLongerNext }
+            guard decidedWindow == windowID else { return .windowChanged }
+            return nil
+        }
+    }
+
+    /// The last check before a decided start becomes a process. Only `ready`
+    /// tasks are the queue's to start; anything else was changed under it.
+    static func runnableGate(_ task: TokenmaxTask) -> QueueAutoRunDecision.SkipReason? {
+        task.status == .ready ? nil : .taskNotReady
     }
 
     /// Whether a task whose run record was found unfinished at launch must stop

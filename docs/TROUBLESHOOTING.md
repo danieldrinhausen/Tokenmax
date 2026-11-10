@@ -706,6 +706,15 @@ Four more causes are specific to Codex:
 The status line in Settings names whichever condition is actually failing, and
 the Codex section says which window your own plan reports.
 
+### The banner said a task was starting, then "Tokenmax did not start" it
+
+The countdown, **Start now** and a banner's **Start** button all decide again at the moment they
+act, because the decision they were offered on can be a minute or hours old. The second banner
+carries the reason — quota below a floor, quiet hours, the queue paused, the task already run or
+no longer next, or the Mac having slept through the countdown. Nothing was spent. If the task is
+still eligible the queue offers it again on its own; if it is not, fix the condition named, or run
+the task by hand from its card.
+
 ### An appointment came and went and nothing ran
 
 A task with a set time still has to satisfy every condition in the list above

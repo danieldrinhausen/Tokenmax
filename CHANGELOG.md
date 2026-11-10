@@ -18,6 +18,16 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A countdown, or a banner's Start button, no longer skips the checks.** The start-delay
+  countdown ran its task when it ended without looking again, so a task you ran by hand while it
+  counted down ran a second time, a countdown the Mac slept through fired on pre-sleep readings,
+  and quota that had dropped, quiet hours or a pause since the countdown began were ignored. The
+  **Start** button on an *Ask before running* banner was worse: it ran whatever was next, past
+  every quota, usage-credit and quiet-hours check, even when tapped hours later. Both now make the
+  decision again at the moment of starting and proceed only for the same task in the same window;
+  otherwise a banner says why nothing started. A countdown the Mac slept through is cancelled and
+  decided afresh, and running a task by hand cancels its countdown.
+
 - **A crash while a task was starting no longer runs it twice.** The run record is saved before
   the task is marked running, and recovery at launch only looked at running tasks — so a crash
   between the two left the task Ready with an unfinished record, and the queue picked it up and

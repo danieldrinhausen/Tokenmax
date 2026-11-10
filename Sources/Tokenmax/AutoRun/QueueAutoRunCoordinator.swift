@@ -286,13 +286,27 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
         expireMissedSchedules()
 
-        // A countdown already running just needs the clock checked.
+        // A countdown already running just needs the clock checked — and, when
+        // it ends, the decision made again. The one that started it is up to
+        // `startDelaySeconds` old, or hours if the Mac slept through it.
         if let pending = pendingRun {
-            if Date() >= pending.startsAt {
-                pendingRun = nil
+            guard Date() >= pending.startsAt else { return }
+            pendingRun = nil
+            if let reason = startRefusal(
+                taskID: pending.taskID,
+                windowID: pending.windowID,
+                countdownEndedAt: pending.startsAt
+            ) {
+                Log.shared.write("autorun: countdown cancelled (\(reason.rawValue)) for \(pending.taskTitle)")
+                // The sleep case is not news: the queue decides again just
+                // below and announces whatever it finds.
+                if reason != .countdownStale { announceDeclined(taskID: pending.taskID, reason: reason) }
+                // Falls through rather than returning, so a fresh decision —
+                // possibly for another task — is made on this same tick.
+            } else {
                 beginRun(taskID: pending.taskID, windowID: pending.windowID, trigger: .automatic)
+                return
             }
-            return
         }
 
         // A disabled provider is not merely skipped, it is never consulted: its
@@ -505,12 +519,12 @@ final class QueueAutoRunCoordinator: ObservableObject {
             startsAt: Date().addingTimeInterval(delay)
         )
         Log.shared.write("autorun: starting \(task.title) in \(Int(delay))s")
-        notifications.eligible(task: task, startingInSeconds: Int(delay), autoStart: true)
+        notifications.eligible(task: task, windowID: windowID, startingInSeconds: Int(delay), autoStart: true)
     }
 
-    private func notifyEligible(taskID: UUID, windowID _: String) {
+    private func notifyEligible(taskID: UUID, windowID: String) {
         guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return }
-        notifications.eligible(task: task, startingInSeconds: nil, autoStart: false)
+        notifications.eligible(task: task, windowID: windowID, startingInSeconds: nil, autoStart: false)
     }
 
     /// Cancelling during the countdown costs nothing — no process has started.
@@ -524,19 +538,88 @@ final class QueueAutoRunCoordinator: ObservableObject {
     func startPendingNow() {
         guard let pending = pendingRun else { return }
         pendingRun = nil
+        // Skipping the wait is not skipping the gates: quota may have dropped
+        // since the countdown began, and this is the moment it would be spent.
+        if let reason = startRefusal(taskID: pending.taskID, windowID: pending.windowID, countdownEndedAt: nil) {
+            Log.shared.write("autorun: start now refused (\(reason.rawValue)) for \(pending.taskTitle)")
+            announceDeclined(taskID: pending.taskID, reason: reason)
+            return
+        }
         beginRun(taskID: pending.taskID, windowID: pending.windowID, trigger: .automatic)
+    }
+
+    /// Backs the notification's Start action: the banner names a task and a
+    /// window, and the start goes ahead only if the queue would still choose
+    /// that task in that window right now.
+    ///
+    /// This used to run whatever was next, past every gate. In ask mode a banner
+    /// tapped hours after it was posted started a task chosen by the present, on
+    /// quota nobody had checked since.
+    private func startFromNotification(taskID: UUID?, windowID: String?) {
+        // A banner posted before the payload existed carries neither. Not
+        // knowing what it offered is a refusal, not a licence to pick.
+        guard let taskID, let windowID else {
+            Log.shared.write("autorun: start from notification refused — it names no task")
+            return
+        }
+        if let pending = pendingRun {
+            guard pending.taskID == taskID, pending.windowID == windowID else {
+                Log.shared.write("autorun: start from notification refused — a different countdown is running")
+                announceDeclined(taskID: taskID, reason: .taskNoLongerNext)
+                return
+            }
+            startPendingNow()
+            return
+        }
+        if let reason = startRefusal(taskID: taskID, windowID: windowID, countdownEndedAt: nil) {
+            Log.shared.write("autorun: start from notification refused (\(reason.rawValue))")
+            announceDeclined(taskID: taskID, reason: reason)
+            return
+        }
+        beginRun(taskID: taskID, windowID: windowID, trigger: .automatic)
+    }
+
+    /// Makes the decision again for one task, as of now, through every gate
+    /// `evaluate` applies, and returns why it may not start — or nil.
+    private func startRefusal(taskID: UUID, windowID: String, countdownEndedAt: Date?) -> QueueAutoRunDecision.SkipReason? {
+        guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return .taskUnavailable }
+        let now = Date()
+        var outcome = QueueAutoRun.decide(makeInput(provider: task.provider, now: now))
+        if outcome.isEligible, let gate = accountGate(for: task.provider) {
+            outcome = .skip(reason: gate)
+        }
+        return QueueAutoRun.confirmStart(
+            taskID: taskID,
+            windowID: windowID,
+            countdownEndedAt: countdownEndedAt,
+            now: now,
+            decision: outcome
+        )
+    }
+
+    private func announceDeclined(taskID: UUID, reason: QueueAutoRunDecision.SkipReason) {
+        guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return }
+        notifications.declined(task: task, reason: reason)
     }
 
     // MARK: - Running
 
-    private func beginRun(taskID: UUID, windowID: String, trigger: RunTrigger) {
-        guard activeRun == nil else { return }
-        guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return }
+    @discardableResult
+    private func beginRun(taskID: UUID, windowID: String, trigger: RunTrigger) -> QueueAutoRunDecision.SkipReason? {
+        guard activeRun == nil else { return .runInFlight }
+        guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return .taskUnavailable }
+        // Only the queue's own start path comes through here, and it must never
+        // start what is not waiting in it. Not in `run()`: a reply and a retry
+        // legitimately run tasks that are completed or need attention.
+        if let reason = QueueAutoRun.runnableGate(task) {
+            Log.shared.write("autorun: start refused — \(task.title) is \(task.status.rawValue)")
+            return reason
+        }
         // Recorded as what it is, so the per-window allowances — which count
         // only `.automatic` runs — stay a budget for the opportunistic burn.
         // A hand-started run of a dated task is still `.manual`.
         let effective: RunTrigger = trigger == .automatic && task.scheduledStart != nil ? .scheduled : trigger
-        run(task, windowID: windowID, trigger: effective)
+        return run(task, windowID: windowID, trigger: effective)
     }
 
     /// `reply` continues `resuming`'s conversation instead of starting the task
@@ -591,6 +674,9 @@ final class QueueAutoRunCoordinator: ObservableObject {
             persist: persistState
         ) { [self] persistedState in
             state = persistedState
+            // A run by hand ends any countdown: left to expire it would start
+            // the same task again the moment this one finished.
+            cancelPending(reason: "a run started")
             pruneRunLogs()
             activeRun = record
             lastRun = record
@@ -982,15 +1068,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
         center.addObserver(forName: .tokenmaxAutoRunCancel, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.stop() }
         }
-        center.addObserver(forName: .tokenmaxAutoRunStartNow, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                if self.pendingRun != nil {
-                    self.startPendingNow()
-                } else {
-                    _ = self.runNextEligibleNow()
-                }
-            }
+        center.addObserver(forName: .tokenmaxAutoRunStartNow, object: nil, queue: .main) { [weak self] note in
+            let taskID = (note.userInfo?[AutoRunNotifier.UserInfoKey.taskID] as? String).flatMap(UUID.init(uuidString:))
+            let windowID = note.userInfo?[AutoRunNotifier.UserInfoKey.windowID] as? String
+            Task { @MainActor in self?.startFromNotification(taskID: taskID, windowID: windowID) }
         }
         // The queue window renders the output itself, so this only has to make
         // sure the window is there to receive the same notification.

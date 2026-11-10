@@ -1317,4 +1317,141 @@ struct QueueAutoRunTests {
             #expect(!QueueAutoRun.needsAttentionAfterInterruption(status))
         }
     }
+
+    // MARK: - Confirming a start when it takes effect
+
+    /// The decision as the coordinator would re-make it, plus the identity the
+    /// countdown was started with.
+    private func decided(_ input: QueueAutoRun.Input) -> (decision: QueueAutoRunDecision, taskID: UUID, windowID: String) {
+        let decision = QueueAutoRun.decide(input)
+        return (decision, decision.taskID ?? UUID(), decision.windowID ?? "none")
+    }
+
+    private func confirm(
+        _ started: (decision: QueueAutoRunDecision, taskID: UUID, windowID: String),
+        against current: QueueAutoRun.Input,
+        endedSecondsAgo: Double? = 0
+    ) -> QueueAutoRunDecision.SkipReason? {
+        QueueAutoRun.confirmStart(
+            taskID: started.taskID,
+            windowID: started.windowID,
+            countdownEndedAt: endedSecondsAgo.map { now.addingTimeInterval(-$0) },
+            now: now,
+            decision: QueueAutoRun.decide(current)
+        )
+    }
+
+    @Test("A countdown whose task and window are still eligible fires")
+    func stillEligibleCountdownFires() {
+        let queued = task()
+        let started = decided(input(tasks: [queued]))
+        #expect(confirm(started, against: input(tasks: [queued])) == nil)
+        // Late by a tick or two is load, not sleep.
+        #expect(confirm(started, against: input(tasks: [queued]), endedSecondsAgo: 3) == nil)
+    }
+
+    @Test("A countdown for a task that was run by hand meanwhile does not run it a second time")
+    func countdownDoesNotDoubleRunATaskStartedByHand() {
+        let queued = task()
+        let started = decided(input(tasks: [queued]))
+        // The manual run set it running, so the coordinator's ready list no
+        // longer holds it — and once finished it is completed, not ready.
+        var running = queued
+        running.status = .running
+        var completed = queued
+        completed.status = .completed
+        #expect(confirm(started, against: input(tasks: [running])) == .noApprovedTask)
+        #expect(confirm(started, against: input(tasks: [completed])) == .noApprovedTask)
+    }
+
+    @Test("A countdown found long after it ended is cancelled, not fired on pre-sleep data")
+    func staleCountdownIsCancelled() {
+        let queued = task()
+        let started = decided(input(tasks: [queued]))
+        // Everything still looks eligible; the age alone refuses it.
+        let tooLate = QueueAutoRun.staleCountdownTolerance + 1
+        #expect(confirm(started, against: input(tasks: [queued]), endedSecondsAgo: tooLate) == .countdownStale)
+        #expect(confirm(started, against: input(tasks: [queued]), endedSecondsAgo: 3600) == .countdownStale)
+        // Nil means a person is acting now, where lateness is not the question.
+        #expect(confirm(started, against: input(tasks: [queued]), endedSecondsAgo: nil) == nil)
+    }
+
+    @Test("A queue paused during the countdown stops the start")
+    func pauseDuringCountdownStopsTheStart() throws {
+        let queued = task()
+        let started = decided(input(tasks: [queued]))
+        var paused = QueueAutoRunState()
+        paused.pause(started.windowID)
+        #expect(confirm(started, against: input(tasks: [queued], state: paused)) == .pausedAfterFailure)
+    }
+
+    @Test("Anything that would have stopped the run at the start stops it at the end of the countdown")
+    func countdownIsRedecidedAgainstEveryGate() {
+        let queued = task()
+        let started = decided(input(tasks: [queued]))
+        #expect(confirm(started, against: input(isStale: true, tasks: [queued])) == .dataStale)
+        #expect(confirm(started, against: input(weeklyRemaining: 1, tasks: [queued])) == .weeklyQuotaLow)
+        #expect(confirm(started, against: input(session: session(remaining: 1), tasks: [queued])) == .sessionQuotaLow)
+        #expect(confirm(started, against: input(extraUsageEnabled: true, tasks: [queued])) == .extraUsageEnabled)
+        #expect(confirm(started, against: input(queueEnabled: false, tasks: [queued])) == .queueDisabled)
+        #expect(confirm(started, against: input(tasks: [queued], runInFlight: true)) == .runInFlight)
+        #expect(confirm(started, against: input(settings: settings(enabled: false), tasks: [queued])) == .disabled)
+        #expect(
+            confirm(started, against: input(settings: settings(mode: .previewOnly), tasks: [queued]))
+                == .previewOnlyMode
+        )
+    }
+
+    @Test("A start is refused when another task, or another window, is now the one decided")
+    func startIsBoundToItsTaskAndWindow() {
+        let first = task(title: "First", sortIndex: 0)
+        let second = task(title: "Second", sortIndex: 1)
+        let started = decided(input(tasks: [first, second]))
+        #expect(started.taskID == first.id)
+
+        // The first is gone from the ready list; the second would run instead.
+        #expect(confirm(started, against: input(tasks: [second])) == .taskNoLongerNext)
+        // Same task, but the window rolled over.
+        #expect(
+            confirm(started, against: input(session: session(resetInMinutes: 200), tasks: [first, second]))
+                == .outsideLeadWindow
+        )
+        #expect(
+            QueueAutoRun.confirmStart(
+                taskID: first.id, windowID: "another-window", countdownEndedAt: nil, now: now,
+                decision: QueueAutoRun.decide(input(tasks: [first]))
+            ) == .windowChanged
+        )
+    }
+
+    @Test("An ask-mode offer that is still the decision may be started from its notification")
+    func askOfferStillStands() {
+        let queued = task()
+        let mode = settings(mode: .askBeforeRunning)
+        let started = decided(input(settings: mode, tasks: [queued]))
+        #expect(confirm(started, against: input(settings: mode, tasks: [queued]), endedSecondsAgo: nil) == nil)
+        // Tapped later, after quota fell below the floor: refused, not run.
+        #expect(
+            confirm(started, against: input(settings: mode, weeklyRemaining: 1, tasks: [queued]), endedSecondsAgo: nil)
+                == .weeklyQuotaLow
+        )
+    }
+
+    @Test("Only a ready task may be started by the queue")
+    func onlyReadyTasksAreRunnable() {
+        #expect(QueueAutoRun.runnableGate(task(status: .ready)) == nil)
+        for status in [TaskStatus.running, .completed, .needsAttention, .archived] {
+            #expect(QueueAutoRun.runnableGate(task(status: status)) == .taskNotReady)
+        }
+    }
+
+    @Test("Every withdrawn-start reason says what happened")
+    func withdrawnStartReasonsHaveCopy() {
+        for reason in [
+            QueueAutoRunDecision.SkipReason.countdownStale, .taskNoLongerNext, .windowChanged,
+            .taskNotReady, .previewOnlyMode,
+        ] {
+            #expect(!reason.explanation.isEmpty)
+        }
+    }
 }

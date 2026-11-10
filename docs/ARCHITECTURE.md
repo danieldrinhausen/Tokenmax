@@ -418,6 +418,20 @@ And because nothing evaluates while the Mac is asleep, a missed appointment
 expires (`scheduleExpired`) rather than running late; `notYetScheduled` is its
 waiting state and is a suppression the user need not act on.
 
+**A decision is made again when it takes effect.** `QueueAutoRun.decide` says
+`run` or `ask` at one moment and the process starts at a later one — after the
+start-delay countdown, or when someone taps a banner. `QueueAutoRun.confirmStart`
+is the pure check between the two: it takes a fresh decision and passes only if
+it still names the same task in the same window, refusing with a named reason
+(`taskNoLongerNext`, `windowChanged`, `previewOnlyMode`, or whatever `decide`
+itself returned) and with `countdownStale` when the countdown is found
+`staleCountdownTolerance` past its end — a closed lid, whose readings are of
+unknown age. The coordinator calls it from `evaluate`, `startPendingNow` and the
+notification's Start action, which carries its task and window in the
+notification's `userInfo`. `beginRun` adds `runnableGate`: the queue's own start
+path refuses a task that is not `ready`. `run()` does not, because a reply and a
+retry legitimately run completed tasks.
+
 `ClaudeTaskRunner.environment` and `ClaudeOpenerRunner.environment` differ on
 purpose — a denylist for the runner (real projects need a working `PATH`), an
 allowlist for the opener (which needs nothing). The comment there says not to

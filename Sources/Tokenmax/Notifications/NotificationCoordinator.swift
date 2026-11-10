@@ -337,6 +337,10 @@ extension NotificationCoordinator: UNUserNotificationCenterDelegate {
             providerID: content.userInfo["providerID"] as? String
         )
 
+        // Plain strings, extracted before the actor hop like the snooze payload.
+        let autoRunInfo = [AutoRunNotifier.UserInfoKey.taskID, AutoRunNotifier.UserInfoKey.windowID]
+            .reduce(into: [String: String]()) { $0[$1] = content.userInfo[$1] as? String }
+
         // Complete the OS callback now. The actual app action is serialized on
         // the main actor and cannot delay delivery acknowledgement.
         completionHandler()
@@ -359,7 +363,7 @@ extension NotificationCoordinator: UNUserNotificationCenterDelegate {
                 await self.snooze(snoozePayload)
 
             case AutoRunNotifier.Action.startNow:
-                NotificationCenter.default.post(name: .tokenmaxAutoRunStartNow, object: nil)
+                NotificationCenter.default.post(name: .tokenmaxAutoRunStartNow, object: nil, userInfo: autoRunInfo)
             case AutoRunNotifier.Action.cancel:
                 NotificationCenter.default.post(name: .tokenmaxAutoRunCancel, object: nil)
             case AutoRunNotifier.Action.viewOutput:
