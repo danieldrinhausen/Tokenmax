@@ -118,6 +118,9 @@ final class ClaudeCodeProvider: UsageProvider {
             resets = response.availableResets(now: fetchedAt)
             oneTimeCredit = response.oneTimeCreditReading
         } catch {
+            // Cancelled means "stop", not "fall back to the statusline and call
+            // it a reading": the coordinator that asked has gone away.
+            if error.isCancellation { throw CancellationError() }
             primaryError = error
             // A rejected token is the one signal that the credentials we hold
             // are behind Claude Code's rotation, so drop them and let the next

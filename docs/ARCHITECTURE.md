@@ -223,6 +223,17 @@ closing one cannot return polling to background cadence while the other remains
 open. The OAuth client's own 180-second request floor still applies; foreground
 cadence changes UI freshness, not the network safety boundary.
 
+One fetch runs per provider at a time, across a stop and a restart as well
+(`fetchInFlight`; the UI's `isRefreshing` flag is cleared only by the generation
+that set it). Nothing cancels a fetch except `stop()`: opening a surface while
+the launch fetch runs used to cancel it, the cancelled call was counted as a
+failure, and the replacement then hit the backoff and the client's floor. A
+cancellation (`Error.isCancellation`, which sees through `URLError.cancelled`
+and the clients' error wrapping) changes no state and arms no backoff. A manual,
+verifying or post-restart refresh that arrives mid-fetch is queued, coalesced
+into one run and awaited by every caller, because callers read the state
+straight after; an ordinary tick is simply dropped.
+
 Two usage sources, merged by confidence and freshness in
 `ClaudeCodeProvider.merge`. The endpoint can be polled any time; the statusline
 only updates while a session runs.

@@ -209,4 +209,228 @@ struct UsageRefreshLifecycleTests {
 
         #expect(coordinator.state.snapshot?.planName == "Pro")
     }
+
+    // MARK: - Cancellation, queued refreshes and overlap
+
+    /// Holds the first fetch until released, can fail on demand, and records how
+    /// many fetches ran at once. The fetch honours cancellation the way a real
+    /// URLSession call does, so a refresh that gets cancelled really throws.
+    private final class GatedProvider: UsageProvider, @unchecked Sendable {
+        let identifier = "claude-code"
+        let displayName = "Claude Code"
+        private let lock = NSLock()
+        private var count = 0
+        private var active = 0
+        private var peak = 0
+        private var gate: CheckedContinuation<Void, Never>?
+        private var holdFirst: Bool
+        private var failure: Error?
+
+        init(holdFirst: Bool, failure: Error? = nil) {
+            self.holdFirst = holdFirst
+            self.failure = failure
+        }
+
+        var fetchCount: Int { lock.withLock { count } }
+        var maxConcurrent: Int { lock.withLock { peak } }
+        var isHolding: Bool { lock.withLock { gate != nil } }
+
+        func release() {
+            lock.withLock {
+                gate?.resume()
+                gate = nil
+                holdFirst = false
+            }
+        }
+
+        func fail(with error: Error?) { lock.withLock { failure = error } }
+
+        func fetchUsage() async throws -> ProviderUsage {
+            let (number, hold, error) = lock.withLock { () -> (Int, Bool, Error?) in
+                count += 1
+                active += 1
+                peak = max(peak, active)
+                return (count, holdFirst && count == 1, failure)
+            }
+            defer { lock.withLock { active -= 1 } }
+            if hold {
+                await withCheckedContinuation { continuation in lock.withLock { gate = continuation } }
+            }
+            try Task.checkCancellation()
+            if let error { throw error }
+            return ProviderUsage(
+                providerID: identifier, planName: "Fetch \(number)", windows: [], fetchedAt: Date()
+            )
+        }
+
+        func checkAuthentication() async -> AuthenticationState { .authenticated }
+    }
+
+    private func makeCoordinator(_ provider: some UsageProvider) -> UsageRefreshCoordinator {
+        UsageRefreshCoordinator(
+            provider: provider,
+            settingsStore: SettingsStore(),
+            snapshotURL: FileManager.default.temporaryDirectory
+                .appendingPathComponent("tokenmax-test-\(UUID().uuidString).json")
+        )
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        for _ in 0..<1000 where !condition() { try await Task.sleep(for: .milliseconds(2)) }
+    }
+
+    private func isUnavailable(_ state: UsageState) -> Bool {
+        if case .unavailable = state { return true }
+        return false
+    }
+
+    /// The bug: opening the popover during the launch fetch cancelled it, the
+    /// cancelled call was counted as a failure, and the user saw "cancelled".
+    @Test("Opening the popover during the launch fetch lets that fetch finish instead of cancelling it")
+    func surfaceOpenDoesNotCancelInFlightRefresh() async throws {
+        let provider = GatedProvider(holdFirst: true)
+        let coordinator = makeCoordinator(provider)
+
+        coordinator.start()
+        try await waitUntil { provider.isHolding }
+        coordinator.popoverOpened()
+        provider.release()
+        try await waitUntil { coordinator.state.snapshot != nil }
+
+        #expect(coordinator.state.snapshot?.planName == "Fetch 1")
+        #expect(!isUnavailable(coordinator.state))
+        // The popover's own refresh was redundant with the one already running.
+        #expect(provider.fetchCount == 1)
+        coordinator.stop()
+    }
+
+    @Test("A cancelled fetch is not a failure: state is untouched and no backoff follows")
+    func cancellationIsSilent() async throws {
+        let provider = GatedProvider(holdFirst: false, failure: CancellationError())
+        let coordinator = makeCoordinator(provider)
+
+        await coordinator.refresh(reason: "first")
+        #expect(coordinator.state.snapshot == nil)
+        #expect(!isUnavailable(coordinator.state))
+
+        // No backoff was armed, so the very next automatic refresh goes through.
+        provider.fail(with: nil)
+        await coordinator.refresh(reason: "second")
+        #expect(coordinator.state.snapshot?.planName == "Fetch 2")
+    }
+
+    @Test("A real failure still arms the backoff that a cancellation does not")
+    func failureStillBacksOff() async {
+        let provider = GatedProvider(holdFirst: false, failure: URLError(.timedOut))
+        let coordinator = makeCoordinator(provider)
+
+        await coordinator.refresh(reason: "first")
+        #expect(isUnavailable(coordinator.state))
+
+        provider.fail(with: nil)
+        await coordinator.refresh(reason: "second")
+        #expect(provider.fetchCount == 1)
+    }
+
+    @Test("Cancellation is recognised through URLError, NSError and CancellationError, and only those")
+    func recognisesCancellation() {
+        #expect(CancellationError().isCancellation)
+        #expect(URLError(.cancelled).isCancellation)
+        #expect(NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled).isCancellation)
+        #expect(!URLError(.timedOut).isCancellation)
+        #expect(!URLError(.notConnectedToInternet).isCancellation)
+        #expect(!ProviderError.underlying("cancelled").isCancellation)
+    }
+
+    @Test("A manual refresh that arrives mid-fetch runs once afterwards, and its caller waits for it")
+    func manualRefreshIsQueuedAndCoalesced() async throws {
+        let provider = GatedProvider(holdFirst: true)
+        let coordinator = makeCoordinator(provider)
+
+        coordinator.start()
+        try await waitUntil { provider.isHolding }
+
+        let first = Task { await coordinator.refresh(reason: "click", manual: true) }
+        let second = Task { await coordinator.refresh(reason: "click again", manual: true, retryDeniedKeychainAccess: true) }
+        for _ in 0..<20 { await Task.yield() }
+        #expect(provider.fetchCount == 1)
+
+        provider.release()
+        await first.value
+        await second.value
+
+        // One run for both, and it had landed by the time they returned.
+        #expect(provider.fetchCount == 2)
+        #expect(coordinator.state.snapshot?.planName == "Fetch 2")
+        coordinator.stop()
+    }
+
+    @Test("An ordinary timer refresh that arrives mid-fetch is dropped, not queued")
+    func tickDuringFetchIsDropped() async throws {
+        let provider = GatedProvider(holdFirst: true)
+        let coordinator = makeCoordinator(provider)
+
+        coordinator.start()
+        try await waitUntil { provider.isHolding }
+        let tick = Task { await coordinator.refresh(reason: "timer") }
+        await tick.value
+        provider.release()
+        try await waitUntil { coordinator.state.snapshot != nil }
+        for _ in 0..<20 { await Task.yield() }
+
+        #expect(provider.fetchCount == 1)
+        coordinator.stop()
+    }
+
+    /// The bug: `stop()` cleared the flag while the old fetch still ran, so a
+    /// restart began a second one beside it and the old fetch's defer then
+    /// cleared the flag under the new one.
+    @Test("Restarting while the old fetch is still running never runs two fetches at once")
+    func restartDoesNotOverlap() async throws {
+        let provider = GatedProvider(holdFirst: true)
+        let coordinator = makeCoordinator(provider)
+
+        coordinator.start()
+        try await waitUntil { provider.isHolding }
+        coordinator.stop()
+        coordinator.start()
+        for _ in 0..<20 { await Task.yield() }
+        #expect(provider.fetchCount == 1)
+
+        // A tick from the new generation must not start a second either. It
+        // joins the queued run, so it is released with it rather than awaited.
+        let tick = Task { await coordinator.refresh(reason: "timer") }
+        for _ in 0..<20 { await Task.yield() }
+        #expect(provider.fetchCount == 1)
+
+        provider.release()
+        try await waitUntil { coordinator.state.snapshot != nil }
+        for _ in 0..<20 { await Task.yield() }
+
+        #expect(provider.maxConcurrent == 1)
+        #expect(provider.fetchCount == 2)
+        // Only the new generation's reading landed; the old one was discarded.
+        #expect(coordinator.state.snapshot?.planName == "Fetch 2")
+        #expect(!coordinator.isRefreshing)
+        await tick.value
+        coordinator.stop()
+    }
+
+    @Test("Stopping releases a caller waiting on a queued refresh instead of leaving it hanging")
+    func stopReleasesQueuedCallers() async throws {
+        let provider = GatedProvider(holdFirst: true)
+        let coordinator = makeCoordinator(provider)
+
+        coordinator.start()
+        try await waitUntil { provider.isHolding }
+        let waiting = Task { await coordinator.refresh(reason: "click", manual: true) }
+        for _ in 0..<20 { await Task.yield() }
+
+        coordinator.stop()
+        await waiting.value
+        provider.release()
+        for _ in 0..<20 { await Task.yield() }
+
+        #expect(provider.fetchCount == 1)
+    }
 }

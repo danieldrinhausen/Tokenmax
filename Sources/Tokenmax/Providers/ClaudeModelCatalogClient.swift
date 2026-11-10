@@ -66,6 +66,9 @@ actor ClaudeModelCatalogClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            // Handed up as a cancellation, not wrapped: once it is a message
+            // string nothing can tell it from a dead network.
+            if error.isCancellation { throw CancellationError() }
             throw UsageClientError.transport(error.localizedDescription)
         }
 

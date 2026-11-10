@@ -64,3 +64,15 @@ enum ProviderError: Error, LocalizedError, Equatable {
         }
     }
 }
+
+extension Error {
+    /// A task or request that was cancelled, however it was wrapped on the way
+    /// up. Cancellation is not evidence about the network, the login or the
+    /// account, so nothing downstream may count it as a failure.
+    var isCancellation: Bool {
+        if self is CancellationError { return true }
+        if (self as? URLError)?.code == .cancelled { return true }
+        let bridged = self as NSError
+        return bridged.domain == NSURLErrorDomain && bridged.code == NSURLErrorCancelled
+    }
+}

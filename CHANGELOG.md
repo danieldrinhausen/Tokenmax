@@ -18,6 +18,15 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Opening the popover during a refresh no longer shows "cancelled".** A new refresh used to
+  cancel the one in flight; the cancelled request was counted as a failure with a backoff, and its
+  replacement was then turned away by that backoff and by the 180-second request floor the
+  cancelled request had already armed. Only switching a provider off cancels a refresh now, and a
+  cancellation never counts as a failure. A manual Refresh (or the one after sign-in, token renewal
+  or an opener run) that arrives mid-refresh is queued and runs once afterwards instead of being
+  dropped. Switching a provider off and on while a fetch was still running could also start a second
+  fetch beside it (two Codex app-servers at once); it now waits.
+
 - **One mistyped field in a usage response no longer fails the whole read.** The Claude usage
   decoder threw on a single wrong-typed window or `utilization`, and the user saw a raw "The data
   couldn't be read" error. Each block now falls back on its own and a numeric-string percentage is

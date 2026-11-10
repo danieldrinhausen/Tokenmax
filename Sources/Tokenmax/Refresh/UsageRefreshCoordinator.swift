@@ -43,8 +43,28 @@ final class UsageRefreshCoordinator: ObservableObject {
     /// would land on it anyway. A refresh that sees this move while it waited
     /// knows the coordinator it started on is gone.
     private var stopGeneration = 0
+    /// True from the moment a fetch starts until the provider call returns,
+    /// whatever generation started it. `isRefreshing` is the UI's flag and
+    /// `stop()` clears it at once, but the old fetch is still running; this is
+    /// what stops a restart (or a timer tick after one) from starting a second
+    /// fetch beside it — two Codex app-servers at once, for one.
+    private var fetchInFlight = false
+    /// The generation that started the fetch now in flight.
+    private var fetchGeneration = 0
+    /// A refresh that arrived while another was in flight and must not be
+    /// lost: a manual click, a post-sign-in or post-renewal read, a verification.
+    /// They are coalesced into one run for when the current one finishes, and
+    /// every caller waits for it, because they read the state straight after.
+    private var queuedRefresh: QueuedRefresh?
     private var consecutiveFailures = 0
     private var backoffUntil: Date?
+
+    private struct QueuedRefresh {
+        var reason: String
+        var manual: Bool
+        var retryDeniedKeychainAccess: Bool
+        var waiters: [CheckedContinuation<Void, Never>]
+    }
 
     private static let backoffSchedule: [TimeInterval] = [30, 60, 120, 300]
 
@@ -98,6 +118,9 @@ final class UsageRefreshCoordinator: ObservableObject {
         }
         refreshTask?.cancel()
         refreshTask = nil
+        // Anyone waiting on a queued refresh is released, not run: the provider
+        // was switched off, and what they asked for no longer applies.
+        releaseQueuedRefresh()
 
         activeSurfaces.removeAll()
         previewUntil = nil
@@ -134,8 +157,14 @@ final class UsageRefreshCoordinator: ObservableObject {
     }
 
     /// Refreshes through a retained handle so `stop()` has something to cancel.
+    ///
+    /// Never cancels the refresh already running. It used to, so opening the
+    /// popover during the launch fetch aborted that request mid-flight: the
+    /// cancelled call threw, was counted as a failure with a backoff, and the
+    /// replacement then bounced off both the in-flight guard and that backoff —
+    /// after the OAuth client had already armed its 180s floor for a request
+    /// that never completed. Only `stop()` cancels.
     private func kickOffRefresh(reason: String, manual: Bool = false) {
-        refreshTask?.cancel()
         refreshTask = Task { @MainActor [weak self] in
             await self?.refresh(reason: reason, manual: manual)
         }
@@ -221,6 +250,32 @@ final class UsageRefreshCoordinator: ObservableObject {
         backoffUntil = nil
     }
 
+    private func releaseQueuedRefresh() {
+        guard let queued = queuedRefresh else { return }
+        queuedRefresh = nil
+        queued.waiters.forEach { $0.resume() }
+    }
+
+    /// Starts the coalesced refresh, if one was waiting, once the fetch that
+    /// blocked it has returned. Runs as its own task so the finished refresh
+    /// has fully unwound first, and releases the waiters only after it lands.
+    private func runQueuedRefresh() {
+        guard let queued = queuedRefresh else { return }
+        queuedRefresh = nil
+        guard hasStarted else {
+            queued.waiters.forEach { $0.resume() }
+            return
+        }
+        refreshTask = Task { @MainActor [weak self] in
+            await self?.refresh(
+                reason: queued.reason,
+                manual: queued.manual,
+                retryDeniedKeychainAccess: queued.retryDeniedKeychainAccess
+            )
+            queued.waiters.forEach { $0.resume() }
+        }
+    }
+
     // MARK: - Refresh
 
     /// `manual` bypasses network backoff. `retryDeniedKeychainAccess` is kept
@@ -234,10 +289,45 @@ final class UsageRefreshCoordinator: ObservableObject {
         if !manual, let backoffUntil, Date() < backoffUntil {
             return
         }
-        guard !isRefreshing else { return }
+        if fetchInFlight {
+            // Ordinary ticks are redundant with the fetch already running. A
+            // manual or verifying request is not: it was asked for *after*
+            // whatever that fetch started with, so it runs once this one is
+            // done. So does any refresh left over from before a restart, which
+            // would otherwise be dropped and leave the provider unread until
+            // the next timer tick.
+            let orphaned = fetchGeneration != stopGeneration
+            guard manual || retryDeniedKeychainAccess || orphaned else { return }
+            await withCheckedContinuation { continuation in
+                if var queued = queuedRefresh {
+                    queued.manual = queued.manual || manual
+                    queued.retryDeniedKeychainAccess = queued.retryDeniedKeychainAccess || retryDeniedKeychainAccess
+                    queued.waiters.append(continuation)
+                    queuedRefresh = queued
+                } else {
+                    queuedRefresh = QueuedRefresh(
+                        reason: reason,
+                        manual: manual,
+                        retryDeniedKeychainAccess: retryDeniedKeychainAccess,
+                        waiters: [continuation]
+                    )
+                }
+            }
+            return
+        }
 
+        let generation = stopGeneration
+        fetchInFlight = true
+        fetchGeneration = generation
         isRefreshing = true
-        defer { isRefreshing = false }
+        defer {
+            fetchInFlight = false
+            // A fetch that outlived `stop()` must not clear the flag of the one
+            // that started after the restart: it would let the next tick start a
+            // second fetch on top of that one.
+            if generation == stopGeneration { isRefreshing = false }
+            runQueuedRefresh()
+        }
 
         if manual {
             resetBackoff()
@@ -250,12 +340,13 @@ final class UsageRefreshCoordinator: ObservableObject {
         }
 
         let startedAt = Date()
-        let generation = stopGeneration
         do {
             let usage = try await provider.fetchUsage()
             // The provider may have been switched off while this was in flight.
             // A stopped coordinator must not be repopulated behind the user's back.
-            guard !Task.isCancelled, generation == stopGeneration else { return }
+            // Only the generation decides: a reading that arrived is a reading,
+            // and a task that merely got cancelled has no say in whether it counts.
+            guard generation == stopGeneration else { return }
             let snapshot = UsageSnapshot(
                 providerID: usage.providerID,
                 planName: usage.planName,
@@ -296,6 +387,14 @@ final class UsageRefreshCoordinator: ObservableObject {
             NotificationCenter.default.post(name: .tokenmaxUsageUpdated, object: nil)
         } catch {
             guard generation == stopGeneration else { return }
+            // A cancelled request says nothing about the network or the login,
+            // so it is not a failure: no backoff, no state change. Only a
+            // `stop()` cancels now, and the generation guard above has usually
+            // returned before this point.
+            if error.isCancellation {
+                Log.shared.write("refresh(\(reason)): cancelled")
+                return
+            }
             applyFailure(error, reason: reason)
         }
     }

@@ -234,6 +234,9 @@ actor CursorUsageClient {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
+            // Handed up as a cancellation, not wrapped: once it is a message
+            // string nothing can tell it from a dead network.
+            if error.isCancellation { throw CancellationError() }
             throw CursorUsageClientError.transport(error.localizedDescription)
         }
         guard let http = response as? HTTPURLResponse else {
