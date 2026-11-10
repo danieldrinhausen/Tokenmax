@@ -18,6 +18,13 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A project's own Claude settings can no longer slip an API key past the billing check.** The
+  check read only `~/.claude/settings.json`, but a task also reads the working directory's
+  `.claude/settings.json` and `settings.local.json`, where an `apiKeyHelper` or an API key in
+  `env` moved the run to per-token billing with nothing in the way. Both files are now checked
+  per task and the card says so. The Bedrock, Vertex and Foundry switches count as well, in either
+  place.
+
 - **A working directory of `/`, your home folder or a relative path is refused.** File tools are
   scoped to the working directory, so with one of those the scoping covered the whole disk or
   everything you own, and a relative path resolved against wherever Tokenmax happened to be

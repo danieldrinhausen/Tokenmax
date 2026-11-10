@@ -632,7 +632,7 @@ The opener sends only when every one of these holds:
   reset with weekly quota above your threshold, so a charge cannot be reached from there. The check
   remains available as a categorical guard for anyone who would rather not trust the percentages;
 - `claude auth status` reports a first-party **claude.ai** subscription;
-- `~/.claude/settings.json` carries no `apiKeyHelper` and no API key in `env`;
+- `~/.claude/settings.json` carries no `apiKeyHelper`, no API key and no Bedrock, Vertex or Foundry switch in `env`;
 - it is outside quiet hours;
 - nothing has already been sent for this reset cycle.
 

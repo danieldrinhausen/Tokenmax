@@ -593,6 +593,26 @@ struct QueueAutoRunTests {
         #expect(result.errorMessage == QueueAutoRunDecision.SkipReason.workingDirectoryTooBroad.explanation)
     }
 
+    @Test("A task whose project settings configure billing is refused, and lookalikes are not")
+    func projectSettingsGate() {
+        func gate(_ shared: String?, _ local: String? = nil) -> QueueAutoRunDecision.SkipReason? {
+            QueueAutoRun.projectSettingsGate(
+                settings: shared.map { Data($0.utf8) }, localSettings: local.map { Data($0.utf8) }
+            )
+        }
+        #expect(gate(#"{"apiKeyHelper": "/usr/local/bin/get-key"}"#) == .apiKeyInProjectSettings)
+        #expect(gate(#"{"permissions": {}}"#, #"{"env": {"ANTHROPIC_API_KEY": "sk-ant-x"}}"#) == .apiKeyInProjectSettings)
+        #expect(gate(nil, #"{"env": {"ANTHROPIC_AUTH_TOKEN": "t"}}"#) == .apiKeyInProjectSettings)
+        #expect(gate(#"{"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}}"#) == .apiKeyInProjectSettings)
+
+        #expect(gate(nil) == nil)
+        #expect(gate(#"{"permissions": {"allow": ["Read(**)"]}}"#, #"{"env": {"NODE_ENV": "test"}}"#) == nil)
+        #expect(gate(#"{"env": {"ANTHROPIC_API_KEY_NAME": "x", "NOT_ANTHROPIC_API_KEY": "x"}}"#) == nil)
+        #expect(gate(#"{"apiKeyHelper": "", "env": {"ANTHROPIC_API_KEY": ""}}"#) == nil)
+        #expect(gate("not json", "{") == nil)
+        #expect(QueueAutoRunDecision.SkipReason.apiKeyInProjectSettings.explanation.contains("settings.local.json"))
+    }
+
     @Test("A task with no estimate is not run unattended")
     func estimateRequired() {
         let unsized = task(estimate: nil)

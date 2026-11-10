@@ -337,7 +337,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         if outcome.isEligible,
            let taskID = outcome.taskID,
            let task = taskStore.tasks.first(where: { $0.id == taskID }),
-           let gate = accountGate(for: task.provider) {
+           let gate = accountGate(for: task) {
             outcome = .skip(reason: gate)
         }
 
@@ -471,17 +471,28 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// Codex's costs nothing: the usage refresh already discovered the login
     /// type, and asking again would mean a second App Server for an answer
     /// already in hand.
-    private func accountGate(for provider: TokenmaxProvider, force: Bool = false)
+    private func accountGate(for task: TokenmaxTask, force: Bool = false)
         -> QueueAutoRunDecision.SkipReason?
     {
-        switch provider {
+        switch task.provider {
         case .claudeCode:
-            QueueAutoRun.accountGate(expensiveGate(force: force))
+            QueueAutoRun.accountGate(expensiveGate(force: force)) ?? projectSettingsGate(for: task)
         case .codex:
             QueueAutoRun.codexAccountGate(isAPIKeyOnly: usage.isAPIKeyOnly(for: .codex))
         case .cursor:
             .providerCannotRunTasks
         }
+    }
+
+    /// The task's own `.claude` settings, read fresh each time: unlike the
+    /// account-wide gate they differ per task, and they are two small files.
+    private func projectSettingsGate(for task: TokenmaxTask) -> QueueAutoRunDecision.SkipReason? {
+        guard let directory = task.expandedWorkingDirectory else { return nil }
+        let claude = directory.appendingPathComponent(".claude", isDirectory: true)
+        return QueueAutoRun.projectSettingsGate(
+            settings: try? Data(contentsOf: claude.appendingPathComponent("settings.json")),
+            localSettings: try? Data(contentsOf: claude.appendingPathComponent("settings.local.json"))
+        )
     }
 
     /// The two checks that need a subprocess or a file read, reused wholesale
@@ -592,7 +603,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return .taskUnavailable }
         let now = Date()
         var outcome = QueueAutoRun.decide(makeInput(provider: task.provider, now: now))
-        if outcome.isEligible, let gate = accountGate(for: task.provider) {
+        if outcome.isEligible, let gate = accountGate(for: task) {
             outcome = .skip(reason: gate)
         }
         return QueueAutoRun.confirmStart(
@@ -853,7 +864,9 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // answer, and the user may have just edited ~/.claude/settings.json.
         if provider == .claudeCode,
            outcome.isEligible,
-           let gate = QueueAutoRun.accountGate(expensiveGate(force: true)) {
+           let taskID = outcome.taskID,
+           let task = taskStore.tasks.first(where: { $0.id == taskID }),
+           let gate = accountGate(for: task, force: true) {
             outcome = .skip(reason: gate)
         }
         publish(outcome)
@@ -912,7 +925,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         }
 
         // The account gates still apply: a manual run must not be billed either.
-        if let gate = accountGate(for: task.provider, force: true) {
+        if let gate = accountGate(for: task, force: true) {
             Log.shared.write("autorun: manual run refused — \(gate.rawValue)")
             return gate
         }
@@ -957,7 +970,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return reason
         }
 
-        if let gate = accountGate(for: task.provider, force: true) {
+        if let gate = accountGate(for: task, force: true) {
             Log.shared.write("autorun: reply refused — \(gate.rawValue)")
             return gate
         }

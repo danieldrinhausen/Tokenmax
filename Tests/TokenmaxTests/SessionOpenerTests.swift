@@ -491,6 +491,16 @@ struct SessionOpenerTests {
         #expect(gate(#"{"env": {"ANTHROPIC_API_KEY": "sk-ant-xyz"}}"#) == .apiKeyConfigured)
         #expect(gate(#"{"env": {"ANTHROPIC_AUTH_TOKEN": "tok"}}"#) == .apiKeyConfigured)
 
+        // Cloud-provider switches move the run onto another per-token bill.
+        #expect(gate(#"{"env": {"CLAUDE_CODE_USE_BEDROCK": "1"}}"#) == .apiKeyConfigured)
+        #expect(gate(#"{"env": {"CLAUDE_CODE_USE_VERTEX": "true"}}"#) == .apiKeyConfigured)
+        #expect(gate(#"{"env": {"CLAUDE_CODE_USE_FOUNDRY": "1"}}"#) == .apiKeyConfigured)
+        #expect(gate(#"{"env": {"AWS_BEARER_TOKEN_BEDROCK": "t"}}"#) == .apiKeyConfigured)
+        // ...unless they are switched off, and lookalike keys say nothing.
+        #expect(gate(#"{"env": {"CLAUDE_CODE_USE_BEDROCK": "0"}}"#) == nil)
+        #expect(gate(#"{"env": {"CLAUDE_CODE_USE_VERTEX": "false"}}"#) == nil)
+        #expect(gate(#"{"env": {"CLAUDE_CODE_USE_BEDROCK_X": "1", "MY_ANTHROPIC_API_KEY": "k"}}"#) == nil)
+
         // Empty values are not a configured key.
         #expect(gate(#"{"apiKeyHelper": ""}"#) == nil)
         #expect(gate(#"{"env": {"ANTHROPIC_API_KEY": ""}}"#) == nil)

@@ -376,7 +376,10 @@ can never stop on an approval prompt nobody is there to answer. It reports no
 per-run cost, so there is no `--max-budget-usd` equivalent to enforce; the
 runtime ceiling and the sandbox are the whole budget. The API-key refusal is
 shared but arrives differently: Claude's is read from `~/.claude/settings.json`
-at gate time, while Codex's is a `ProviderError.apiKeyConfigured` the usage
+at gate time — and, for a task, from the working directory's `.claude/settings.json`
+and `settings.local.json` too (`apiKeyInProjectSettings`), since a task keeps the
+project setting sources and either file could otherwise set a key the account-wide
+check never sees — while Codex's is a `ProviderError.apiKeyConfigured` the usage
 refresh already discovered, kept as a flag rather than re-derived from an error
 message that would break the first time its wording changed.
 

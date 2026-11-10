@@ -99,7 +99,7 @@ enum SessionOpenerDecision: Equatable, Sendable {
             case .notSubscriptionAuth:
                 "Claude Code is not signed in to a Claude subscription. Run ‘claude login’, then refresh."
             case .apiKeyConfigured:
-                "An API key is configured in ~/.claude/settings.json, so a run would be billed."
+                "An API key or cloud-provider billing is configured in ~/.claude/settings.json, so a run would be billed."
             }
         }
     }
@@ -375,8 +375,16 @@ enum SessionOpener {
             return .apiKeyConfigured
         }
         if let env = root["env"] as? [String: Any] {
-            for key in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] {
+            for key in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "AWS_BEARER_TOKEN_BEDROCK"] {
                 if let value = env[key] as? String, !value.isEmpty { return .apiKeyConfigured }
+            }
+            // Switches rather than credentials: any truthy value moves the run
+            // onto a cloud bill. "0" and "false" are how they are turned off.
+            for key in ["CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"] {
+                if let value = env[key] as? String, !["", "0", "false"].contains(value.lowercased()) {
+                    return .apiKeyConfigured
+                }
+                if let flag = env[key] as? Bool, flag { return .apiKeyConfigured }
             }
         }
         return nil

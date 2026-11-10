@@ -61,6 +61,9 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         // must not run against pay-as-you-go billing either.
         case notSubscriptionAuth
         case apiKeyConfigured
+        /// The same objection, found in the project's own `.claude` settings
+        /// rather than the user's. Per task, because the directory is.
+        case apiKeyInProjectSettings
         /// The Codex equivalent, kept separate because the fix is a different
         /// command in a different place and a shared sentence could name only
         /// one of them.
@@ -171,7 +174,9 @@ enum QueueAutoRunDecision: Equatable, Sendable {
             case .notSubscriptionAuth:
                 "Claude Code is not signed in to a Claude subscription."
             case .apiKeyConfigured:
-                "An API key is configured in ~/.claude/settings.json, so a run would be billed."
+                "An API key or cloud-provider billing is configured in ~/.claude/settings.json, so a run would be billed."
+            case .apiKeyInProjectSettings:
+                "The task's working directory has a .claude/settings.json or settings.local.json that configures an API key or cloud-provider billing, so a run would be billed per token. Remove it from that file to run this task."
             case .codexAPIKeyConfigured:
                 "Codex is signed in with an API key, so a run would be billed per token rather than covered by a ChatGPT plan. Sign in with “codex login” to run Codex tasks automatically."
             case .providerCannotRunTasks:
@@ -828,6 +833,23 @@ enum QueueAutoRun {
     /// nothing here can tell them what the run will cost.
     static func codexAccountGate(isAPIKeyOnly: Bool) -> QueueAutoRunDecision.SkipReason? {
         isAPIKeyOnly ? .codexAPIKeyConfigured : nil
+    }
+
+    /// The settings gate, run over the task's own `.claude/settings.json` and
+    /// `settings.local.json`.
+    ///
+    /// A task keeps the CLI's project setting sources, so either file can set
+    /// `apiKeyHelper` or an `env` key that moves the run to per-token billing,
+    /// and `claude auth status` and `~/.claude/settings.json` would both look
+    /// clean. File contents are passed in; this never reads them.
+    static func projectSettingsGate(
+        settings: Data?,
+        localSettings: Data?
+    ) -> QueueAutoRunDecision.SkipReason? {
+        for data in [settings, localSettings] where SessionOpener.settingsGate(data) != nil {
+            return .apiKeyInProjectSettings
+        }
+        return nil
     }
 
     /// Translates the session opener's account gates into this feature's

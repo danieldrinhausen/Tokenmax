@@ -671,6 +671,9 @@ Tokenmax names the failing condition in the popover and in **Settings → Queue
 Automation**. The common ones:
 
 - the task is not marked **Always allow automatic execution**
+- the task's project has a **`.claude/settings.json` or `settings.local.json` with an `apiKeyHelper`, API key or
+  cloud-provider switch** — a task reads those, so the run would be billed per token; remove it
+  from that file
 - its **working directory is `/`, your home folder or a relative path** — file
   tools are scoped to the working directory, so one that wide would defeat the
   scoping; point the task at the project folder
@@ -777,7 +780,7 @@ The guards most often responsible:
 - **the model's own weekly allowance is below threshold** — Sonnet has one, Haiku
   does not
 - **not a first-party subscription** — `claude auth status` must report claude.ai
-- **an `apiKeyHelper` or API key in `~/.claude/settings.json`**
+- **an `apiKeyHelper`, API key or Bedrock/Vertex/Foundry switch in `~/.claude/settings.json`**
 - **quiet hours**
 - **the Claude data source is Status line only** — the opener cannot verify its
   own run without polling, so it waits until the keychain source is restored
