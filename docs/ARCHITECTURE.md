@@ -336,6 +336,15 @@ cases fall back rather than throw) a newer file open in an older build.
 rather than failing. `PersistenceCompatibilityTests` guards this; if you add a
 field, add a case there.
 
+**A child outlives Tokenmax.** `SpawnedProcess` puts it in its own session, so
+quitting or crashing does not stop it. `applicationWillTerminate` stops the active
+run (`QueueAutoRunCoordinator.stopForTermination`), and the run record carries a
+`ProcessIdentity` — pid plus start time — written as soon as the child exists, so
+`recoverInterruptedRuns` can stop an orphan after a crash. `OrphanedProcess.verdict`
+is the pure rule: a live pid must match the recorded start time, and a dead leader
+with a live group counts only if the run started after the last boot. Anything
+unverifiable is never signalled.
+
 Codex's App Server and Claude's usage endpoint may additionally report banked
 rate-limit resets. Tokenmax carries only their available count and nearest
 expiry to the read-only surfaces; the provider's own tool, not Tokenmax, redeems

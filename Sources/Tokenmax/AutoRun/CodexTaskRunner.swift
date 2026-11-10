@@ -14,6 +14,7 @@ enum CodexTaskRunner {
         runID: UUID,
         prompt: String? = nil,
         resuming threadID: String? = nil,
+        onSpawn: @escaping @Sendable (ProcessIdentity) -> Void = { _ in },
         onProgress: @escaping @Sendable (String) -> Void
     ) async -> ClaudeTaskRunner.Result {
         let processBox = CodexProcessBox()
@@ -21,7 +22,7 @@ enum CodexTaskRunner {
             await Task.detached(priority: .userInitiated) {
                 runSynchronously(
                     task: task, runID: runID, prompt: prompt ?? task.prompt,
-                    resuming: threadID, onProgress: onProgress, processBox: processBox
+                    resuming: threadID, onSpawn: onSpawn, onProgress: onProgress, processBox: processBox
                 )
             }.value
         } onCancel: {
@@ -34,6 +35,7 @@ enum CodexTaskRunner {
         runID: UUID,
         prompt: String,
         resuming threadID: String?,
+        onSpawn: @escaping @Sendable (ProcessIdentity) -> Void,
         onProgress: @escaping @Sendable (String) -> Void,
         processBox: CodexProcessBox
     ) -> ClaudeTaskRunner.Result {
@@ -71,6 +73,7 @@ enum CodexTaskRunner {
             runID: runID,
             prompt: prompt,
             resuming: threadID,
+            onSpawn: onSpawn,
             onProgress: onProgress,
             processBox: processBox
         )
@@ -85,6 +88,7 @@ enum CodexTaskRunner {
         runID: UUID,
         prompt: String,
         resuming threadID: String?,
+        onSpawn: @escaping @Sendable (ProcessIdentity) -> Void = { _ in },
         onProgress: @escaping @Sendable (String) -> Void,
         processBox: CodexProcessBox = CodexProcessBox(),
         timeout: TimeInterval? = nil
@@ -128,6 +132,7 @@ enum CodexTaskRunner {
         try? output.fileHandleForWriting.close()
         try? errors.fileHandleForWriting.close()
         processBox.attach(process, observer: observer)
+        if let identity = ProcessIdentity.read(pid: process.pid) { onSpawn(identity) }
         process.onExit { code in observer.processExited(code) }
         if processBox.isStopped {
             return .init(status: .cancelled, exitCode: nil, resultText: nil, sessionID: threadID, costUSD: nil, errorMessage: nil)

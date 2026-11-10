@@ -134,6 +134,12 @@ struct TaskRunRecord: Codable, Identifiable, Sendable, Equatable {
     /// Relative to `FileLocations.runLogsDirectory`.
     var outputFile: String?
 
+    /// The child process, once spawned. The child is in its own session and
+    /// outlives Tokenmax, so a relaunch uses this to find and stop an orphan
+    /// that is still spending — and to be certain it is the same process before
+    /// signalling anything. Nil before the spawn and on every older record.
+    var processIdentity: ProcessIdentity?
+
     /// Session quota remaining either side of the run. Percentages rather than
     /// whole snapshots: the two numbers are what the history is for, and a
     /// snapshot per run would grow the state file without being read.
@@ -194,6 +200,9 @@ struct TaskRunRecord: Codable, Identifiable, Sendable, Equatable {
         isResumable = try container.decodeIfPresent(Bool.self, forKey: .isResumable) ?? false
         replyText = try container.decodeIfPresent(String.self, forKey: .replyText)
         outputFile = try container.decodeIfPresent(String.self, forKey: .outputFile)
+        // `try?`: an unreadable identity must degrade to "none", never fail the
+        // whole record.
+        processIdentity = try? container.decodeIfPresent(ProcessIdentity.self, forKey: .processIdentity)
         sessionRemainingBefore = try container.decodeIfPresent(Double.self, forKey: .sessionRemainingBefore)
         sessionRemainingAfter = try container.decodeIfPresent(Double.self, forKey: .sessionRemainingAfter)
     }

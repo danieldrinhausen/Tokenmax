@@ -600,6 +600,40 @@ struct PersistenceCompatibilityTests {
         #expect(record.replyText == nil)
     }
 
+    @Test("A run recorded before child processes were tracked loads without an identity, and one with it round-trips")
+    func processIdentityIsOptional() throws {
+        let older = try decode(TaskRunRecord.self, """
+        {
+          "id": "8B1F5B3E-0000-4000-8000-000000000006",
+          "taskID": "8B1F5B3E-0000-4000-8000-000000000007",
+          "taskTitle": "Generate API tests",
+          "windowID": "w", "startedAt": "2026-01-01T00:00:00Z",
+          "model": "sonnet", "workingDirectory": "/tmp", "status": "running"
+        }
+        """)
+        #expect(older.processIdentity == nil)
+
+        // A mangled identity degrades to none rather than failing the record,
+        // and none is the safe value: nothing unverified is ever signalled.
+        let mangled = try decode(TaskRunRecord.self, """
+        {
+          "id": "8B1F5B3E-0000-4000-8000-000000000008",
+          "taskID": "8B1F5B3E-0000-4000-8000-000000000009",
+          "taskTitle": "t", "windowID": "w", "startedAt": "2026-01-01T00:00:00Z",
+          "model": "sonnet", "workingDirectory": "/tmp", "status": "running",
+          "processIdentity": "not an object"
+        }
+        """)
+        #expect(mangled.processIdentity == nil)
+        #expect(mangled.status == .running)
+
+        var record = older
+        record.processIdentity = ProcessIdentity(pid: 4242, startSeconds: 1_700_000_000, startMicroseconds: 17)
+        let data = try JSONStore.makeEncoder().encode(record)
+        let decoded = try JSONStore.makeDecoder().decode(TaskRunRecord.self, from: data)
+        #expect(decoded.processIdentity == record.processIdentity)
+    }
+
     @Test("Auto-run state written by an older version still loads")
     func loadsEmptyAutoRunState() throws {
         let state = try decode(QueueAutoRunState.self, "{}")

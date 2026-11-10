@@ -9,7 +9,7 @@ enum TokenmaxWindow {
 /// and a visible panel backed by another can persist the same file while never
 /// delivering live changes to each other.
 @MainActor
-private final class TokenmaxApplicationObjects {
+final class TokenmaxApplicationObjects {
     static let shared = TokenmaxApplicationObjects()
 
     let settingsStore: SettingsStore

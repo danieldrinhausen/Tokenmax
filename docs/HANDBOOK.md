@@ -679,7 +679,10 @@ The opener fires shortly after wake. Neither is something an app can work around
 Yes. All writes are atomic, the opener records its cycle *before* spawning
 anything (so a crash cannot produce a second opener), and runs found unfinished
 at launch are marked interrupted, and their task moved to Needs attention,
-rather than silently retried.
+rather than silently retried. Quitting Tokenmax mid-run stops the run and its
+processes and records it the same way; after a crash, the next launch finds the
+process the run left behind (by pid *and* start time, so a recycled pid is never
+touched) and stops it before anything else can start.
 
 **How do I get rid of it completely?**
 Quit, delete `/Applications/Tokenmax.app`, and remove

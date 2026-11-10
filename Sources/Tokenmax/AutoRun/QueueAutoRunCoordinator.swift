@@ -159,9 +159,15 @@ final class QueueAutoRunCoordinator: ObservableObject {
         guard !unfinished.isEmpty else { return }
 
         for var run in unfinished {
+            // Before anything else can start: the child outlives Tokenmax, so a
+            // run "interrupted" on paper may still be working and spending, and
+            // a second task would start alongside it.
+            let stopped = run.processIdentity.map { OrphanedProcess.stop($0, grace: 5) }
             run.status = .interrupted
             run.finishedAt = Date()
-            run.errorMessage = "Tokenmax was interrupted while this task was running."
+            run.errorMessage = stopped == .ours
+                ? "Tokenmax was interrupted while this task was running. The process it left behind was stopped."
+                : "Tokenmax was interrupted while this task was running."
             state.record(run)
 
             if let task = taskStore.tasks.first(where: { $0.id == run.taskID }),
@@ -174,6 +180,47 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
         persist()
         lastRun = state.mostRecentRun
+    }
+
+    /// Recorded the moment the child exists, not at the end, so that a crash
+    /// mid-run still leaves enough on disk to find the orphan.
+    private func noteSpawned(_ identity: ProcessIdentity, runID: UUID) {
+        guard var record = activeRun, record.id == runID else { return }
+        record.processIdentity = identity
+        activeRun = record
+        state.record(record)
+        _ = persist()
+    }
+
+    /// Called as Tokenmax quits. The child is in its own session and would keep
+    /// running — and spending — after the app is gone, so it is stopped here and
+    /// the run is recorded as interrupted rather than left looking in flight.
+    ///
+    /// Blocks the main thread for the termination grace at most, which is the
+    /// right trade at quit: the alternative is a paid process nobody is watching.
+    func stopForTermination() {
+        guard let record = activeRun else { return }
+        var interrupted = record
+        interrupted.status = .interrupted
+        interrupted.finishedAt = Date()
+        interrupted.errorMessage = "Tokenmax was quit while this task was running, so the run was stopped."
+        state.record(interrupted)
+        _ = persist()
+
+        if let task = taskStore.tasks.first(where: { $0.id == record.taskID }),
+           QueueAutoRun.needsAttentionAfterInterruption(task.status)
+        {
+            taskStore.markNeedsAttention(task, message: interrupted.errorMessage ?? "Interrupted.")
+        }
+        Log.shared.write("autorun: quitting with run \(record.id) in flight; stopping it")
+
+        // Cancellation sends SIGTERM through the runner at once; the identity
+        // path then waits for the group to go and escalates, and also covers a
+        // child whose spawn has not reached the runner yet.
+        runTask?.cancel()
+        if let identity = record.processIdentity {
+            OrphanedProcess.stop(identity, grace: ClaudeTaskRunner.quitGrace)
+        }
     }
 
     // MARK: - Evaluation
@@ -718,14 +765,19 @@ final class QueueAutoRunCoordinator: ObservableObject {
                 let progress: @Sendable (String) -> Void = { text in
                     Task { @MainActor in self?.progressText = text }
                 }
+                let spawned: @Sendable (ProcessIdentity) -> Void = { identity in
+                    Task { @MainActor in self?.noteSpawned(identity, runID: runID) }
+                }
                 let result: ClaudeTaskRunner.Result
                 if task.provider == .codex {
                     result = await CodexTaskRunner.run(
-                        task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
+                        task: task, runID: runID, prompt: reply, resuming: sessionID,
+                        onSpawn: spawned, onProgress: progress
                     )
                 } else {
                     result = await ClaudeTaskRunner.run(
-                        task: task, runID: runID, prompt: reply, resuming: sessionID, onProgress: progress
+                        task: task, runID: runID, prompt: reply, resuming: sessionID,
+                        onSpawn: spawned, onProgress: progress
                     )
                 }
                 await self?.finish(record: record, task: task, result: result)

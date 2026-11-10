@@ -96,6 +96,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationWillTerminate(_: Notification) {
+        // The test host is also an app, and has nothing of ours to stop.
+        guard !RuntimeEnvironment.isTesting else { return }
+        TokenmaxApplicationObjects.shared.autoRun.stopForTermination()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
         false
     }

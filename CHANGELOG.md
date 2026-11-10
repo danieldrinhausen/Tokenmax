@@ -18,6 +18,13 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Quitting or crashing Tokenmax no longer leaves a paid run going.** Task processes are detached
+  from the app so a timeout can stop everything they started, which also meant quitting left the
+  CLI running with no one watching, and the next launch could start another task beside it. Quit
+  now stops the active run and records it as interrupted. The run record also keeps the process's
+  pid and start time, so after a crash the next launch stops the leftover process, and only when
+  the start time proves it is the same one.
+
 - **A task's leftover processes are stopped even after the CLI itself has exited.** Stopping a run
   signalled the process group only while the CLI was alive, so a helper that ignored the polite
   stop, or one a Bash-enabled task had put in the background, kept running once the CLI was gone.

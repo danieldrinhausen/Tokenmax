@@ -13,6 +13,10 @@ enum ClaudeTaskRunner {
     /// to finish an in-flight write, short enough not to hang the queue.
     static let terminationGrace: TimeInterval = 10
 
+    /// How long quitting waits for a run's processes to honour SIGTERM before
+    /// SIGKILL. Short: the user is waiting for the app to close.
+    static let quitGrace: TimeInterval = 3
+
     /// A run whose streams never reach EOF after the process exits resolves
     /// anyway after this long, rather than hanging the queue forever.
     static let drainGrace: TimeInterval = 3
@@ -346,6 +350,7 @@ enum ClaudeTaskRunner {
         runID: UUID,
         prompt: String? = nil,
         resuming sessionID: String? = nil,
+        onSpawn: @escaping @Sendable (ProcessIdentity) -> Void = { _ in },
         onProgress: @escaping @Sendable (String) -> Void
     ) async -> Result {
         // File tools are scoped to this directory, so a root or home folder
@@ -403,6 +408,7 @@ enum ClaudeTaskRunner {
             environment: environment(from: ProcessInfo.processInfo.environment),
             logURL: FileLocations.runLogFile(runID: runID),
             timeout: Double(policy.maximumRuntimeMinutes) * 60,
+            onSpawn: onSpawn,
             onProgress: onProgress
         )
     }
@@ -420,6 +426,7 @@ enum ClaudeTaskRunner {
         environment: [String: String],
         logURL: URL,
         timeout: TimeInterval,
+        onSpawn: @escaping @Sendable (ProcessIdentity) -> Void = { _ in },
         onProgress: @escaping @Sendable (String) -> Void
     ) async -> Result {
         let box = RunBox(logURL: logURL, timeout: timeout, onProgress: onProgress)
@@ -478,6 +485,7 @@ enum ClaudeTaskRunner {
                     try? errorPipe.fileHandleForWriting.close()
 
                     box.attach(process: process)
+                    if let identity = ProcessIdentity.read(pid: process.pid) { onSpawn(identity) }
                     process.onExit { code in box.processExited(code: code) }
                     box.startTimeoutClock()
                 } catch {

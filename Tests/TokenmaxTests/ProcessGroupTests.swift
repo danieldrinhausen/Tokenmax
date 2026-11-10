@@ -272,3 +272,108 @@ struct ProcessGroupTests {
         #expect(result.resultText == "reached")
     }
 }
+
+/// Whether a child recorded by an earlier Tokenmax may be signalled. The one
+/// rule that matters: never a process that merely has the same pid.
+@Suite("Orphaned process identity")
+struct OrphanedProcessTests {
+    private let recorded = ProcessIdentity(pid: 500, startSeconds: 2_000, startMicroseconds: 10)
+    private let boot = Date(timeIntervalSince1970: 1_000)
+
+    private func verdict(
+        live: ProcessIdentity?, group: Bool, boot: Date? = Date(timeIntervalSince1970: 1_000),
+        recorded override: ProcessIdentity? = nil, ownPID: Int32 = 9, ownGroup: Int32 = 9
+    ) -> OrphanedProcess.Verdict {
+        OrphanedProcess.verdict(
+            recorded: override ?? recorded, live: live, groupExists: group,
+            bootTime: boot, ownPID: ownPID, ownGroup: ownGroup
+        )
+    }
+
+    @Test("The same pid and start time is the same process")
+    func matchingIdentityIsOurs() {
+        #expect(verdict(live: recorded, group: true) == .ours)
+    }
+
+    @Test("A recycled pid, with a different start time, is never ours")
+    func recycledPidIsNotOurs() {
+        let later = ProcessIdentity(pid: 500, startSeconds: 2_000, startMicroseconds: 11)
+        #expect(verdict(live: later, group: true) == .notOurs)
+        let muchLater = ProcessIdentity(pid: 500, startSeconds: 90_000, startMicroseconds: 10)
+        #expect(verdict(live: muchLater, group: true) == .notOurs)
+        // Same start time but another pid is not the process either.
+        let other = ProcessIdentity(pid: 501, startSeconds: 2_000, startMicroseconds: 10)
+        #expect(verdict(live: other, group: true) == .notOurs)
+    }
+
+    @Test("Nothing running and no group means there is nothing to stop")
+    func nothingRunningIsGone() {
+        #expect(verdict(live: nil, group: false) == .gone)
+    }
+
+    @Test("A dead leader with a live group is ours only if it started after boot")
+    func leaderlessGroupNeedsBootCheck() {
+        #expect(verdict(live: nil, group: true) == .ours)
+        // Recorded before the last boot: the number may mean anything now.
+        let beforeBoot = ProcessIdentity(pid: 500, startSeconds: 100, startMicroseconds: 0)
+        #expect(verdict(live: nil, group: true, recorded: beforeBoot) == .notOurs)
+        // And with no boot time to compare against, the answer is no.
+        #expect(verdict(live: nil, group: true, boot: nil) == .notOurs)
+    }
+
+    @Test("Our own pid, our own group, init and nonsense are never signalled")
+    func neverSignalsProtectedPids() {
+        for pid: Int32 in [0, 1, -1, -500] {
+            let identity = ProcessIdentity(pid: pid, startSeconds: 2_000, startMicroseconds: 10)
+            #expect(verdict(live: identity, group: true, recorded: identity) == .notOurs)
+        }
+        #expect(verdict(live: recorded, group: true, ownPID: 500) == .notOurs)
+        #expect(verdict(live: recorded, group: true, ownGroup: 500) == .notOurs)
+    }
+
+    // MARK: - Against a real process
+
+    private func spawnSleeper() throws -> SpawnedProcess {
+        try SpawnedProcess.spawn(
+            executable: URL(fileURLWithPath: "/bin/sleep"),
+            arguments: ["300"],
+            directory: FileManager.default.temporaryDirectory,
+            environment: ["PATH": "/usr/bin:/bin"],
+            standardOutput: FileHandle.nullDevice,
+            standardError: FileHandle.nullDevice,
+            standardInput: FileHandle.nullDevice
+        )
+    }
+
+    @Test("A live child's identity is readable and stable", .timeLimit(.minutes(1)))
+    func identityOfLiveProcess() throws {
+        let process = try spawnSleeper()
+        defer { process.killGroup(); process.waitUntilExit() }
+        let identity = try #require(ProcessIdentity.read(pid: process.pid))
+        #expect(identity.pid == process.pid)
+        #expect(ProcessIdentity.read(pid: process.pid) == identity)
+        #expect(identity.startedAt <= Date())
+        #expect(identity.startedAt >= Date().addingTimeInterval(-60))
+    }
+
+    @Test("A verified orphan's group is stopped", .timeLimit(.minutes(1)))
+    func verifiedOrphanIsStopped() throws {
+        let process = try spawnSleeper()
+        let identity = try #require(ProcessIdentity.read(pid: process.pid))
+
+        #expect(OrphanedProcess.stop(identity, grace: 3) == .ours)
+        process.waitUntilExit()
+        #expect(kill(process.pid, 0) != 0)
+    }
+
+    @Test("A process whose start time does not match is left running", .timeLimit(.minutes(1)))
+    func mismatchedProcessSurvives() throws {
+        let process = try spawnSleeper()
+        defer { process.killGroup(); process.waitUntilExit() }
+        var wrong = try #require(ProcessIdentity.read(pid: process.pid))
+        wrong.startSeconds -= 3600
+
+        #expect(OrphanedProcess.stop(wrong, grace: 0.2) == .notOurs)
+        #expect(process.isRunning, "a process with a recycled pid was signalled")
+    }
+}

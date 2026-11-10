@@ -641,6 +641,14 @@ burning the queue to discover that is expensive.
 Read the error, fix the cause, resume from the queue window. Turn the behaviour
 off in **Settings → Queue Automation** if you would rather it kept going.
 
+### Tokenmax was quit or crashed mid-run
+
+The run is marked **Interrupted** and its task moves to **Needs attention**; it is
+not retried on its own, because the work may already have been paid for. Quitting
+stops the run's processes first. After a crash, the next launch stops any process
+the run left running — only when it can confirm it is the same process, never just
+because a pid matches. The log says `stopping process group … left by an earlier run`.
+
 ### The result view is blank but the run succeeded
 
 The transcript is reconstructed from the raw stream on demand. If the stream
