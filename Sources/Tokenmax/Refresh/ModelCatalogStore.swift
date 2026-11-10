@@ -136,7 +136,7 @@ final class ModelCatalogStore: ObservableObject {
             }
             catalog = fetched
             lastError = nil
-            JSONStore.save(fetched, to: cacheURL)
+            JSONStore.save(fetched, to: cacheURL, durable: false)
         } catch UsageClientError.rateLimited where !force {
             // The floor doing its job during an automatic refresh is not
             // something to report.

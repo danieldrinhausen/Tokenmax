@@ -89,7 +89,7 @@ final class CodexModelCatalogStore: ObservableObject {
             }
             catalog = CodexModelCatalog(models: fetched, fetchedAt: Date())
             lastError = nil
-            JSONStore.save(catalog, to: cacheURL)
+            JSONStore.save(catalog, to: cacheURL, durable: false)
         } catch {
             lastError = error.localizedDescription
             Log.shared.write("codex models: failed: \(error.localizedDescription)")

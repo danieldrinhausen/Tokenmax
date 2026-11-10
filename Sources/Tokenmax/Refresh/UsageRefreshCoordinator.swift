@@ -290,7 +290,7 @@ final class UsageRefreshCoordinator: ObservableObject {
             // A reading arrived, so whatever the login was, it meters quota now.
             isAPIKeyOnly = false
             state = .loaded(snapshot)
-            JSONStore.save(snapshot, to: snapshotURL)
+            JSONStore.save(snapshot, to: snapshotURL, durable: false)
             resetBackoff()
             Log.shared.write("refresh(\(reason)): ok")
             NotificationCenter.default.post(name: .tokenmaxUsageUpdated, object: nil)

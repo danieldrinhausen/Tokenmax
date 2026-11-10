@@ -1,8 +1,8 @@
 import Foundation
 
-/// Atomic Codable persistence. Writes go to a sibling temp file and are swapped
-/// in with `replaceItem`, so a crash mid-write can never leave a half-written
-/// JSON file behind.
+/// Atomic Codable persistence. Writes go to a sibling temp file, are flushed,
+/// and are renamed over the destination, so a crash mid-write can never leave a
+/// half-written JSON file behind.
 enum JSONStore {
     static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -76,27 +76,64 @@ enum JSONStore {
         return target
     }
 
+    /// Writes once to a sibling temp file, flushes it to the disk, then renames
+    /// it over the destination.
+    ///
+    /// The flush matters for the files that are the only record of spent quota
+    /// (the opener and queue state): a rename can reach the disk before the
+    /// data it points at, and a power loss then leaves a zero-length file where
+    /// the record was. `F_FULLFSYNC` rather than `fsync`, which on macOS only
+    /// hands the data to the drive's cache. Derived caches pass `durable: false`
+    /// and keep the atomic swap without paying for the flush.
     @discardableResult
-    static func save(_ value: some Encodable, to url: URL) -> Bool {
-        var temp: URL?
+    static func save(_ value: some Encodable, to url: URL, durable: Bool = true) -> Bool {
+        let directory = url.deletingLastPathComponent()
+        let temp = directory.appendingPathComponent(".\(url.lastPathComponent).tmp-\(UUID().uuidString)")
         do {
             let data = try makeEncoder().encode(value)
-            let destination = url.deletingLastPathComponent()
-                .appendingPathComponent(".\(url.lastPathComponent).tmp-\(UUID().uuidString)")
-            temp = destination
-            try data.write(to: destination, options: .atomic)
 
-            if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: destination)
-            } else {
-                try FileManager.default.moveItem(at: destination, to: url)
+            // O_EXCL so a stale temp can never be written through; 0o666 lets
+            // the umask decide, as the old `Data.write` did.
+            let descriptor = open(temp.path, O_WRONLY | O_CREAT | O_EXCL, 0o666)
+            guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            var written = 0
+            do {
+                defer { close(descriptor) }
+                try data.withUnsafeBytes { buffer in
+                    while written < buffer.count {
+                        let count = write(descriptor, buffer.baseAddress! + written, buffer.count - written)
+                        if count < 0 {
+                            if errno == EINTR { continue }
+                            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                        }
+                        written += count
+                    }
+                }
+                if durable { flush(descriptor) }
+            }
+
+            guard rename(temp.path, url.path) == 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+
+            // The rename itself lives in the directory's entry.
+            if durable {
+                let directoryDescriptor = open(directory.path, O_RDONLY)
+                if directoryDescriptor >= 0 {
+                    flush(directoryDescriptor)
+                    close(directoryDescriptor)
+                }
             }
             return true
         } catch {
-            if let temp { try? FileManager.default.removeItem(at: temp) }
+            try? FileManager.default.removeItem(at: temp)
             Log.shared.write("JSONStore save failed for \(url.lastPathComponent): \(error)")
             return false
         }
+    }
+
+    private static func flush(_ descriptor: Int32) {
+        if fcntl(descriptor, F_FULLFSYNC) == -1 { fsync(descriptor) }
     }
 }
 
