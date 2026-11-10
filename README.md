@@ -485,7 +485,7 @@ statusline-latest.json   captured statusline payload (if shim installed)
 logs/tokenmax.log        refresh timing and scheduling decisions
 ```
 
-All writes are atomic (temp file → `replaceItem`), so a crash mid-write cannot corrupt them.
+All writes are atomic (one temp file, flushed to disk, then renamed into place), so a crash or power loss mid-write cannot corrupt them.
 
 Nothing here grows without bound. Run transcripts are deleted once the run they belong to falls out
 of the last-40 history, and `tokenmax.log` rotates at 1 MB keeping one previous generation

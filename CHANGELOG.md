@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Saved state survives a power cut.** Files were written twice (a temp file, then a second copy
+  swapped in) and never flushed, so a power loss right after a save could leave an empty file where
+  the opener's or the queue's record of spent quota had been. A save is now a single write to a
+  temp file, flushed to the disk, then renamed into place.
+
 - **One mistyped value in a settings file no longer resets the whole file.** Nested settings (the
   opener, queue automation, quiet hours, reminder rules, the reset celebration) and many plain
   switches threw on a wrong-typed value, which dropped every setting back to its default and

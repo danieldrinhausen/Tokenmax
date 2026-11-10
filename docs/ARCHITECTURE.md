@@ -325,7 +325,7 @@ produces an app that silently stops working after a network blip.
 ## Persistence
 
 All state is JSON under `~/Library/Application Support/Tokenmax/`, written
-atomically (temp file → `replaceItem`) so a crash mid-write cannot corrupt it.
+atomically (one temp file, flushed with `F_FULLFSYNC`, then renamed over it) so a crash or power loss mid-write cannot corrupt it.
 
 Two invariants worth knowing before touching `Persistence/`:
 
