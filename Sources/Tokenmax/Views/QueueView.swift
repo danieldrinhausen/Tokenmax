@@ -228,7 +228,10 @@ struct QueueView: View {
 
     @ViewBuilder
     private var content: some View {
-        if visibleTasks.isEmpty {
+        // Filtered and sorted once per body: this view redraws every second, and
+        // the list, the move handler and the eligibility map each used to redo it.
+        let tasks = visibleTasks
+        if tasks.isEmpty {
             QueueEmptyStateView(
                 filter: filter,
                 query: query,
@@ -239,19 +242,21 @@ struct QueueView: View {
                 onRefresh: refresh
             )
         } else {
-            taskList
+            taskList(tasks)
         }
     }
 
-    private var taskList: some View {
+    private func taskList(_ tasks: [TokenmaxTask]) -> some View {
+        // The same once-per-body rule: a computed property here would run the
+        // map once per card.
+        let eligibility = eligibility(for: tasks)
         // Only offered where it means something: reordering a list sorted by
         // priority would either be discarded on the next redraw or quietly
         // rewrite the priority the user set.
         var moveHandler: ((IndexSet, Int) -> Void)?
         if canReorder {
-            let shown = visibleTasks
             moveHandler = { offsets, destination in
-                taskStore.move(within: shown, fromOffsets: offsets, toOffset: destination)
+                taskStore.move(within: tasks, fromOffsets: offsets, toOffset: destination)
             }
         }
 
@@ -263,8 +268,8 @@ struct QueueView: View {
         // reachable by Tab, which is the keyboard path that actually does
         // something. See the deferred note in the summary.
         return List {
-            ForEach(visibleTasks) { task in
-                card(for: task)
+            ForEach(tasks) { task in
+                card(for: task, eligibility: eligibility)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
                     .listRowBackground(Color.clear)
@@ -275,7 +280,10 @@ struct QueueView: View {
         .scrollContentBackground(.hidden)
     }
 
-    private func card(for task: TokenmaxTask) -> some View {
+    private func card(
+        for task: TokenmaxTask,
+        eligibility: [UUID: QueueAutoRunDecision.SkipReason]
+    ) -> some View {
         let isRunningHere = autoRun.activeRun?.taskID == task.id
         let progress: String? = isRunningHere ? (autoRun.progressText ?? "Running…") : nil
 
@@ -320,9 +328,9 @@ struct QueueView: View {
     /// One eligibility snapshot for the whole list rather than one per card —
     /// see `QueueAutoRunCoordinator.eligibilityMap`. Only the Ready band shows
     /// it, so nothing else pays for it.
-    private var eligibility: [UUID: QueueAutoRunDecision.SkipReason] {
+    private func eligibility(for tasks: [TokenmaxTask]) -> [UUID: QueueAutoRunDecision.SkipReason] {
         guard filter == .ready else { return [:] }
-        return autoRun.eligibilityMap(for: visibleTasks)
+        return autoRun.eligibilityMap(for: tasks)
     }
 
     private var canReorder: Bool {
