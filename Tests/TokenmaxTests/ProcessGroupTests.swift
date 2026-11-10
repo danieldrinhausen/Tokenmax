@@ -115,6 +115,61 @@ struct ProcessGroupTests {
         if isAlive(grandchild) { kill(grandchild, SIGKILL) }
     }
 
+    private func grandchildPid(in file: URL) -> pid_t? {
+        (try? String(contentsOf: file, encoding: .utf8))
+            .flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    }
+
+    @Test("A backgrounded process does not outlive a run that exited normally", .timeLimit(.minutes(2)))
+    func orphanDiesAfterNormalExit() async {
+        let pidFile = scratch().appendingPathComponent("grandchild.pid")
+        // The leader exits at once and cleanly, leaving the `sleep` behind: the
+        // case a Bash-tool opt-in can produce, and one where the old guard on
+        // the leader being alive meant nobody ever signalled the group.
+        let result = await execute("sleep 300 &\necho $! > \(pidFile.path)\nexit 0")
+        #expect(result.exitCode == 0)
+
+        guard let grandchild = grandchildPid(in: pidFile) else {
+            Issue.record("the script never reported its grandchild's pid")
+            return
+        }
+        try? await Task.sleep(for: .seconds(1))
+        #expect(!isAlive(grandchild), "a process in the run's group outlived the run")
+        if isAlive(grandchild) { kill(grandchild, SIGKILL) }
+    }
+
+    @Test("A leftover process that ignores SIGTERM is killed after the grace", .timeLimit(.minutes(2)))
+    func termIgnoringOrphanIsKilled() async {
+        let pidFile = scratch().appendingPathComponent("grandchild.pid")
+        let result = await execute("trap '' TERM\nsleep 300 &\necho $! > \(pidFile.path)\nexit 0")
+        #expect(result.exitCode == 0)
+
+        guard let grandchild = grandchildPid(in: pidFile) else {
+            Issue.record("the script never reported its grandchild's pid")
+            return
+        }
+        try? await Task.sleep(for: .seconds(SpawnedProcess.sweepGrace + 2))
+        #expect(!isAlive(grandchild), "a SIGTERM-ignoring process survived the sweep")
+        if isAlive(grandchild) { kill(grandchild, SIGKILL) }
+    }
+
+    @Test("A run whose group is already empty signals nothing after it exits", .timeLimit(.minutes(1)))
+    func cleanExitSweepsNothing() throws {
+        let process = try SpawnedProcess.spawn(
+            executable: shell,
+            arguments: ["-c", "exit 0"],
+            directory: scratch(),
+            environment: ["PATH": "/usr/bin:/bin"],
+            standardOutput: FileHandle.nullDevice,
+            standardError: FileHandle.nullDevice,
+            standardInput: FileHandle.nullDevice
+        )
+        process.waitUntilExit()
+        #expect(!process.hasLiveGroup)
+        // Safe to call: no live group, so there is nothing to signal.
+        process.killGroup()
+    }
+
     // MARK: - The safety property that makes the above possible
 
     @Test("The child leads its own session, never ours", .timeLimit(.minutes(1)))

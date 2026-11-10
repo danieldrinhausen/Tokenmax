@@ -669,7 +669,7 @@ private final class RunBox: @unchecked Sendable {
         // Recorded even when there is no process yet, so a cancellation racing
         // the spawn is honoured once `attach(process:)` arrives.
         if stopReason == nil { stopReason = reason }
-        guard let process, process.isRunning else { lock.unlock(); return }
+        guard let process, process.isRunning || process.hasLiveGroup else { lock.unlock(); return }
         let bytesWritten = logBytes
         lock.unlock()
 
@@ -685,8 +685,10 @@ private final class RunBox: @unchecked Sendable {
         DispatchQueue.global().asyncAfter(deadline: .now() + ClaudeTaskRunner.terminationGrace) { [weak self] in
             guard let self else { return }
             lock.lock()
-            let stillRunning = !resolved && (self.process?.isRunning ?? false)
             let target = self.process
+            // Not gated on `resolved` or on the leader: the leader can be gone
+            // while a grandchild that ignored SIGTERM is not.
+            let stillRunning = target.map { $0.isRunning || $0.hasLiveGroup } ?? false
             lock.unlock()
             if stillRunning {
                 Log.shared.write("autorun: SIGKILL after \(Int(ClaudeTaskRunner.terminationGrace))s grace")

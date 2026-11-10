@@ -307,10 +307,10 @@ final class CodexProcessBox: @unchecked Sendable {
     }
 
     private func stop(_ process: SpawnedProcess) {
-        guard process.isRunning else { return }
+        guard process.isRunning || process.hasLiveGroup else { return }
         process.terminateGroup()
         DispatchQueue.global().asyncAfter(deadline: .now() + CodexTaskRunner.terminationGrace) {
-            if process.isRunning { process.killGroup() }
+            if process.isRunning || process.hasLiveGroup { process.killGroup() }
         }
     }
 }

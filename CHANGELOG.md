@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A task's leftover processes are stopped even after the CLI itself has exited.** Stopping a run
+  signalled the process group only while the CLI was alive, so a helper that ignored the polite
+  stop, or one a Bash-enabled task had put in the background, kept running once the CLI was gone.
+  The group is now cleaned up as soon as the CLI exits (stop first, force after two seconds), which
+  also ends the wait for output that such a helper used to hold open.
+
 - **A project's own Claude settings can no longer slip an API key past the billing check.** The
   check read only `~/.claude/settings.json`, but a task also reads the working directory's
   `.claude/settings.json` and `settings.local.json`, where an `apiKeyHelper` or an API key in

@@ -18,6 +18,13 @@ import Foundation
 /// timeout, and the resolution logic all stay where they were.
 final class SpawnedProcess: @unchecked Sendable {
     let pid: pid_t
+    /// Whether `pid` led its own group when it was spawned, decided once. It
+    /// cannot be asked again later: after the leader is reaped `getpgid` fails,
+    /// and the group is exactly the thing that may still be alive.
+    private let groupVerified: Bool
+
+    /// How long a leftover group gets to honour SIGTERM before SIGKILL.
+    static let sweepGrace: TimeInterval = 2
 
     private let lock = NSLock()
     private var exitStatus: Int32?
@@ -35,8 +42,9 @@ final class SpawnedProcess: @unchecked Sendable {
         }
     }
 
-    private init(pid: pid_t) {
+    private init(pid: pid_t, groupVerified: Bool) {
         self.pid = pid
+        self.groupVerified = groupVerified
     }
 
     // MARK: - Spawning
@@ -94,7 +102,10 @@ final class SpawnedProcess: @unchecked Sendable {
         }
 
         guard result == 0 else { throw SpawnError.failed(result) }
-        return SpawnedProcess(pid: pid)
+        return SpawnedProcess(
+            pid: pid,
+            groupVerified: isSafeToSignalGroup(pid: pid, ourGroup: getpgid(0))
+        )
     }
 
     /// Builds a NULL-terminated `char *[]` that stays valid for the call.
@@ -157,6 +168,9 @@ final class SpawnedProcess: @unchecked Sendable {
         guard result == pid else { return }
 
         let code = Self.exitCode(fromWaitStatus: raw)
+        // Straight away, while the group id is certainly still ours: see
+        // `sweepGroup`.
+        sweepGroup()
 
         lock.lock()
         guard exitStatus == nil else { lock.unlock(); return }
@@ -217,17 +231,58 @@ final class SpawnedProcess: @unchecked Sendable {
         signalGroup(SIGKILL)
     }
 
-    /// Falls back to signalling the single process when the group cannot be
-    /// verified. Losing the grandchildren is bad; signalling the wrong group
-    /// would be far worse, so the unverified case degrades rather than guesses.
-    private func signalGroup(_ signal: Int32) {
-        guard isRunning else { return }
+    /// Whether anything in the group is still alive, leader or not.
+    var hasLiveGroup: Bool {
+        groupVerified && kill(-pid, 0) == 0
+    }
 
-        if Self.isSafeToSignalGroup(pid: pid, ourGroup: getpgid(0)) {
+    /// Signals the group whether or not the leader is still there.
+    ///
+    /// The leader exiting says nothing about its descendants: a grandchild that
+    /// ignores SIGTERM, or one a Bash tool backgrounded, outlives it, and
+    /// guarding on the leader meant the one moment it could be cleaned up was
+    /// skipped. Signalling `-pid` after the leader is gone is safe for the same
+    /// reason it is safe before: the kernel does not hand a pid out again while
+    /// a process group with that id still has members, so `-pid` can only name
+    /// our group or, once it is empty, nothing (`ESRCH`). The residual risk is
+    /// a pid recycled after the group emptied, which is why this is only ever
+    /// called close to the exit and `sweepGroup` re-checks before escalating.
+    ///
+    /// Falls back to the single process when the group was never ours to
+    /// signal. Losing the grandchildren is bad; signalling the wrong group would
+    /// be far worse, so the unverified case degrades rather than guesses.
+    private func signalGroup(_ signal: Int32) {
+        if groupVerified {
             kill(-pid, signal)
-        } else {
+        } else if isRunning {
             Log.shared.write("autorun: pid \(pid) does not lead its own group; signalling it alone")
             kill(pid, signal)
+        }
+    }
+
+    /// Cleans up after the leader has been reaped: anything left in its group
+    /// is by definition an orphan nobody is supervising.
+    ///
+    /// SIGTERM first, then SIGKILL if the group is still there after the grace,
+    /// polled so a group that dies promptly is never signalled again — the
+    /// longer the gap between a group emptying and a signal, the likelier its
+    /// pid has been recycled.
+    private func sweepGroup() {
+        guard hasLiveGroup else { return }
+        Log.shared.write("autorun: pid \(pid) exited with its group still running; stopping it")
+        kill(-pid, SIGTERM)
+
+        let deadline = Date().addingTimeInterval(Self.sweepGrace)
+        let pid = pid
+        DispatchQueue.global().async {
+            while Date() < deadline {
+                if kill(-pid, 0) != 0 { return }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+            if kill(-pid, 0) == 0 {
+                Log.shared.write("autorun: group \(pid) ignored SIGTERM; SIGKILL")
+                kill(-pid, SIGKILL)
+            }
         }
     }
 }
