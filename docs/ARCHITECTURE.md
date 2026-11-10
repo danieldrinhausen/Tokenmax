@@ -405,6 +405,14 @@ structural, not configurable:
   detached tasks, and the decision is re-made after the last await; nothing
   between that re-decision and `open` suspends, which is what stops two ticks
   both opening. `ClaudeCLIClient` memoises the CLI's location and version.
+- The queue's account gate is the same: `QueueAutoRunCoordinator` reads
+  `claude auth status` on a detached task (`primeAccountGate`) and caches it; the
+  synchronous decision only ever reads the cache, and an unread gate reads as
+  "not a subscription", so a path that forgot to prime refuses instead of
+  spending. `evaluate` is a two-pass loop — a pass that had to wait for the gate
+  returns, and the next one decides from current state — and every start path
+  (countdown end, Start now, the banner's Start, Run now, a reply) primes before
+  it decides, so two clicks cannot both pass the in-flight check.
 
 **Codex reaches the same guarantees by different means**, and the difference is
 deliberate rather than an omission. Its documented boundary is a sandbox, not a

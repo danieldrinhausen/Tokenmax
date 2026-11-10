@@ -360,8 +360,10 @@ struct QueueView: View {
     /// re-checking every gate including the ones that cost a subprocess, and
     /// hands back the reason when it refuses.
     private func runNext() {
-        if let reason = autoRun.runNextEligibleNow() {
-            errorMessage = reason.explanation
+        Task {
+            if let reason = await autoRun.runNextEligibleNow() {
+                errorMessage = reason.explanation
+            }
         }
     }
 
@@ -393,8 +395,10 @@ struct QueueView: View {
     /// switched off first would make it impossible to test a task before
     /// trusting it to run unattended.
     private func runWithProvider(_ task: TokenmaxTask) {
-        if let reason = autoRun.runManually(task) {
-            errorMessage = reason.explanation
+        Task {
+            if let reason = await autoRun.runManually(task) {
+                errorMessage = reason.explanation
+            }
         }
     }
 

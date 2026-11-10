@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **The queue no longer freezes the app while it checks your Claude login.** Before an automatic or
+  manual run, the queue asked `claude auth status` on the main thread, which can take up to 15
+  seconds; the menu bar and every window hung for that long. It now asks in the background and
+  decides afterwards, as the session opener already did. An unread answer counts as "not a
+  subscription", so nothing starts on a check that has not finished.
+
 - **An unreadable record of spent quota no longer lets the opener or the queue spend again.** When
   `session-opener-state.json` or `queue-autorun-state.json` existed but could not be read, both
   started as if nothing had ever been opened or run, which could repeat a spend. A missing file is

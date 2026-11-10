@@ -182,8 +182,10 @@ struct QueueAutomationSettingsView: View {
             titleVisibility: .visible
         ) {
             Button("Run and spend quota") {
-                if let reason = autoRun.runNextEligibleNow() {
-                    manualError = reason.explanation
+                Task {
+                    if let reason = await autoRun.runNextEligibleNow() {
+                        manualError = reason.explanation
+                    }
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -198,7 +200,7 @@ struct QueueAutomationSettingsView: View {
         } message: {
             Text(manualError ?? "")
         }
-        .onAppear { autoRun.checkEligibility() }
+        .onAppear { Task { await autoRun.checkEligibility() } }
     }
 
     // MARK: - New task defaults
@@ -391,7 +393,7 @@ struct QueueAutomationSettingsView: View {
             }
 
             HStack {
-                Button("Check eligibility") { autoRun.checkEligibility() }
+                Button("Check eligibility") { Task { await autoRun.checkEligibility() } }
                 Button("Run next eligible task now") { confirmingRun = true }
                     .disabled(autoRun.activeRun != nil)
             }

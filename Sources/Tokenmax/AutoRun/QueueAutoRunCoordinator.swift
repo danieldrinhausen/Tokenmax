@@ -42,6 +42,9 @@ final class QueueAutoRunCoordinator: ObservableObject {
     private let settingsStore: SettingsStore
     private let notifications: AutoRunNotifier
     private let persistState: (QueueAutoRunState) -> Bool
+    /// What `claude auth status` reports. A parameter so a test can prove it is
+    /// asked off the main thread; the app uses the real CLI.
+    private let readAuthStatus: @Sendable () -> ClaudeAuthStatus?
 
     private var state: QueueAutoRunState
     /// Once persistence has failed, no further paid process may start in this
@@ -68,6 +71,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
     private static let gateCacheLifetime: TimeInterval = 60
     private var cachedGate: (reason: SessionOpenerDecision.SkipReason?, readAt: Date)?
     private var cachedAuth: (status: ClaudeAuthStatus?, readAt: Date)?
+    /// The gate read in flight, so concurrent callers share one `claude auth
+    /// status` rather than each spawning their own.
+    private var gateTask: Task<Void, Never>?
+    private var isEvaluating = false
 
     /// How long to wait for a post-run reading before giving up and reporting
     /// the queue as paused rather than guessing from stale numbers.
@@ -79,8 +86,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
         settingsStore: SettingsStore,
         notifications: AutoRunNotifier = AutoRunNotifier(),
         stateFile: URL = FileLocations.queueAutoRunStateFile,
-        persistState: ((QueueAutoRunState) -> Bool)? = nil
+        persistState: ((QueueAutoRunState) -> Bool)? = nil,
+        authStatus: @escaping @Sendable () -> ClaudeAuthStatus? = { ClaudeCLIClient.authStatus() }
     ) {
+        readAuthStatus = authStatus
         self.usage = usage
         self.taskStore = taskStore
         self.settingsStore = settingsStore
@@ -105,7 +114,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.noteUsageArrived()
-                self?.evaluate()
+                await self?.evaluate()
             }
         }
 
@@ -114,7 +123,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // comparison; nothing spawns until they all pass.
         usage.clock.$now
             .sink { [weak self] _ in
-                Task { @MainActor in self?.evaluate() }
+                Task { @MainActor in await self?.evaluate() }
             }
             .store(in: &cancellables)
 
@@ -128,14 +137,14 @@ final class QueueAutoRunCoordinator: ObservableObject {
                     // Changing the settings mid-countdown should not let a run
                     // the user just reconfigured slip through on the old terms.
                     self?.cancelPending(reason: "settings changed")
-                    self?.evaluate()
+                    await self?.evaluate()
                 }
             }
             .store(in: &cancellables)
 
         notifications.apply(settingsStore.settings.queueAutoRun)
         observeNotificationActions()
-        evaluate()
+        Task { await evaluate() }
     }
 
     // MARK: - Recovery
@@ -313,10 +322,43 @@ final class QueueAutoRunCoordinator: ObservableObject {
         return value
     }
 
-    private func evaluate() {
+    /// The one-second decision. Async only because the Claude account gate may
+    /// have to ask `claude auth status`, which polls a child for up to 15s and
+    /// so never runs on the main actor.
+    ///
+    /// Everything is decided *after* that wait: a pass that finds the gate
+    /// unread awaits it and returns, and the next pass — with the gate cached —
+    /// makes the real decision from current state. Nothing decided before a
+    /// suspension is acted on after it, which is what keeps two evaluations from
+    /// both starting a run. `isEvaluating` stops the tick stacking a second pass
+    /// behind a slow one; the in-flight check comes first so a run's limits are
+    /// still enforced every second while one waits.
+    private func evaluate() async {
         if activeRun != nil {
             enforceRunLimits()
             return
+        }
+        guard !isEvaluating else { return }
+        isEvaluating = true
+        defer { isEvaluating = false }
+
+        for _ in 0..<2 {
+            guard await evaluatePass() else { return }
+        }
+    }
+
+    /// Whether the account gate is read and recent enough to decide on.
+    private var accountGateIsFresh: Bool {
+        guard let cachedGate else { return false }
+        return Date().timeIntervalSince(cachedGate.readAt) < Self.gateCacheLifetime
+    }
+
+    /// One decision. Returns true when it stopped to read the account gate and
+    /// should be run again.
+    private func evaluatePass() async -> Bool {
+        if activeRun != nil {
+            enforceRunLimits()
+            return false
         }
 
         // The common case by far — the feature is off by default. Bail before
@@ -325,13 +367,13 @@ final class QueueAutoRunCoordinator: ObservableObject {
             publish(.skip(reason: .disabled))
             pendingRun = nil
             askGate.reset()
-            return
+            return false
         }
         guard !statePersistenceFailed else {
             publish(.skip(reason: .statePersistenceFailed))
             pendingRun = nil
             askGate.reset()
-            return
+            return false
         }
 
         expireMissedSchedules()
@@ -340,9 +382,9 @@ final class QueueAutoRunCoordinator: ObservableObject {
         // it ends, the decision made again. The one that started it is up to
         // `startDelaySeconds` old, or hours if the Mac slept through it.
         if let pending = pendingRun {
-            guard Date() >= pending.startsAt else { return }
+            guard Date() >= pending.startsAt else { return false }
             pendingRun = nil
-            if let reason = startRefusal(
+            if let reason = await startRefusal(
                 taskID: pending.taskID,
                 windowID: pending.windowID,
                 countdownEndedAt: pending.startsAt
@@ -355,7 +397,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
                 // possibly for another task — is made on this same tick.
             } else {
                 beginRun(taskID: pending.taskID, windowID: pending.windowID, trigger: .automatic)
-                return
+                return false
             }
         }
 
@@ -376,16 +418,19 @@ final class QueueAutoRunCoordinator: ObservableObject {
             publish(.skip(reason: .disabled))
             pendingRun = nil
             askGate.reset()
-            return
+            return false
         }
 
         // The account gates cost a subprocess and a file read, so they only run
         // once the cheap guards have all passed.
         if outcome.isEligible,
            let taskID = outcome.taskID,
-           let task = taskStore.tasks.first(where: { $0.id == taskID }),
-           let gate = accountGate(for: task) {
-            outcome = .skip(reason: gate)
+           let task = taskStore.tasks.first(where: { $0.id == taskID }) {
+            if task.provider == .claudeCode, !accountGateIsFresh {
+                await primeAccountGate()
+                return true
+            }
+            if let gate = accountGate(for: task) { outcome = .skip(reason: gate) }
         }
 
         publish(outcome)
@@ -401,6 +446,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             break
         }
         if case .ask = outcome {} else { askGate.reset() }
+        return false
     }
 
     /// Takes tasks whose appointment went by unheeded out of the ready queue.
@@ -518,12 +564,12 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// Codex's costs nothing: the usage refresh already discovered the login
     /// type, and asking again would mean a second App Server for an answer
     /// already in hand.
-    private func accountGate(for task: TokenmaxTask, force: Bool = false)
+    private func accountGate(for task: TokenmaxTask)
         -> QueueAutoRunDecision.SkipReason?
     {
         switch task.provider {
         case .claudeCode:
-            QueueAutoRun.accountGate(expensiveGate(force: force)) ?? projectSettingsGate(for: task)
+            QueueAutoRun.accountGate(expensiveGate()) ?? projectSettingsGate(for: task)
         case .codex:
             QueueAutoRun.codexAccountGate(isAPIKeyOnly: usage.isAPIKeyOnly(for: .codex))
         case .cursor:
@@ -545,26 +591,50 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// The two checks that need a subprocess or a file read, reused wholesale
     /// from the session opener: a queued task must never run against
     /// pay-as-you-go API billing either.
-    private func expensiveGate(force: Bool = false) -> SessionOpenerDecision.SkipReason? {
-        if !force, let cachedGate, Date().timeIntervalSince(cachedGate.readAt) < Self.gateCacheLifetime {
+    ///
+    /// Reads only the cache, never a process. `primeAccountGate` fills it, off
+    /// the main actor, and every path that can start a run primes before it
+    /// decides. A gate that was never read reads as the unsafe answer — unknown
+    /// must not read as "subscription" — so a path that forgot to prime refuses
+    /// rather than spends.
+    private func expensiveGate() -> SessionOpenerDecision.SkipReason? {
+        if let cachedGate, Date().timeIntervalSince(cachedGate.readAt) < Self.gateCacheLifetime {
             return cachedGate.reason
+        }
+        return SessionOpener.authGate(nil)
+    }
+
+    /// Reads the gate (`claude auth status`, then the settings file) and caches
+    /// it. `force` is for the manual controls, where the user has just changed
+    /// something and expects the answer to reflect it.
+    private func primeAccountGate(force: Bool = false) async {
+        if !force, accountGateIsFresh { return }
+        if let gateTask {
+            await gateTask.value
+            if !force { return }
         }
         if force { cachedAuth = nil }
 
-        var reason = SessionOpener.authGate(authStatus())
-        if reason == nil {
-            let data = try? Data(contentsOf: FileLocations.claudeSettingsFile)
-            reason = SessionOpener.settingsGate(data)
+        let task = Task { @MainActor in
+            var reason = SessionOpener.authGate(await self.authStatus())
+            if reason == nil {
+                let data = try? Data(contentsOf: FileLocations.claudeSettingsFile)
+                reason = SessionOpener.settingsGate(data)
+            }
+            self.cachedGate = (reason, Date())
         }
-        cachedGate = (reason, Date())
-        return reason
+        gateTask = task
+        await task.value
+        gateTask = nil
     }
 
-    private func authStatus() -> ClaudeAuthStatus? {
+    /// `claude auth status` polls a child for up to 15s, so it runs detached.
+    private func authStatus() async -> ClaudeAuthStatus? {
         if let cachedAuth, Date().timeIntervalSince(cachedAuth.readAt) < 300 {
             return cachedAuth.status
         }
-        let status = ClaudeCLIClient.authStatus()
+        let read = readAuthStatus
+        let status = await Task.detached(priority: .userInitiated) { read() }.value
         cachedAuth = (status, Date())
         return status
     }
@@ -602,10 +672,16 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// Starts a pending run immediately, skipping the rest of the countdown.
     func startPendingNow() {
         guard let pending = pendingRun else { return }
+        // Cleared before anything suspends, so a second click or the tick cannot
+        // start the same countdown twice while the gate is being read.
         pendingRun = nil
+        Task { @MainActor in await self.start(pending) }
+    }
+
+    private func start(_ pending: PendingAutoRun) async {
         // Skipping the wait is not skipping the gates: quota may have dropped
         // since the countdown began, and this is the moment it would be spent.
-        if let reason = startRefusal(taskID: pending.taskID, windowID: pending.windowID, countdownEndedAt: nil) {
+        if let reason = await startRefusal(taskID: pending.taskID, windowID: pending.windowID, countdownEndedAt: nil) {
             Log.shared.write("autorun: start now refused (\(reason.rawValue)) for \(pending.taskTitle)")
             announceDeclined(taskID: pending.taskID, reason: reason)
             return
@@ -620,7 +696,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// This used to run whatever was next, past every gate. In ask mode a banner
     /// tapped hours after it was posted started a task chosen by the present, on
     /// quota nobody had checked since.
-    private func startFromNotification(taskID: UUID?, windowID: String?) {
+    private func startFromNotification(taskID: UUID?, windowID: String?) async {
         // A banner posted before the payload existed carries neither. Not
         // knowing what it offered is a refusal, not a licence to pick.
         guard let taskID, let windowID else {
@@ -636,7 +712,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             startPendingNow()
             return
         }
-        if let reason = startRefusal(taskID: taskID, windowID: windowID, countdownEndedAt: nil) {
+        if let reason = await startRefusal(taskID: taskID, windowID: windowID, countdownEndedAt: nil) {
             Log.shared.write("autorun: start from notification refused (\(reason.rawValue))")
             announceDeclined(taskID: taskID, reason: reason)
             return
@@ -646,7 +722,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
 
     /// Makes the decision again for one task, as of now, through every gate
     /// `evaluate` applies, and returns why it may not start — or nil.
-    private func startRefusal(taskID: UUID, windowID: String, countdownEndedAt: Date?) -> QueueAutoRunDecision.SkipReason? {
+    private func startRefusal(taskID: UUID, windowID: String, countdownEndedAt: Date?) async -> QueueAutoRunDecision.SkipReason? {
+        guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return .taskUnavailable }
+        // Read before deciding, so nothing decided here is older than the wait.
+        if task.provider == .claudeCode { await primeAccountGate() }
         guard let task = taskStore.tasks.first(where: { $0.id == taskID }) else { return .taskUnavailable }
         let now = Date()
         var outcome = QueueAutoRun.decide(makeInput(provider: task.provider, now: now))
@@ -908,9 +987,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// Evaluates every guard, including the expensive ones, and returns the
     /// verdict without spending anything.
     @discardableResult
-    func checkEligibility() -> QueueAutoRunDecision {
+    func checkEligibility() async -> QueueAutoRunDecision {
         cachedCLIInstalled = nil
         let provider = taskProvider
+        if provider == .claudeCode { await primeAccountGate(force: true) }
         var outcome = QueueAutoRun.decide(makeInput(provider: provider))
         // Nothing served from cache: the button exists to give a current
         // answer, and the user may have just edited ~/.claude/settings.json.
@@ -918,7 +998,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
            outcome.isEligible,
            let taskID = outcome.taskID,
            let task = taskStore.tasks.first(where: { $0.id == taskID }),
-           let gate = accountGate(for: task, force: true) {
+           let gate = accountGate(for: task) {
             outcome = .skip(reason: gate)
         }
         publish(outcome)
@@ -932,7 +1012,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// a burn window. It does not bypass the conditions that make a run unsafe
     /// or impossible; those are re-checked in `runManually`.
     @discardableResult
-    func runNextEligibleNow() -> QueueAutoRunDecision.SkipReason? {
+    func runNextEligibleNow() async -> QueueAutoRunDecision.SkipReason? {
         let enabled = enabledProviders
         guard !enabled.isEmpty else { return .disabled }
         // Both halves drawn from the enabled set rather than prepending
@@ -944,7 +1024,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             let input = makeInput(provider: provider)
             let candidates = QueueAutoRun.approvedTasks(input)
             if let task = candidates.first(where: { $0.workingDirectoryExists }) {
-                return runManually(task)
+                return await runManually(task)
             }
             if !candidates.isEmpty { return .workingDirectoryMissing }
         }
@@ -957,7 +1037,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// the approval, and requiring a task to be marked `.automatic` before it
     /// could be run by hand would make the safe default untestable.
     @discardableResult
-    func runManually(_ task: TokenmaxTask) -> QueueAutoRunDecision.SkipReason? {
+    func runManually(_ task: TokenmaxTask) async -> QueueAutoRunDecision.SkipReason? {
         // Clicking the button is approval to run the task, not approval to run
         // it unmetered. Every gate below reads a snapshot that stops refreshing
         // when the provider is switched off, so there is nothing safe to check
@@ -966,6 +1046,10 @@ final class QueueAutoRunCoordinator: ObservableObject {
             Log.shared.write("autorun: manual run refused — \(task.provider.rawValue) is switched off")
             return .disabled
         }
+
+        // Read first, so every check below is made after the wait, not before
+        // it: two clicks cannot both pass `runInFlight` and then both start.
+        if task.provider == .claudeCode { await primeAccountGate(force: true) }
 
         if let reason = QueueAutoRun.manualGate(
             task: task,
@@ -977,7 +1061,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         }
 
         // The account gates still apply: a manual run must not be billed either.
-        if let gate = accountGate(for: task, force: true) {
+        if let gate = accountGate(for: task) {
             Log.shared.write("autorun: manual run refused — \(gate.rawValue)")
             return gate
         }
@@ -999,7 +1083,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
     /// a long thread costs progressively more; the running total is shown next
     /// to the reply field for exactly that reason.
     @discardableResult
-    func reply(to record: TaskRunRecord, text: String) -> QueueAutoRunDecision.SkipReason? {
+    func reply(to record: TaskRunRecord, text: String) async -> QueueAutoRunDecision.SkipReason? {
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !message.isEmpty else { return nil }
 
@@ -1013,6 +1097,8 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return .taskUnavailable
         }
 
+        if task.provider == .claudeCode { await primeAccountGate(force: true) }
+
         if let reason = QueueAutoRun.manualGate(
             task: task,
             cliInstalled: cliInstalled(task.provider),
@@ -1022,7 +1108,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
             return reason
         }
 
-        if let gate = accountGate(for: task, force: true) {
+        if let gate = accountGate(for: task) {
             Log.shared.write("autorun: reply refused — \(gate.rawValue)")
             return gate
         }
@@ -1065,7 +1151,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         guard let resetAt = burnWindow(for: taskProvider)?.resetAt else { return }
         state.resume(QueueAutoRun.windowID(resetAt: resetAt, providerID: taskProvider.rawValue))
         persist()
-        evaluate()
+        Task { await evaluate() }
     }
 
     // MARK: - Queries for the UI
@@ -1144,7 +1230,7 @@ final class QueueAutoRunCoordinator: ObservableObject {
         center.addObserver(forName: .tokenmaxAutoRunStartNow, object: nil, queue: .main) { [weak self] note in
             let taskID = (note.userInfo?[AutoRunNotifier.UserInfoKey.taskID] as? String).flatMap(UUID.init(uuidString:))
             let windowID = note.userInfo?[AutoRunNotifier.UserInfoKey.windowID] as? String
-            Task { @MainActor in self?.startFromNotification(taskID: taskID, windowID: windowID) }
+            Task { @MainActor in await self?.startFromNotification(taskID: taskID, windowID: windowID) }
         }
         // The queue window renders the output itself, so this only has to make
         // sure the window is there to receive the same notification.

@@ -367,12 +367,14 @@ struct RunOutputView: View {
     private func send() {
         guard let latest else { return }
         let text = replyText
-        if let reason = autoRun.reply(to: latest.record, text: text) {
-            replyError = reason.explanation
-            return
+        Task {
+            if let reason = await autoRun.reply(to: latest.record, text: text) {
+                replyError = reason.explanation
+                return
+            }
+            replyText = ""
+            replyError = nil
         }
-        replyText = ""
-        replyError = nil
     }
 
     // MARK: - Footer
