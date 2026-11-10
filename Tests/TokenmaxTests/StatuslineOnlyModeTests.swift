@@ -24,12 +24,14 @@ struct StatuslineOnlyModeTests {
 
     private let observedAt = Date(timeIntervalSince1970: 1_785_500_000)
 
+    /// Resets far in the future: a window already past its reset is shown as
+    /// unknown now, which is not what this suite is about.
     private func payload() throws -> StatuslinePayload {
         try JSONDecoder().decode(StatuslinePayload.self, from: Data("""
         {
           "rate_limits": {
-            "five_hour": { "used_percentage": 42, "resets_at": 1785510000 },
-            "seven_day": { "used_percentage": 61, "resets_at": 1785900000 }
+            "five_hour": { "used_percentage": 42, "resets_at": 4000010000 },
+            "seven_day": { "used_percentage": 61, "resets_at": 4000400000 }
           }
         }
         """.utf8))

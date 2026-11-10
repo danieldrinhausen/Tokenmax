@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A window that has already reset no longer shows its old percentage.** A status line reading
+  (and an OAuth reading replayed from the cache) whose reset time had since passed was shown as live
+  usage, so a spent window kept looking spent until the next session wrote the file. It now shows as
+  unknown. A fresh reading taken after the reset time is kept.
+
 - **A Codex App Server that dies, floods stderr or ignores SIGTERM no longer stalls a refresh.** A
   child that exited at once was only noticed after the 12-second timeout; it is now reported
   immediately with the last line it printed. Its stderr is drained so a chatty child cannot block on

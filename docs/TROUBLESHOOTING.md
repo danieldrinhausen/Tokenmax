@@ -346,6 +346,11 @@ labels it. Causes, in order of likelihood:
   Code to renew instead (see below). It keeps checking and uses a status-line
   reading if one is available. If Claude Code does not renew, choose **Sign In
   with Claude**.
+- **A window reset since the last reading.** The status line file only changes
+  while a Claude Code session is answering, so after a reset it still holds the
+  old percentage. Tokenmax shows a window whose reading predates its own reset
+  as unknown (and the reading from a replayed cache the same) until a newer one
+  arrives; it does not keep showing the spent figure.
 - **No network.**
 
 Stale data is deliberately conservative: it suppresses pace projection and

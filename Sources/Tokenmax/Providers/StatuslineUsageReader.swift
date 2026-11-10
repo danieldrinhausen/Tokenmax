@@ -52,7 +52,10 @@ enum StatuslineUsageReader {
         return (payload, modified)
     }
 
-    static func windows(from payload: StatuslinePayload, observedAt: Date) -> [UsageWindow] {
+    /// `now` matters because this file only changes while a session is answering:
+    /// one read before a reset says nothing about the window after it, and the
+    /// old percentage must not be shown as live.
+    static func windows(from payload: StatuslinePayload, observedAt: Date, now: Date = Date()) -> [UsageWindow] {
         var result: [UsageWindow] = []
 
         if let five = payload.rateLimits?.fiveHour, five.usedPercentage != nil {
@@ -81,6 +84,6 @@ enum StatuslineUsageReader {
             ))
         }
 
-        return result
+        return result.map { $0.settingPastResetToUnknown(now: now) }
     }
 }

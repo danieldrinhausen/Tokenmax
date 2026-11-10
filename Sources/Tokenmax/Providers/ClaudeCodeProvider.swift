@@ -277,7 +277,10 @@ final class ClaudeCodeProvider: UsageProvider {
         }
     }
 
-    static func windows(from response: OAuthUsageResponse, observedAt: Date) -> [UsageWindow] {
+    /// `now` for the replayed case: inside the request floor the client hands
+    /// back a response up to 180s old, and a window that reset in that gap must
+    /// not read as the percentage it had before.
+    static func windows(from response: OAuthUsageResponse, observedAt: Date, now: Date = Date()) -> [UsageWindow] {
         var result: [UsageWindow] = []
 
         func append(
@@ -304,7 +307,7 @@ final class ClaudeCodeProvider: UsageProvider {
         append(response.sevenDayOpus, id: "claude.weekly.opus", kind: .modelSpecificWeekly, label: "Weekly (Opus)")
         append(response.sevenDaySonnet, id: "claude.weekly.sonnet", kind: .modelSpecificWeekly, label: "Weekly (Sonnet)")
 
-        return result
+        return result.map { $0.settingPastResetToUnknown(now: now) }
     }
 
     /// Keeps the better window per id: higher confidence wins, and ties break

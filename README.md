@@ -383,7 +383,10 @@ while a Claude Code session is answering and go stale in between, and the status
 carry the per-model weeklies, the plan name or the usage-credit flag. Because a mode that cannot
 poll also cannot confirm what an unattended run just spent, the **session opener and automatic
 task runs pause** in this mode, with the reason named in Settings; running a task by hand still
-works. Everything Tokenmax cannot see is shown as unknown rather than guessed.
+works. Everything Tokenmax cannot see is shown as unknown rather than guessed — including a window
+that has reset since the file was last written: the file only changes while a session answers, so
+its percentage describes a window that no longer exists, and it is shown as unknown rather than as
+live usage.
 
 The shim behind both rows is opt-in from **Settings → Data Source**. It writes a shim script and
 sets `statusLine` in `~/.claude/settings.json`, wrapping any status line you already use. Remove

@@ -92,6 +92,35 @@ struct UsageWindow: Codable, Identifiable, Sendable, Equatable {
         resetAt == nil && (usedPercent ?? 0) <= 0
     }
 
+    /// The reading was taken before the reset it names, and that reset has since
+    /// passed. Its percentage describes a window that no longer exists.
+    ///
+    /// Judged by `observedAt < resetAt`, not by `resetAt < now` alone: a fresh
+    /// reading whose reset is a few seconds past (the endpoint lagging its own
+    /// clock) was observed *after* it and is the server's current word.
+    func predatesItsReset(now: Date) -> Bool {
+        guard let resetAt else { return false }
+        return observedAt < resetAt && resetAt <= now
+    }
+
+    /// What is honestly known once the window has reset since it was read: that
+    /// it reset, and nothing about the new one. Shown as unknown rather than as
+    /// the old utilization, which is what kept a spent window looking spent
+    /// for as long as the status line file stayed unchanged.
+    func unknownAfterReset() -> UsageWindow {
+        var copy = self
+        copy.usedPercent = nil
+        copy.resetAt = nil
+        copy.confidence = .stale
+        return copy
+    }
+
+    /// `self`, or `unknownAfterReset()` when the reading predates a reset that
+    /// has passed.
+    func settingPastResetToUnknown(now: Date) -> UsageWindow {
+        predatesItsReset(now: now) ? unknownAfterReset() : self
+    }
+
     func timeUntilReset(now: Date = Date()) -> TimeInterval? {
         guard let resetAt else { return nil }
         let interval = resetAt.timeIntervalSince(now)
