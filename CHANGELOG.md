@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A reminder setting changed during a refresh is no longer lost.** Reminders are recomputed one
+  sync at a time, and a sync that arrived while another was running was simply dropped, so a new
+  lead time or a toggled rule could sit unapplied until the next usage refresh. The running sync
+  now goes round once more.
+
 - **Tokenmax no longer freezes while it looks for the Claude CLI.** The opener's checks, and the
   sign-in button, ran `claude auth status` and a login-shell search on the main thread, each able
   to wait up to 15 seconds. They now run in the background, and where the CLI is and which

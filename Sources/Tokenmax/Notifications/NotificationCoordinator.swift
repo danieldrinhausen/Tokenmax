@@ -2,6 +2,35 @@ import AppKit
 import Combine
 import UserNotifications
 
+/// Runs one piece of async work at a time, and once more if it was asked for
+/// again while running.
+///
+/// A second caller still must not overlap the first (two syncs could both see
+/// `alreadyFired == false`), but dropping it is wrong too: the running pass
+/// captured its settings and snapshot at the start, so a lead-time change or a
+/// new reset time that arrived mid-sync would wait for the next refresh.
+@MainActor
+final class CoalescingRunner {
+    private var isRunning = false
+    private var needsRerun = false
+
+    /// Returns immediately when another run is in flight; that run loops once
+    /// more on this caller's behalf.
+    func run(_ work: () async -> Void) async {
+        guard !isRunning else {
+            needsRerun = true
+            return
+        }
+        isRunning = true
+        defer { isRunning = false }
+
+        repeat {
+            needsRerun = false
+            await work()
+        } while needsRerun
+    }
+}
+
 /// Wires usage refreshes to notification scheduling, and handles taps on the
 /// banner's action buttons.
 @MainActor
@@ -18,7 +47,7 @@ final class NotificationCoordinator: NSObject, ObservableObject {
     private var settingsCancellable: AnyCancellable?
     private var queueEnabledCancellable: AnyCancellable?
     private var tasksCancellable: AnyCancellable?
-    private var isSyncing = false
+    private let syncRunner = CoalescingRunner()
     private var hasStarted = false
 
     init(
@@ -123,10 +152,10 @@ final class NotificationCoordinator: NSObject, ObservableObject {
     func syncScheduledNotifications() async {
         // The body awaits, so two overlapping syncs could both observe
         // `alreadyFired == false` and each send the reminder.
-        guard !isSyncing else { return }
-        isSyncing = true
-        defer { isSyncing = false }
+        await syncRunner.run { await self.syncOnce() }
+    }
 
+    private func syncOnce() async {
         let settings = settingsStore.settings
         // There may still be a pending request from the last good snapshot.
         // Keep it while a transient refresh failure makes the data stale, but
