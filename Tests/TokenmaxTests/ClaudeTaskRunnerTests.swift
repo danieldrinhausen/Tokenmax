@@ -153,6 +153,16 @@ struct ClaudeTaskRunnerTests {
         )
     }
 
+    @Test("A positive spend limit never reaches the CLI as zero")
+    func tinyBudgetIsNotZero() {
+        #expect(ClaudeTaskRunner.budgetArgument(0.004) == "0.01")
+        #expect(ClaudeTaskRunner.budgetArgument(0.0001) == "0.01")
+        #expect(ClaudeTaskRunner.budgetArgument(0.01) == "0.01")
+        // Lookalikes that were already fine stay as they were.
+        #expect(ClaudeTaskRunner.budgetArgument(0.25) == "0.25")
+        #expect(ClaudeTaskRunner.budgetArgument(0.07) == "0.07")
+    }
+
     /// A task written before the thinking grade existed has to invoke the CLI
     /// exactly as it did, which means no flag at all rather than a default one.
     @Test("The effort flag is omitted entirely when unset")

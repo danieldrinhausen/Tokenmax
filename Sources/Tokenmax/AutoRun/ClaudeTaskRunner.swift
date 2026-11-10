@@ -91,7 +91,7 @@ enum ClaudeTaskRunner {
             // Enforced by the CLI itself, which makes it the one limit that
             // still holds if Tokenmax is killed mid-run. Note that it is a
             // *per-process* cap, so each turn of a thread gets its own.
-            "--max-budget-usd", String(format: "%.2f", policy.maximumBudgetUSD),
+            "--max-budget-usd", budgetArgument(policy.maximumBudgetUSD),
             "--allowedTools", policy.allowedTools.joined(separator: " "),
             // No --mcp-config is passed, so "strict" means no MCP servers.
             "--strict-mcp-config",
@@ -109,6 +109,14 @@ enum ClaudeTaskRunner {
         // a prompt written to look like a flag could change the run's behaviour.
         arguments += ["--", prompt]
         return arguments
+    }
+
+    /// Dollars and cents, never less than one cent for a positive budget.
+    ///
+    /// `%.2f` turns 0.004 into "0.00", and a zero cap is not "spend nothing":
+    /// the CLI refuses it, so the run fails for a reason the user cannot see.
+    static func budgetArgument(_ dollars: Double) -> String {
+        String(format: "%.2f", dollars > 0 ? max(dollars, 0.01) : dollars)
     }
 
     /// The inverse of `ClaudeOpenerRunner.environment`, and deliberately so.

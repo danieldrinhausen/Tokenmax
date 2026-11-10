@@ -18,6 +18,10 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A very small spend limit no longer becomes `$0.00`.** The limit was formatted to two decimals,
+  so anything under half a cent was sent to the CLI as zero, which it refuses. A positive limit
+  now reaches it as at least one cent.
+
 - **A task prompt that starts with a dash no longer pauses the queue.** The prompt was passed as
   the last argument with nothing marking it as text, so a prompt opening with `-` (a markdown
   bullet list) was read as an option, rejected by the CLI and reported as *Update needed*, which
