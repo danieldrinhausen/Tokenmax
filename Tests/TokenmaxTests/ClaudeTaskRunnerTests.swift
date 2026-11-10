@@ -266,6 +266,24 @@ struct ClaudeTaskRunnerTests {
         #expect(environment["PATH"] == "/usr/bin")
     }
 
+    @Test("Cloud-provider billing switches are stripped, and lookalikes survive")
+    func environmentStripsProviderSwitches() {
+        let environment = ClaudeTaskRunner.environment(from: [
+            "CLAUDE_CODE_USE_BEDROCK": "1",
+            "CLAUDE_CODE_USE_VERTEX": "1",
+            "CLAUDE_CODE_USE_FOUNDRY": "1",
+            "AWS_BEARER_TOKEN_BEDROCK": "t",
+            "AWS_PROFILE": "work",
+            "CLAUDE_CODE_SOMETHING_ELSE": "1",
+        ])
+        #expect(environment["CLAUDE_CODE_USE_BEDROCK"] == nil)
+        #expect(environment["CLAUDE_CODE_USE_VERTEX"] == nil)
+        #expect(environment["CLAUDE_CODE_USE_FOUNDRY"] == nil)
+        #expect(environment["AWS_BEARER_TOKEN_BEDROCK"] == nil)
+        #expect(environment["AWS_PROFILE"] == "work")
+        #expect(environment["CLAUDE_CODE_SOMETHING_ELSE"] == "1")
+    }
+
     @Test("A missing PATH is filled in rather than inherited empty")
     func environmentSuppliesPath() {
         let environment = ClaudeTaskRunner.environment(from: [:])

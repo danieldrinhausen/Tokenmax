@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **Queued tasks no longer inherit the Bedrock, Vertex or Foundry switches.** `ANTHROPIC_API_KEY`
+  and friends were already stripped from a task's environment; `CLAUDE_CODE_USE_BEDROCK`,
+  `CLAUDE_CODE_USE_VERTEX`, `CLAUDE_CODE_USE_FOUNDRY` and `AWS_BEARER_TOKEN_BEDROCK` were not, and
+  any of them moves the run onto per-token billing on another cloud.
+
 - **A very small spend limit no longer becomes `$0.00`.** The limit was formatted to two decimals,
   so anything under half a cent was sent to the CLI as zero, which it refuses. A positive limit
   now reaches it as at least one cent.

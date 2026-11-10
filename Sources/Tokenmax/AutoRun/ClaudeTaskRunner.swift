@@ -136,6 +136,13 @@ enum ClaudeTaskRunner {
             "ANTHROPIC_AUTH_TOKEN",
             "ANTHROPIC_BASE_URL",
             "ANTHROPIC_MODEL",
+            // Cloud-provider switches: each one moves the CLI off the
+            // subscription onto the user's own AWS, Google or Azure bill,
+            // which is as much a per-token charge as an API key.
+            "CLAUDE_CODE_USE_BEDROCK",
+            "CLAUDE_CODE_USE_VERTEX",
+            "CLAUDE_CODE_USE_FOUNDRY",
+            "AWS_BEARER_TOKEN_BEDROCK",
         ]
         var result = parent.filter { !denied.contains($0.key) }
         if result["PATH"] == nil {
