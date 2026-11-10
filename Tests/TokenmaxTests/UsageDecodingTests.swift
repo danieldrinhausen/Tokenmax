@@ -274,6 +274,21 @@ struct DateNormalizerTests {
         #expect(DateNormalizer.fromString("2026-07-31T12:00:00.123Z") != nil)
         #expect(DateNormalizer.fromString("not a date") == nil)
     }
+
+    @Test("The shared formatters parse the same instants from many tasks at once")
+    func parsesConcurrently() async {
+        let expected = DateNormalizer.fromString("2026-07-31T12:00:00.500Z")
+        let results = await withTaskGroup(of: Bool.self) { group in
+            for _ in 0..<64 {
+                group.addTask {
+                    DateNormalizer.fromString("2026-07-31T12:00:00.500Z") == expected
+                        && DateNormalizer.fromString("2026-07-31T12:00:00Z") != nil
+                }
+            }
+            return await group.reduce(true) { $0 && $1 }
+        }
+        #expect(results)
+    }
 }
 
 @Suite("Window derivation")

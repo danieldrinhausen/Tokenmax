@@ -171,13 +171,25 @@ enum DateNormalizer {
             : Date(timeIntervalSince1970: value)
     }
 
-    static func fromString(_ value: String) -> Date? {
-        let withFractional = ISO8601DateFormatter()
-        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFractional.date(from: value) { return date }
+    /// Built once: a formatter per call was two allocations for every window of
+    /// every response. `ISO8601DateFormatter` is documented thread-safe for
+    /// parsing on the macOS versions this app supports, but it is not
+    /// `Sendable`, hence `nonisolated(unsafe)` — the instances are never
+    /// mutated after this initialiser, which is what makes that claim true.
+    private nonisolated(unsafe) static let withFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
+    private nonisolated(unsafe) static let plain: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    static func fromString(_ value: String) -> Date? {
+        if let date = withFractional.date(from: value) { return date }
         if let date = plain.date(from: value) { return date }
 
         if let seconds = Double(value) { return fromEpoch(seconds) }
