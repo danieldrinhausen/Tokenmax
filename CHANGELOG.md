@@ -18,6 +18,18 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A rate limit can no longer hide behind an older reading, and a relaunch no longer re-asks at
+  once.** Inside the 180-second floor after a failed request, Tokenmax replayed the previous good
+  reading as success, which reset its failure count and showed "loaded" over a 429 still in force.
+  It now repeats the failure. A `Retry-After` on a 429 lengthens the floor (never shortens it), the
+  floor is remembered across launches (timestamps only), and a launch inside it keeps the saved
+  reading as stale instead of reporting an error. A request that provably never left the machine
+  (no network, no DNS) no longer starts a 180-second wait.
+
+- **Waking from sleep no longer produces a transport error.** The wake refresh fired before Wi-Fi
+  was back. It now waits a few seconds, and a failed refresh retries once when its backoff and the
+  request floor have ended instead of waiting for the next timer tick.
+
 - **Opening the popover during a refresh no longer shows "cancelled".** A new refresh used to
   cancel the one in flight; the cancelled request was counted as a failure with a backoff, and its
   replacement was then turned away by that backoff and by the 180-second request floor the
