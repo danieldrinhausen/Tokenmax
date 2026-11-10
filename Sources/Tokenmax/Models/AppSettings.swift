@@ -339,12 +339,44 @@ struct SessionOpenerSettings: Codable, Sendable, Equatable {
         model = try container.decodeIfPresent(String.self, forKey: .model) ?? d.model
         // An opener written before `effort` existed keeps the cheap default,
         // which is what it was implicitly getting from the picker anyway.
-        effort = try container.decodeIfPresent(String.self, forKey: .effort) ?? d.effort
+        //
+        // A *present* key is the user's choice, including an explicit null for
+        // "Default" — `decodeIfPresent` cannot tell that from an absent key, so
+        // "Default" used to come back as "low" after every relaunch.
+        if container.contains(.effort) {
+            effort = (try? container.decodeIfPresent(String.self, forKey: .effort)) ?? nil
+        } else {
+            effort = d.effort
+        }
         respectQuietHours = try container.decodeIfPresent(Bool.self, forKey: .respectQuietHours)
             ?? d.respectQuietHours
         skipWhenExtraUsageEnabled = try container.decodeIfPresent(Bool.self, forKey: .skipWhenExtraUsageEnabled)
             ?? d.skipWhenExtraUsageEnabled
         verifyAfterRun = try container.decodeIfPresent(Bool.self, forKey: .verifyAfterRun) ?? d.verifyAfterRun
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled, delaySeconds, minimumWeeklyRemainingPercent, model, effort
+        case respectQuietHours, skipWhenExtraUsageEnabled, verifyAfterRun
+    }
+
+    /// Written by hand because the synthesized encoder omits a nil `effort`,
+    /// which is indistinguishable on disk from a file that predates the key and
+    /// would decode as "low". An explicit null records "Default".
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(delaySeconds, forKey: .delaySeconds)
+        try container.encode(minimumWeeklyRemainingPercent, forKey: .minimumWeeklyRemainingPercent)
+        try container.encode(model, forKey: .model)
+        if let effort {
+            try container.encode(effort, forKey: .effort)
+        } else {
+            try container.encodeNil(forKey: .effort)
+        }
+        try container.encode(respectQuietHours, forKey: .respectQuietHours)
+        try container.encode(skipWhenExtraUsageEnabled, forKey: .skipWhenExtraUsageEnabled)
+        try container.encode(verifyAfterRun, forKey: .verifyAfterRun)
     }
 }
 

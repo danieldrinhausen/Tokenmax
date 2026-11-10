@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **The opener's "Thinking: Default" now sticks.** Choosing Default left the setting empty, and an
+  empty setting was written as no key at all, which a later launch read as "never chosen" and gave
+  back the cheap `low` default. Default is now saved explicitly; files without the key still get
+  `low`.
+
 - **A reminder setting changed during a refresh is no longer lost.** Reminders are recomputed one
   sync at a time, and a sync that arrived while another was running was simply dropped, so a new
   lead time or a toggled rule could sit unapplied until the next usage refresh. The running sync

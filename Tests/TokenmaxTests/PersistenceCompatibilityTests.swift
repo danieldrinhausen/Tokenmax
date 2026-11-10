@@ -390,6 +390,35 @@ struct PersistenceCompatibilityTests {
         #expect(settings.sessionOpener.effort == "low")
     }
 
+    @Test("An opener's chosen thinking grade survives a save and reload, including Default")
+    func openerEffortRoundTrips() throws {
+        for chosen in [nil, "low", "high"] as [String?] {
+            var settings = AppSettings()
+            settings.sessionOpener.effort = chosen
+            let data = try JSONStore.makeEncoder().encode(settings)
+            let decoded = try JSONStore.makeDecoder().decode(AppSettings.self, from: data)
+            #expect(decoded.sessionOpener.effort == chosen)
+        }
+    }
+
+    @Test("An explicit null thinking grade means Default, while an absent key still means low")
+    func openerNullEffortIsDefault() throws {
+        let explicit = try decode(AppSettings.self, """
+        { "sessionOpener": { "enabled": true, "effort": null } }
+        """)
+        #expect(explicit.sessionOpener.effort == nil)
+
+        let absent = try decode(AppSettings.self, """
+        { "sessionOpener": { "enabled": true } }
+        """)
+        #expect(absent.sessionOpener.effort == "low")
+
+        let saved = try decode(AppSettings.self, """
+        { "sessionOpener": { "effort": "medium" } }
+        """)
+        #expect(saved.sessionOpener.effort == "medium")
+    }
+
     // MARK: - Data sources
 
     /// Zero enabled sources leaves nothing to draw and no clickable menu bar
