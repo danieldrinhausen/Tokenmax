@@ -53,6 +53,22 @@ final class CodexAppServerClient: @unchecked Sendable {
 
     static let timeout: TimeInterval = 12
 
+    /// Seconds a child gets to exit after SIGTERM before it is killed.
+    static let terminationGrace: TimeInterval = 2
+
+    private let executableOverride: URL?
+    private let arguments: [String]
+
+    /// The overrides exist so tests can stand a script in for `codex`; the app
+    /// uses the defaults.
+    init(
+        executable: URL? = nil,
+        arguments: [String] = ["-s", "read-only", "-a", "never", "app-server"]
+    ) {
+        executableOverride = executable
+        self.arguments = arguments
+    }
+
     func readAccountAndLimits() async throws -> (Account, RateLimits, RateLimitResetCredits?) {
         try await Task.detached(priority: .utility) {
             try self.withSession { request in
@@ -89,11 +105,11 @@ final class CodexAppServerClient: @unchecked Sendable {
     private func withSession<T>(
         _ body: (_ request: (Int, String, [String: Any]) throws -> [String: Any]) throws -> T
     ) throws -> T {
-        guard let executable = CodexCLIClient.locate() else { throw ClientError.notInstalled }
+        guard let executable = executableOverride ?? CodexCLIClient.locate() else { throw ClientError.notInstalled }
 
         let process = Process()
         process.executableURL = executable
-        process.arguments = ["-s", "read-only", "-a", "never", "app-server"]
+        process.arguments = arguments
         process.environment = ProcessInfo.processInfo.environment
 
         let input = Pipe()
@@ -103,18 +119,40 @@ final class CodexAppServerClient: @unchecked Sendable {
         process.standardOutput = output
         process.standardError = errors
 
-        let reader = RPCReader()
+        let stdin = input.fileHandleForWriting
+        let reader = CodexRPCReader { line in try? stdin.write(contentsOf: line) }
         output.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
-            if data.isEmpty { handle.readabilityHandler = nil }
-            else { reader.append(data) }
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                // EOF is the child going away, whatever its exit status says
+                // or whenever it says it: nothing more will ever be answered.
+                reader.close()
+            } else {
+                reader.append(data)
+            }
+        }
+        // Drained and kept only as a short tail. Nothing reads stderr otherwise,
+        // and a chatty child fills the pipe's buffer and blocks on its next
+        // write — the read then "times out" on a process that is merely stuck.
+        let stderrTail = BoundedTail(limit: 2048)
+        errors.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty { handle.readabilityHandler = nil } else { stderrTail.append(data) }
+        }
+        // A beat of grace: the exit can be reported before the readability
+        // handler has delivered the child's last bytes, and closing at once would
+        // turn a reply that did arrive into "exited before answering".
+        process.terminationHandler = { _ in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.25) { reader.close() }
         }
 
         do { try process.run() }
         catch { throw ClientError.rpc("Could not start Codex App Server: \(error.localizedDescription)") }
         defer {
             output.fileHandleForReading.readabilityHandler = nil
-            if process.isRunning { process.terminate() }
+            errors.fileHandleForReading.readabilityHandler = nil
+            Self.stop(process)
             try? input.fileHandleForWriting.close()
         }
 
@@ -125,6 +163,12 @@ final class CodexAppServerClient: @unchecked Sendable {
         func request(_ id: Int, _ method: String, _ params: [String: Any]) throws -> [String: Any] {
             try send(["method": method, "id": id, "params": params])
             guard let response = reader.wait(for: id, timeout: Self.timeout) else {
+                // A child that has already gone is not "slow": say so at once
+                // instead of after the full timeout, with whatever it printed.
+                if reader.isClosed {
+                    let detail = stderrTail.lastLine.map { " It said: \($0)" } ?? ""
+                    throw ClientError.rpc("Codex App Server exited before answering \(method).\(detail)")
+                }
                 throw ClientError.timedOut(method)
             }
             if let error = response["error"] as? [String: Any] {
@@ -141,6 +185,17 @@ final class CodexAppServerClient: @unchecked Sendable {
         ])
         try send(["method": "initialized", "params": [:]])
         return try body(request)
+    }
+
+    /// SIGTERM, then SIGKILL if the child is still there after the grace period.
+    /// `terminate()` alone is a request: a child that ignores or is stuck in it
+    /// would outlive the refresh, and every refresh would leave another.
+    static func stop(_ process: Process, grace: TimeInterval = terminationGrace) {
+        guard process.isRunning else { return }
+        process.terminate()
+        let deadline = Date().addingTimeInterval(grace)
+        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
     }
 
     /// `model/list` returns `{data: [Model]}`. Only the fields the editor needs
@@ -233,30 +288,89 @@ final class CodexAppServerClient: @unchecked Sendable {
     }
 }
 
-private final class RPCReader: @unchecked Sendable {
+/// The last few kilobytes of a child's stderr, for an error message.
+private final class BoundedTail: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    private let limit: Int
+    init(limit: Int) { self.limit = limit }
+
+    func append(_ chunk: Data) {
+        lock.withLock {
+            data.append(chunk)
+            if data.count > limit { data = data.suffix(limit) }
+        }
+    }
+
+    /// The last non-empty line, shortened — enough to name the failure, not
+    /// enough to put a log in the UI.
+    var lastLine: String? {
+        let text = lock.withLock { String(decoding: data, as: UTF8.self) }
+        guard let line = text.split(whereSeparator: \.isNewline).last else { return nil }
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : String(trimmed.prefix(200))
+    }
+}
+
+/// Reads JSON-RPC lines from the App Server's stdout.
+///
+/// A line with an `id` is only a reply to one of ours when it has no `method`:
+/// the server also sends *requests* with ids of its own (an approval, an
+/// elicitation), and filing those as responses let one overwrite a real reply
+/// with the same id. They are refused instead, as `CodexTaskRunner` does —
+/// nobody is there to answer — and never enter the response map.
+final class CodexRPCReader: @unchecked Sendable {
     private let lock = NSCondition()
     private var pending = Data()
     private var responses: [Int: [String: Any]] = [:]
+    private var closed = false
+    private let reply: @Sendable (Data) -> Void
+
+    init(reply: @escaping @Sendable (Data) -> Void) { self.reply = reply }
+
+    var isClosed: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return closed
+    }
+
+    /// The stream ended. Wakes anyone waiting so they fail now, not at the timeout.
+    func close() {
+        lock.lock()
+        closed = true
+        lock.broadcast()
+        lock.unlock()
+    }
 
     func append(_ data: Data) {
+        var replies: [Data] = []
         lock.lock()
         pending.append(data)
         while let newline = pending.firstIndex(of: 0x0A) {
             let line = pending.prefix(upTo: newline)
             pending.removeSubrange(...newline)
-            guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-                  let id = (object["id"] as? NSNumber)?.intValue
-            else { continue }
-            responses[id] = object
-            lock.broadcast()
+            guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
+            switch CodexMessage.classify(object) {
+            case let .response(id):
+                responses[id] = object
+                lock.broadcast()
+            case let .serverRequest(id, method):
+                Log.shared.write("codex: app-server asked \(method); refused, unattended")
+                replies.append(CodexMessage.refusal(id: id, method: method))
+            case .notification, .other:
+                break
+            }
         }
+        // A runaway line with no newline must not grow without bound.
+        if pending.count > 1024 * 1024 { pending.removeAll() }
         lock.unlock()
+        // Outside the lock: a full stdin pipe must not stall the reader.
+        for line in replies { reply(line) }
     }
 
     func wait(for id: Int, timeout: TimeInterval) -> [String: Any]? {
         let limit = Date().addingTimeInterval(timeout)
         lock.lock(); defer { lock.unlock() }
-        while responses[id] == nil && Date() < limit {
+        while responses[id] == nil, !closed, Date() < limit {
             lock.wait(until: limit)
         }
         return responses.removeValue(forKey: id)

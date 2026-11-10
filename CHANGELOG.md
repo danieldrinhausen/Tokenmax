@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A Codex App Server that dies, floods stderr or ignores SIGTERM no longer stalls a refresh.** A
+  child that exited at once was only noticed after the 12-second timeout; it is now reported
+  immediately with the last line it printed. Its stderr is drained so a chatty child cannot block on
+  a full pipe, and a child still alive a couple of seconds after SIGTERM is killed. Requests the
+  server sends us (approvals) are refused rather than mistaken for replies, as in task runs.
+
 - **A busy Cursor database is no longer read as "signed out", and one odd value no longer reads as
   schema drift.** Only a successful row was checked while reading Cursor's sign-in, so a database
   Cursor held locked looked empty. Busy or failing reads are now a transient failure that keeps the
