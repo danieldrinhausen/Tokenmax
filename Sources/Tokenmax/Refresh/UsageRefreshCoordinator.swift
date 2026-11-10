@@ -397,7 +397,7 @@ final class UsageRefreshCoordinator: ObservableObject {
                 windows: usage.windows,
                 fetchedAt: usage.fetchedAt,
                 fetchDuration: Date().timeIntervalSince(startedAt),
-                errorMessage: nil,
+                errorMessage: usage.errorMessage,
                 extraUsageEnabled: usage.extraUsageEnabled,
                 availableResetCount: usage.availableResetCount,
                 availableResetExpiresAt: usage.availableResetExpiresAt,

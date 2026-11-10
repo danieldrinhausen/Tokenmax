@@ -18,6 +18,11 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A failing Claude account source is no longer invisible while the status line fills in.** A 403
+  or 429 from the usage endpoint was dropped as soon as the status line file supplied a reading.
+  The reason is now shown under "Updated…" in the popover and saved with the reading; the reading
+  itself is still treated as good.
+
 - **A window that has already reset no longer shows its old percentage.** A status line reading
   (and an OAuth reading replayed from the cache) whose reset time had since passed was shown as live
   usage, so a spent window kept looking spent until the next session wrote the file. It now shows as

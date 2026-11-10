@@ -121,6 +121,15 @@ struct MenuBarPopoverView: View {
             Text(coordinator.lastUpdatedText)
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
+            // A fallback source supplied this reading because the primary one
+            // failed. The `.unavailable` state prints its own message, so this
+            // is only for the loaded case.
+            if case let .loaded(loaded) = coordinator.state, let note = loaded.errorMessage {
+                Text(note)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

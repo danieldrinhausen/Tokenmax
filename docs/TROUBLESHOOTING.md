@@ -346,6 +346,10 @@ labels it. Causes, in order of likelihood:
   Code to renew instead (see below). It keeps checking and uses a status-line
   reading if one is available. If Claude Code does not renew, choose **Sign In
   with Claude**.
+- **The account source is failing but the status line fills in.** The reading
+  is real, so the popover stays "loaded"; a line under "Updated…" says why the
+  account source could not be read (a 403, a 429) and that the status line is
+  being shown. It is the same message you would otherwise have seen as an error.
 - **A window reset since the last reading.** The status line file only changes
   while a Claude Code session is answering, so after a reset it still holds the
   old percentage. Tokenmax shows a window whose reading predates its own reset

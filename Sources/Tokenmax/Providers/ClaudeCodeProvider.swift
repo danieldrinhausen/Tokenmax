@@ -170,8 +170,19 @@ final class ClaudeCodeProvider: UsageProvider {
             extraUsageEnabled: extraUsageEnabled,
             availableResetCount: resets?.count,
             availableResetExpiresAt: resets?.nearestExpiry,
-            oneTimeCredit: oneTimeCredit
+            oneTimeCredit: oneTimeCredit,
+            errorMessage: primaryError.flatMap(Self.fallbackNote)
         )
+    }
+
+    /// What to tell the user when the statusline carried a reading the account
+    /// source could not. Without it a 403 or a 429 was invisible for as long as
+    /// the shim's file existed. Nothing for a floor still running: that is
+    /// waiting, not a failure.
+    static func fallbackNote(for error: Error) -> String? {
+        if let error = error as? UsageClientError, case .withinFloor = error { return nil }
+        let reason = error.localizedDescription.trimmingCharacters(in: CharacterSet(charactersIn: ". "))
+        return "Claude's usage service could not be read (\(reason)). Showing the status line reading instead."
     }
 
     /// The whole reading, from the shim's file alone. No keychain, no network.

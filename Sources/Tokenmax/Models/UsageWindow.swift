@@ -170,6 +170,10 @@ struct ProviderUsage: Codable, Sendable {
     let availableResets: [BankedReset]?
     /// Claude's one-time cloud-session credit. `nil` means not reported.
     let oneTimeCredit: OneTimeCredit?
+    /// Set when the primary source failed and a fallback supplied the windows,
+    /// so the failure (a 403, a 429) is not invisible just because something
+    /// else had numbers. Never an error state of its own: the reading is real.
+    let errorMessage: String?
 
     init(
         providerID: String,
@@ -180,7 +184,8 @@ struct ProviderUsage: Codable, Sendable {
         availableResetCount: Int? = nil,
         availableResetExpiresAt: Date? = nil,
         availableResets: [BankedReset]? = nil,
-        oneTimeCredit: OneTimeCredit? = nil
+        oneTimeCredit: OneTimeCredit? = nil,
+        errorMessage: String? = nil
     ) {
         self.providerID = providerID
         self.planName = planName
@@ -191,6 +196,7 @@ struct ProviderUsage: Codable, Sendable {
         self.availableResetExpiresAt = availableResetExpiresAt
         self.availableResets = availableResets
         self.oneTimeCredit = oneTimeCredit
+        self.errorMessage = errorMessage
     }
 }
 
