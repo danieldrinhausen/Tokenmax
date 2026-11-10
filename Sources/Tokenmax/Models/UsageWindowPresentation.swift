@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 struct UsageProjectionLinePresentation: Equatable, Sendable {
     let outlookText: String
@@ -46,18 +47,13 @@ enum UsageWindowPresentation {
     /// the first thing worth knowing. Both use the locale's own hour format
     /// (12- or 24-hour) rather than hardcoding one.
     private static func localResetTimeText(for window: UsageWindow, resetAt: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        switch window.kind {
-        case .weekly, .modelSpecificWeekly:
-            formatter.setLocalizedDateFormatFromTemplate("EEE j:mm")
-        case .session:
-            formatter.setLocalizedDateFormatFromTemplate("j:mm")
-        case .billingCycle:
-            // Weeks out, where the weekday alone would be ambiguous.
-            formatter.setLocalizedDateFormatFromTemplate("MMM d j:mm")
+        let template = switch window.kind {
+        case .weekly, .modelSpecificWeekly: "EEE j:mm"
+        case .session: "j:mm"
+        // Weeks out, where the weekday alone would be ambiguous.
+        case .billingCycle: "MMM d j:mm"
         }
-        return formatter.string(from: resetAt)
+        return ResetTimeFormatters.string(from: resetAt, template: template)
     }
 
     /// The compact form for the queue header, where the row already carries the
@@ -237,5 +233,42 @@ enum UsageWindowPresentation {
     /// in US dollars, and "250 $" would read as a different currency.
     private static func dollars(_ value: Double) -> String {
         value.rounded() == value ? "$\(Int(value))" : String(format: "$%.2f", value)
+    }
+}
+
+/// One `DateFormatter` per template, kept rather than built per call: the popover
+/// asks every second, and a formatter costs far more to create than to use.
+///
+/// A template is resolved to a pattern when it is set, so a cached formatter
+/// would keep a 12-hour pattern after the user switches the Mac to 24-hour. The
+/// cache is therefore emptied whenever the locale or time zone changes, rather
+/// than trusting `autoupdatingCurrent` to re-resolve it.
+private enum ResetTimeFormatters {
+    // `DateFormatter` is not `Sendable`, but `string(from:)` is documented
+    // thread-safe and a formatter is never mutated after it is cached. The lock
+    // guards the dictionary only.
+    private static let cache = OSAllocatedUnfairLock<[String: DateFormatter]>(uncheckedState: [:])
+
+    private static let invalidation: [any NSObjectProtocol] = [
+        NSLocale.currentLocaleDidChangeNotification,
+        .NSSystemTimeZoneDidChange,
+    ].map { name in
+        NotificationCenter.default.addObserver(forName: name, object: nil, queue: nil) { _ in
+            cache.withLockUnchecked { $0.removeAll() }
+        }
+    }
+
+    static func string(from date: Date, template: String) -> String {
+        _ = invalidation
+        let formatter = cache.withLockUnchecked { cache -> DateFormatter in
+            if let existing = cache[template] { return existing }
+            let made = DateFormatter()
+            made.locale = .autoupdatingCurrent
+            made.timeZone = .autoupdatingCurrent
+            made.setLocalizedDateFormatFromTemplate(template)
+            cache[template] = made
+            return made
+        }
+        return formatter.string(from: date)
     }
 }
