@@ -106,7 +106,9 @@ percentage rather than a time because scaled by the window it is `+13:04` for a 
 and nothing anyone can act on — while a percentage reads on one scale for a session and a week. It
 is blank wherever the pace line is (a window just opened, spent or not running, and always for
 Cursor's billing cycle, which has no fixed length). It is a choice, not both, because two readings
-in the menu bar need a divider and a legend there is no room for. The icon can show **the icon only, the countdown only, or both**. The same pane offers
+in the menu bar need a divider and a legend there is no room for.
+
+The icon can show **the icon only, the countdown only, or both**. The same pane offers
 **Start Tokenmax at login**.
 
 The entire menu bar item can also be hidden once Side Notch is on. That makes the edge widget a
