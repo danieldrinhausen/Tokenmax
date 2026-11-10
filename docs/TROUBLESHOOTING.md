@@ -812,6 +812,14 @@ window, the cycle is recorded unverified and stops.
 Chasing an unconfirmable state with more real requests is the one thing this
 feature must not do, so it does not. The next cycle starts clean.
 
+### It says "may have been sent" or "interrupted" and did not try again
+
+Also by design. If Tokenmax quit mid-request, or the CLI went quiet for 90
+seconds, there is no way to tell whether the request reached Anthropic, and
+sending a second one on a guess is how a cycle gets spent twice. Only a run that
+provably never went out (the CLI is missing or would not start, or it refused
+with an error that cost nothing) is retried. The next cycle starts clean.
+
 ---
 
 ## When upstream changes
