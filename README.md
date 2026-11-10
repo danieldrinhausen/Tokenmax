@@ -104,8 +104,10 @@ reserve**: how far ahead of an even burn the window stands, `+8%` to spare or `�
 the "in reserve" figure the popover already states, unchanged, so the two cannot disagree. A
 percentage rather than a time because scaled by the window it is `+13:04` for a week — correct,
 and nothing anyone can act on — while a percentage reads on one scale for a session and a week. It
-is blank wherever the pace line is (a window just opened, spent or not running, and always for
-Cursor's billing cycle, which has no fixed length). It is a choice, not both, because two readings
+reads "On pace" where the popover does, and is blank wherever the pace line is (a window just
+opened, spent or not running, **Show projected pace** switched off, and always for Cursor's billing
+cycle, which has no fixed length). The sign is always there so that beside Numbers, `90% · +8%`
+cannot be read as a second quota. The text is switched on with **Show text beside the icon**. It is a choice, not both, because two readings
 in the menu bar need a divider and a legend there is no room for.
 
 The icon can show **the icon only, the countdown only, or both**. The same pane offers
@@ -603,7 +605,8 @@ failed refreshes silently leaves you with no reminder at all.
 
 Banner actions: **Open Queue**, **Start Manual Session** (opens the queue and copies the
 top-priority prompt — it does not execute anything), **Snooze 15 Minutes**. With the queue
-switched off only **Snooze 15 Minutes** is offered.
+switched off only **Snooze 15 Minutes** is offered. A snooze stays scheduled until its window
+resets or you turn the reminder off; a later refresh does not cancel it.
 
 > If your Mac is asleep when a reminder is due, macOS delivers it on wake rather than at the
 > scheduled instant. That is OS behavior, not something the app can work around.

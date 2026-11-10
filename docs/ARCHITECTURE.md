@@ -107,8 +107,9 @@ kind, session or week, resolved per provider by
 `MenuBarItemDecision.countdownSource(for:countdown:)` — because the combined
 item's `menuBarCountdownSource` names one provider and cannot serve two items.
 `menuBarTextMeasure` decides what that text says — time until reset, or
-`MenuBarIconRenderer.reserveText(window:now:)`, which is `UsageProjection`'s reserve or
-deficit percentage, rounded as the popover rounds it. It is derived from the projection rather than
+`MenuBarIconRenderer.reserveText(window:now:showProjections:)`, which is `UsageProjection`'s reserve or
+deficit percentage, rounded as the popover rounds it (`UsageWindowPresentation.signedReserveText`, "On pace" included),
+through the same `UsageProjection.shown` gate the popover and Side Notch use, so "Show projected pace" silences all three. It is derived from the projection rather than
 computed again, so the label cannot disagree with the pace line, and it returns nil exactly where
 the projection does. `MenuBarIconModel` carries the whole `countdownWindow` for it because the
 reserve moves with the clock. Settings hides the slot editor and swaps the countdown picker while separate

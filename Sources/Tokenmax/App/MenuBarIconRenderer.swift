@@ -752,32 +752,21 @@ enum MenuBarIconRenderer {
     }
 
     /// The reserve as the popover states it, signed: "+8%" ahead of an even
-    /// burn, "−5%" behind it. The same number with the same rounding as
+    /// burn, "−5%" behind it, "On pace" between. The same number with the same rounding as
     /// "8% in reserve", so the two surfaces cannot disagree.
     ///
     /// A percentage rather than a time on purpose: scaled by the window it
     /// becomes "+13:04" for a week, which is the right figure and says nothing
     /// anyone can act on, while "8%" reads on one scale for a session and a week.
     ///
-    /// `nil` exactly when `UsageProjection` has nothing honest to say — a window
-    /// not running, just opened, spent, or a billing cycle with no fixed length.
-    static func reserveText(window: UsageWindow?, now: Date) -> String? {
+    /// `nil` exactly when the pace line is absent: "Show projected pace" is off,
+    /// or `UsageProjection` has nothing honest to say — a window not running,
+    /// just opened, spent, or a billing cycle with no fixed length.
+    static func reserveText(window: UsageWindow?, now: Date, showProjections: Bool) -> String? {
         guard let window,
-              let projection = UsageProjection.make(window: window, now: now)
+              let projection = UsageProjection.shown(window: window, now: now, showProjections: showProjections)
         else { return nil }
-
-        let percent: Double
-        let sign: String
-        switch projection.outlook {
-        case let .reserve(spare): (percent, sign) = (spare, "+")
-        case let .deficit(short, _): (percent, sign) = (short, "\u{2212}")
-        }
-
-        let rounded = Int(percent.rounded())
-        // A sign on nothing would claim a direction the pace does not have; the
-        // popover says "On pace" at the same threshold.
-        guard rounded >= 1 else { return "0%" }
-        return "\(sign)\(rounded)%"
+        return UsageWindowPresentation.signedReserveText(for: projection)
     }
 
     private static func clock(_ interval: TimeInterval) -> String {

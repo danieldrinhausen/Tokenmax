@@ -92,6 +92,24 @@ enum UsageWindowPresentation {
         return max(0, min(1, remaining / 100))
     }
 
+    static let onPaceText = "On pace"
+
+    /// The same figure as `projectionLine`, as the menu bar prints it: signed,
+    /// so "+8%" cannot be mistaken for a second quota reading beside "90%", and
+    /// "On pace" at the threshold where the popover says it, since a bare "0%"
+    /// looks like an empty window.
+    static func signedReserveText(for projection: UsageProjection) -> String {
+        let percent: Double
+        let sign: String
+        switch projection.outlook {
+        case let .reserve(spare): (percent, sign) = (spare, "+")
+        case let .deficit(short, _): (percent, sign) = (short, "\u{2212}")
+        }
+        let rounded = Int(percent.rounded())
+        guard rounded >= 1 else { return onPaceText }
+        return "\(sign)\(rounded)%"
+    }
+
     /// The projection sentence shared by every quota surface. Keeping both
     /// halves together prevents a compact view from pairing a reserve label
     /// with the deficit-only empty-time estimate.
@@ -103,7 +121,7 @@ enum UsageWindowPresentation {
         case let .reserve(percent):
             return UsageProjectionLinePresentation(
                 outlookText: percent.rounded() < 1
-                    ? "On pace"
+                    ? onPaceText
                     : "\(Int(percent.rounded()))% in reserve",
                 paceText: "Lasts until reset",
                 isDeficit: false
@@ -111,7 +129,7 @@ enum UsageWindowPresentation {
         case let .deficit(percent, emptyAt):
             return UsageProjectionLinePresentation(
                 outlookText: percent.rounded() < 1
-                    ? "On pace"
+                    ? onPaceText
                     : "\(Int(percent.rounded()))% in deficit",
                 paceText: "Projected empty in \(RelativeTime.countdown(emptyAt.timeIntervalSince(now)))",
                 isDeficit: true

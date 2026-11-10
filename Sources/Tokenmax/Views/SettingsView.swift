@@ -102,7 +102,7 @@ struct GeneralSettingsView: View {
                 + window + " resets — \"3:44\", or \"6d 18h\" when a reset is more than a day out. Blank while that window is not running."
         case .reserve:
             return (showsSeparateMenuBarItems ? "Each icon shows how far " : "Shows how far ")
-                + window + " is ahead of an even burn — \"+8%\" is that much to spare, \"\u{2212}5%\" that much behind. The same figure the popover calls \"in reserve\", so it reads alike for a session and a week. Blank while the window has barely opened, is spent or is not running — and always for a Cursor billing cycle, which has no fixed length."
+                + window + " is ahead of an even burn — \"+8%\" is that much to spare, \"\u{2212}5%\" that much behind. The same figure the popover calls \"in reserve\", so it reads alike for a session and a week. \"On pace\" when it is within a point either way. Blank while the window has barely opened, is spent or is not running, and while \"Show projected pace\" is off — and always for a Cursor billing cycle, which has no fixed length."
         }
     }
 
@@ -280,7 +280,7 @@ struct GeneralSettingsView: View {
             }
 
             Section("Menu bar text") {
-                Toggle("Show time remaining in the menu bar", isOn: Binding(
+                Toggle("Show text beside the icon", isOn: Binding(
                     get: { settingsStore.settings.menuBarDisplayMode != .iconOnly },
                     set: { settingsStore.settings.menuBarDisplayMode = $0 ? .iconAndText : .iconOnly }
                 ))
@@ -407,7 +407,7 @@ struct GeneralSettingsView: View {
 
             Section("Usage") {
                 Toggle("Show projected pace", isOn: $settingsStore.settings.showProjections)
-                Text("Under each meter: whether your spending is ahead of or behind an even burn of the window, and when it runs out if you are ahead. The marker on the bar is where an even burn would have left the meter right now.")
+                Text("Under each meter: whether your spending is ahead of or behind an even burn of the window, and when it runs out if you are ahead. The marker on the bar is where an even burn would have left the meter right now. Switching it off also blanks the menu bar's \"In reserve\" text, which is the same figure.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

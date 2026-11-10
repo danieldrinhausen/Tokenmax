@@ -202,6 +202,7 @@ struct TokenmaxApp: App {
             MenuBarLabel(
                 mode: settings.menuBarDisplayMode,
                 measure: settings.menuBarTextMeasure,
+                showProjections: settings.showProjections,
                 model: MenuBarIconModel.make(
                     // The *effective* layout: a disabled provider keeps its slot
                     // in the stored settings but must not be drawn. A provider's
@@ -304,6 +305,8 @@ struct SharedEnvironment: ViewModifier {
 private struct MenuBarLabel: View {
     let mode: MenuBarDisplayMode
     let measure: MenuBarTextMeasure
+    /// "Show projected pace": the reserve is a pace figure, so it goes when pace does.
+    let showProjections: Bool
     let model: MenuBarIconModel
     /// `CountdownClock.now` — advances every second so the countdown stays live.
     let now: Date
@@ -345,6 +348,10 @@ private struct MenuBarLabel: View {
                 }
             }
         }
+        // The countdown and the reserve change every second or minute; with
+        // proportional digits the item's width follows the digits shown and
+        // shoves every item to its left along with it.
+        .monospacedDigit()
         // "Open Queue" from a notification banner arrives here while the
         // status item exists, since this view has access to `openWindow`.
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxOpenQueue)) { _ in
@@ -386,7 +393,11 @@ private struct MenuBarLabel: View {
               case .untilReset:
                   MenuBarIconRenderer.countdownText(resetAt: model.countdownResetAt, now: now)
               case .reserve:
-                  MenuBarIconRenderer.reserveText(window: model.countdownWindow, now: now)
+                  MenuBarIconRenderer.reserveText(
+                    window: model.countdownWindow,
+                    now: now,
+                    showProjections: showProjections
+                )
               }
         else { return nil }
         return isHighlighted && mode == .textOnly ? "⚡︎ \(countdown)" : countdown

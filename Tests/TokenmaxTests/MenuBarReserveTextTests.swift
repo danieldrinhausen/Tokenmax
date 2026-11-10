@@ -31,7 +31,8 @@ struct MenuBarReserveTextTests {
     ) -> String? {
         MenuBarIconRenderer.reserveText(
             window: window(kind: kind, remaining: remaining, resetInHours: resetInHours),
-            now: now
+            now: now,
+            showProjections: true
         )
     }
 
@@ -48,12 +49,32 @@ struct MenuBarReserveTextTests {
         #expect(text(remaining: 40, resetInHours: 3) == "\u{2212}20%")
     }
 
-    @Test("Exactly on the line carries no sign")
-    func onPaceHasNoSign() {
-        #expect(text(remaining: 60, resetInHours: 3) == "0%")
+    @Test("On the line reads as the popover's words, never a bare 0% that looks like an empty window")
+    func onPaceSaysSo() {
+        #expect(text(remaining: 60, resetInHours: 3) == "On pace")
         // Under a point either way is what the popover calls "On pace".
-        #expect(text(remaining: 60.4, resetInHours: 3) == "0%")
-        #expect(text(remaining: 59.6, resetInHours: 3) == "0%")
+        #expect(text(remaining: 60.4, resetInHours: 3) == "On pace")
+        #expect(text(remaining: 59.6, resetInHours: 3) == "On pace")
+        #expect(text(remaining: 59.4, resetInHours: 3) == "\u{2212}1%")
+    }
+
+    @Test("Switching projected pace off silences the reserve text, as it does the popover's line")
+    func suppressedWhenPaceIsOff() {
+        let spare = window(remaining: 80, resetInHours: 3)
+        #expect(MenuBarIconRenderer.reserveText(window: spare, now: now, showProjections: true) == "+20%")
+        #expect(MenuBarIconRenderer.reserveText(window: spare, now: now, showProjections: false) == nil)
+        #expect(UsageProjection.shown(window: spare, now: now, showProjections: false) == nil)
+        #expect(UsageProjection.shown(window: spare, now: now, showProjections: true) != nil)
+    }
+
+    @Test("A Codex window paces over its reported length, and the reserve text uses the same projection")
+    func usesTheWindowsOwnLength() throws {
+        var codex = window(remaining: 80, resetInHours: 3)
+        codex.windowMinutes = 600
+        // 7 of 10 hours elapsed: an even burn has used 70%, so 80% left is 50% spare.
+        let shown = try #require(UsageProjection.shown(window: codex, now: now, showProjections: true))
+        #expect(UsageWindowPresentation.signedReserveText(for: shown) == "+50%")
+        #expect(MenuBarIconRenderer.reserveText(window: codex, now: now, showProjections: true) == "+50%")
     }
 
     /// The reference reading: 98% left with 6d 7h to go is the "8% in reserve"
@@ -69,12 +90,12 @@ struct MenuBarReserveTextTests {
         let projection = try #require(UsageProjection.make(window: window, now: now))
         let line = UsageWindowPresentation.projectionLine(for: projection, now: now)
         #expect(line.outlookText == "30% in reserve")
-        #expect(MenuBarIconRenderer.reserveText(window: window, now: now) == "+30%")
+        #expect(MenuBarIconRenderer.reserveText(window: window, now: now, showProjections: true) == "+30%")
     }
 
     @Test("Nothing honest to project means no text, never a placeholder")
     func staysQuietWithoutAProjection() {
-        #expect(MenuBarIconRenderer.reserveText(window: nil, now: now) == nil)
+        #expect(MenuBarIconRenderer.reserveText(window: nil, now: now, showProjections: true) == nil)
         // No reset clock running.
         #expect(text(remaining: 50, resetInHours: nil) == nil)
         // Already spent: "limit reached" says it all.

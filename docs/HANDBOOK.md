@@ -66,7 +66,8 @@ and Cursor API and Cursor Auto once Cursor is on — onto the slot you want it o
 to be a window the icon shows. **Time shown** then says what that text measures:
 **Until reset** is the countdown, **In reserve** is how far ahead of an even burn the
 window is — `+8%` to spare, `−5%` behind — which is the pace line's "in reserve"
-figure, unchanged. It is one or the other, because two readings side by side need a
+figure, unchanged, signed so that `90% · +8%` is not read as a second quota, and "On pace" where
+the popover says it. It goes blank while **Show projected pace** is off. It is one or the other, because two readings side by side need a
 divider and a legend the menu bar has no room for. The
 text can also be switched off, leaving the icon alone.
 
@@ -86,11 +87,11 @@ that fits all four quotas, and the only one that costs real menu bar width —
 about 35pt for two rings against 20pt for two bars. A single ring is 16pt, so
 if you watch one provider, rings are the *narrower* choice. Numbers write the
 percentage left as text — **1 number** or **2 numbers**, stacked — for when you
-want the exact figure rather than a length to judge; the time remaining then
+want the exact figure rather than a length to judge; the text beside the icon then
 follows after a dot (`90% · 4:10`).
 
 **Just the 5h figure.** Switch the style to **Numbers**, choose **1 number** and
-drag *Claude session* onto it. Leave **Show time remaining** on and the menu bar
+drag *Claude session* onto it. Leave **Show text beside the icon** on and the menu bar
 reads `90% · 4:10`: what is left, and how long until the window resets.
 
 <p align="center">

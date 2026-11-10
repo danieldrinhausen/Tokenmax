@@ -535,8 +535,11 @@ final class UsageRefreshCoordinator: ObservableObject {
     /// Recomputed per tick rather than stored, so both the pace marker and the
     /// "projected empty" countdown stay live between readings.
     func projection(for window: UsageWindow) -> UsageProjection? {
-        guard settingsStore.settings.showProjections else { return nil }
-        return UsageProjection.make(window: window, now: now)
+        UsageProjection.shown(
+            window: window,
+            now: now,
+            showProjections: settingsStore.settings.showProjections
+        )
     }
 
     /// When a refresh would next reach the network rather than replay the OAuth

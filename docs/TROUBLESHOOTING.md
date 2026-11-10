@@ -191,8 +191,8 @@ Three ways out, in **Settings → General → Menu bar icon**:
 
 - Go back to **Bars**, which is the narrower shape for two or three quotas.
 - Stay on rings but choose **1 ring** — 16pt, *less* than the bars use.
-- Switch the countdown off under **Time remaining**, which is usually the wider
-  half of the item anyway.
+- Switch the text off with **Show text beside the icon** under **Menu bar text**, which
+  is usually the wider half of the item anyway.
 
 On a MacBook with a notch this is not cosmetic: items that do not fit are hidden
 outright rather than wrapped, so the extra width can cost you a different app's
@@ -288,7 +288,9 @@ far ahead of an even burn the window is, and `−5%` how far behind. It is the s
 figure the popover calls "8% in reserve", so the two always agree, and it reads on
 one scale for a session and a week. It is blank for the same
 reasons the pace line is: the window is not running, has barely opened (the first
-few minutes of a session, the first hours of a week), or is already spent. Cursor's
+few minutes of a session, the first hours of a week), or is already spent — or
+**Show projected pace** is off under **Settings → General → Usage**, which hides both.
+"On pace" means within a point of an even burn. Cursor's
 billing cycle has no fixed length to measure against, so it never shows one. Switch
 to **Until reset** under **Settings → General → Menu bar text** for the plain
 countdown.

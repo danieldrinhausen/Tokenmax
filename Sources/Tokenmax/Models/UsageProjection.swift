@@ -79,6 +79,14 @@ struct UsageProjection: Equatable, Sendable {
     /// first ~9 minutes of a session, the first ~5 hours of a week.
     static let minimumExpectedUsedPercent: Double = 3
 
+    /// `make`, unless the user switched pace off. The one gate every surface goes
+    /// through — popover, Side Notch and the menu bar's reserve text — so "Show
+    /// projected pace" cannot be honoured by some and ignored by others.
+    static func shown(window: UsageWindow, now: Date, showProjections: Bool) -> UsageProjection? {
+        guard showProjections else { return nil }
+        return make(window: window, now: now)
+    }
+
     /// Returns `nil` when there is nothing honest to project: no reset clock is
     /// running, the window is already spent, or it has not been open long enough
     /// for an average to mean anything.
