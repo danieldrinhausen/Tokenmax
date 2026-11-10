@@ -43,6 +43,13 @@ enum CodexTaskRunner {
         guard task.expandedWorkingDirectory != nil, task.workingDirectoryExists else {
             return .init(status: .failed, exitCode: nil, resultText: nil, sessionID: nil, costUSD: nil, errorMessage: "Working directory not found.")
         }
+        // The sandbox's writable root is this directory; see ClaudeTaskRunner.run.
+        guard task.workingDirectoryScope == .specific else {
+            return .init(
+                status: .failed, exitCode: nil, resultText: nil, sessionID: nil, costUSD: nil,
+                errorMessage: QueueAutoRunDecision.SkipReason.workingDirectoryTooBroad.explanation
+            )
+        }
         guard task.workingDirectoryReadable else {
             return .init(
                 status: .failed, exitCode: nil, resultText: nil, sessionID: nil, costUSD: nil,

@@ -405,7 +405,8 @@ An **appointment** — `TokenmaxTask.scheduledStart` — is the one thing that
 overrides any of the scheduler's decisions, and it overrides exactly one: which
 moment is the right one. In `QueueAutoRunDecision.eligibility` it skips the three
 gates that exist to fit a task into the window paying for it, and nothing above
-them: approval, a working directory and a runtime estimate are still required,
+them: approval, a working directory (a specific folder, not `/`, home or a relative
+path — `workingDirectoryTooBroad`) and a runtime estimate are still required,
 and every quota floor, quiet-hours rule and per-task limit still applies. It is
 checked ahead of ordinary queue order, so a higher-priority undated task cannot
 take the slot at the moment an appointment comes round.

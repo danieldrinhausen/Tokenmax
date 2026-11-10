@@ -488,7 +488,10 @@ force-push, anything that needs a judgement call you would want to make yourself
 
 **Allow file changes** confines file tools to the working directory using
 `Write(**)`-style path scoping. Without that scoping an allowlisted `Write` is
-auto-approved for *any* path on the machine, which is why it is scoped.
+auto-approved for *any* path on the machine, which is why it is scoped. For the
+same reason a working directory of `/`, your home folder or a relative path is
+refused: scoped to those, the confinement would cover the whole disk or
+everything you own.
 
 **Allow shell commands** is a separate opt-in precisely because it removes that
 confinement — a shell command can reach the whole machine. Turn it on per task,
@@ -523,7 +526,8 @@ first failure**, and never starting a second task until a usage reading newer
 than the first one lands.
 
 A task runs automatically only when *all* of this holds — the task is marked
-**Always allow automatic execution**, its working directory exists, it has a
+**Always allow automatic execution**, its working directory exists and is a
+specific folder (never `/`, your home folder or a relative path), it has a
 runtime estimate, the reading is fresh, both quotas are above threshold, the
 window is inside the lead time, no other run is in flight, the per-window
 budgets have room, and the task's **runtime limit** fits before the safety

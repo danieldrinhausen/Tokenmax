@@ -348,6 +348,15 @@ enum ClaudeTaskRunner {
         resuming sessionID: String? = nil,
         onProgress: @escaping @Sendable (String) -> Void
     ) async -> Result {
+        // File tools are scoped to this directory, so a root or home folder
+        // here would hand them the whole disk. Checked at the runner as well as
+        // the gates, which a caller can forget.
+        guard task.workingDirectoryScope == .specific else {
+            return Result(
+                status: .failed, exitCode: nil, resultText: nil, sessionID: nil, costUSD: nil,
+                errorMessage: QueueAutoRunDecision.SkipReason.workingDirectoryTooBroad.explanation
+            )
+        }
         guard let cli = ClaudeCLIClient.locate() else {
             return Result(
                 status: .failed, exitCode: nil, resultText: nil, sessionID: nil, costUSD: nil,

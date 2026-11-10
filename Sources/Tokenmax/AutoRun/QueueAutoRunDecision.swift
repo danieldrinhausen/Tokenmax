@@ -74,6 +74,9 @@ enum QueueAutoRunDecision: Equatable, Sendable {
         // explain why one card is ineligible while another is not.
         case notApprovedForAutomation
         case workingDirectoryMissing
+        /// A folder file tools must not be scoped to: the whole disk, the home
+        /// folder (or a parent of it), or a path that is not absolute.
+        case workingDirectoryTooBroad
         case noRuntimeEstimate
         case runtimeExceedsWindowBudget
         /// Dated for later. A waiting appointment, not a problem.
@@ -177,6 +180,8 @@ enum QueueAutoRunDecision: Equatable, Sendable {
                 "Not marked for automatic execution."
             case .workingDirectoryMissing:
                 "The working directory does not exist."
+            case .workingDirectoryTooBroad:
+                "The working directory is the whole disk, your home folder or a relative path. File access is limited to the working directory, so it has to be a specific project folder."
             case .noRuntimeEstimate:
                 "No estimated runtime has been set."
             case .runtimeExceedsWindowBudget:
@@ -466,6 +471,7 @@ enum QueueAutoRun {
             return .notApprovedForAutomation
         }
         guard task.workingDirectoryExists else { return .workingDirectoryMissing }
+        guard task.workingDirectoryScope == .specific else { return .workingDirectoryTooBroad }
         // Required even though the budget uses the ceiling: a task nobody has
         // sized is a task nobody has thought about running unattended.
         guard task.estimatedMinutes != nil else { return .noRuntimeEstimate }
@@ -749,6 +755,7 @@ enum QueueAutoRun {
         if !cliInstalled { return .cliNotInstalled }
         if runInFlight { return .runInFlight }
         if !task.workingDirectoryExists { return .workingDirectoryMissing }
+        if task.workingDirectoryScope != .specific { return .workingDirectoryTooBroad }
         return nil
     }
 

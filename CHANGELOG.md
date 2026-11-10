@@ -18,6 +18,12 @@ versions follow [semver](https://semver.org/).
 
 ### Fixed
 
+- **A working directory of `/`, your home folder or a relative path is refused.** File tools are
+  scoped to the working directory, so with one of those the scoping covered the whole disk or
+  everything you own, and a relative path resolved against wherever Tokenmax happened to be
+  launched from. The queue shows *working directory too broad*, a manual run says so, and the
+  runners refuse before starting anything.
+
 - **A named pipe in a task's folder no longer freezes the access check.** The check that a folder
   is readable opened one file in it, and opening a FIFO for reading waits forever for a writer. It
   now looks only at regular files and never follows links or blocks.

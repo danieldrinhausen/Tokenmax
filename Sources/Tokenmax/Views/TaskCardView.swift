@@ -261,6 +261,8 @@ struct ReadyTaskCardView: View {
             return "Manual only"
         case .workingDirectoryMissing:
             return "Auto-run blocked · working directory missing"
+        case .workingDirectoryTooBroad:
+            return "Auto-run blocked · working directory too broad"
         case .noRuntimeEstimate:
             return "Auto-run blocked · no estimate"
         case .insufficientTime:

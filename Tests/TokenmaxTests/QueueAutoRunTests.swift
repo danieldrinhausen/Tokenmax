@@ -555,6 +555,44 @@ struct QueueAutoRunTests {
         #expect(skipReason(input(tasks: [broken])) == .insufficientTime)
     }
 
+    @Test("A working directory that would put file tools on the whole disk or home is refused")
+    func broadWorkingDirectoryIsRefused() {
+        let home = "/Users/test"
+        for path in ["/", "/Users", "/Users/test", "/Users/test/", "~", "~/", "/Users/test/./", "/Users/test/Projects/.."] {
+            #expect(TokenmaxTask.scope(ofWorkingDirectory: path, home: home) == .tooBroad, "\(path)")
+        }
+        for path in ["", "project", "./project", "../project", "Projects/app"] {
+            #expect(TokenmaxTask.scope(ofWorkingDirectory: path, home: home) == .relative, "\(path)")
+        }
+        // Lookalikes that are fine: below home, or merely sharing a prefix with it.
+        for path in ["/Users/test/Projects", "~/Projects/app", "/Users/tester", "/Users/test2/x", "/opt/work", "/tmp"] {
+            #expect(TokenmaxTask.scope(ofWorkingDirectory: path, home: home) == .specific, "\(path)")
+        }
+
+        for directory in ["/", NSHomeDirectory(), "relative/dir"] {
+            let broad = task(directory: directory)
+            #expect(QueueAutoRun.manualGate(task: broad, cliInstalled: true, runInFlight: false)
+                != nil)
+            #expect(QueueAutoRun.eligibility(
+                for: broad, resetAt: now.addingTimeInterval(1800), settings: settings()
+            ) != nil)
+        }
+        #expect(QueueAutoRun.eligibility(
+            for: task(directory: "/"), resetAt: now.addingTimeInterval(1800), settings: settings()
+        ) == .workingDirectoryTooBroad)
+        #expect(QueueAutoRun.manualGate(task: task(directory: NSHomeDirectory()), cliInstalled: true, runInFlight: false)
+            == .workingDirectoryTooBroad)
+    }
+
+    @Test("A broad working directory makes the runner refuse before spawning anything")
+    func runnerRefusesBroadDirectory() async {
+        let result = await ClaudeTaskRunner.run(
+            task: task(directory: NSHomeDirectory()), runID: UUID(), onProgress: { _ in }
+        )
+        #expect(result.status == .failed)
+        #expect(result.errorMessage == QueueAutoRunDecision.SkipReason.workingDirectoryTooBroad.explanation)
+    }
+
     @Test("A task with no estimate is not run unattended")
     func estimateRequired() {
         let unsized = task(estimate: nil)

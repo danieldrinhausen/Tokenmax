@@ -751,7 +751,7 @@ decision logic can be watched for days before it is trusted with real quota and 
 </p>
 
 A task runs automatically only when *all* of this holds: the task is marked **Always allow automatic
-execution**, its working directory exists, it has a runtime estimate, the usage reading is fresh, the
+execution**, its working directory exists and is a specific folder (not `/`, your home folder or a relative path — file access is limited to it), it has a runtime estimate, the usage reading is fresh, the
 session and weekly quotas are both above their thresholds, the window is inside the lead time, no
 other run is in flight, the per-window task and runtime budgets have room, and the task's **runtime
 limit** — not its estimate — fits before the safety margin. Anything else, and the popover and

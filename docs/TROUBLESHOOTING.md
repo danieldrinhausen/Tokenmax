@@ -671,6 +671,9 @@ Tokenmax names the failing condition in the popover and in **Settings → Queue
 Automation**. The common ones:
 
 - the task is not marked **Always allow automatic execution**
+- its **working directory is `/`, your home folder or a relative path** — file
+  tools are scoped to the working directory, so one that wide would defeat the
+  scoping; point the task at the project folder
 - it has **no runtime estimate** (required — the scheduler cannot reason without one)
 - its **runtime limit**, not its estimate, does not fit before the safety margin
 - the reading is stale

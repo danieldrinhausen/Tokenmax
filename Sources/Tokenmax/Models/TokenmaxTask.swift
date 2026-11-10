@@ -170,6 +170,55 @@ struct TokenmaxTask: Codable, Identifiable, Sendable, Equatable {
         return URL(fileURLWithPath: (workingDirectory as NSString).expandingTildeInPath)
     }
 
+    /// Whether a working directory is narrow enough to scope file tools to.
+    ///
+    /// `Edit(**)` and `Write(**)` mean "inside the working directory", so a
+    /// working directory of `/` or the home folder makes them mean the whole
+    /// disk or everything the user owns. A relative path is refused rather
+    /// than resolved: it would land wherever the app happens to have been
+    /// launched from. Pure — `home` is a parameter — so it is testable.
+    enum WorkingDirectoryScope: Equatable, Sendable {
+        case specific
+        case relative
+        /// The filesystem root, the home folder, or one of home's parents.
+        case tooBroad
+    }
+
+    static func scope(ofWorkingDirectory path: String, home: String) -> WorkingDirectoryScope {
+        let expanded = path == "~" ? home : path.hasPrefix("~/") ? home + path.dropFirst() : path
+        // `~user` is not expanded here and falls out as relative.
+        guard expanded.hasPrefix("/") else { return .relative }
+
+        func normal(_ path: String) -> [Substring] {
+            var parts: [Substring] = []
+            for part in path.split(separator: "/") {
+                if part == "." { continue }
+                if part == ".." { _ = parts.popLast(); continue }
+                parts.append(part)
+            }
+            return parts
+        }
+        let directory = normal(expanded)
+        let homeParts = normal(home)
+        // A prefix of home's components — "/" is the empty prefix — is home or
+        // an ancestor of it; everything under home is fine.
+        if directory.count <= homeParts.count, Array(homeParts.prefix(directory.count)) == directory {
+            return .tooBroad
+        }
+        return .specific
+    }
+
+    /// Also judged by where a symlink leads: `~/Projects/home -> ~` is the home
+    /// folder however it is spelled.
+    var workingDirectoryScope: WorkingDirectoryScope {
+        guard let workingDirectory, !workingDirectory.isEmpty else { return .relative }
+        let home = NSHomeDirectory()
+        let written = Self.scope(ofWorkingDirectory: workingDirectory, home: home)
+        guard written == .specific, let url = expandedWorkingDirectory else { return written }
+        let resolvedHome = URL(fileURLWithPath: home).resolvingSymlinksInPath().path
+        return Self.scope(ofWorkingDirectory: url.resolvingSymlinksInPath().path, home: resolvedHome)
+    }
+
     var workingDirectoryExists: Bool {
         guard let url = expandedWorkingDirectory else { return false }
         var isDirectory: ObjCBool = false
