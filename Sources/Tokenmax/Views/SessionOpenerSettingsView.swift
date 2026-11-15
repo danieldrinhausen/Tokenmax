@@ -55,7 +55,7 @@ struct SessionOpenerSettingsView: View {
             Section("Safety") {
                 Picker("Minimum weekly quota remaining", selection: openerSettings.minimumWeeklyRemainingPercent) {
                     ForEach(SessionOpenerSettings.weeklyThresholdOptions, id: \.self) { value in
-                        Text("\(Int(value))%").tag(value)
+                        Text("\(Int(value))% left").tag(value)
                     }
                 }
                 Toggle("Respect quiet hours", isOn: openerSettings.respectQuietHours)

@@ -68,11 +68,13 @@ enum UsageWindowPresentation {
         return RelativeTime.countdown(interval)
     }
 
-    /// What the remaining side of the row should say.
-    static func remainingText(for window: UsageWindow) -> String {
+    /// What the reading side of the row should say: "88% left" or "12% used".
+    /// The word is always written out, because the bare number is exactly what
+    /// gets read the wrong way round.
+    static func remainingText(for window: UsageWindow, readout: QuotaReadout = .remaining) -> String {
         guard let remaining = window.remainingPercent else { return "Unknown" }
         if window.isExhausted { return "Limit reached" }
-        return "\(UsageWindow.displayPercent(forRemaining: remaining))% left"
+        return "\(readout.displayPercent(forRemaining: remaining))% \(readout.suffix)"
     }
 
     /// The fraction of the bar to fill, or nil when there is nothing to draw.
@@ -80,12 +82,63 @@ enum UsageWindowPresentation {
     /// Stale readings return nil rather than a faded number: a bar drawn at 89%
     /// is a claim about right now however muted it is, and the row says
     /// "Stale" beside it instead.
-    static func fillFraction(for window: UsageWindow, isStale: Bool) -> Double? {
+    ///
+    /// Nil also when the reading prints as 0% — an exhausted window read as
+    /// what is left, an untouched one read as what is used — because callers
+    /// give any fill a minimum width, which would draw a nub under a reading
+    /// that says there is nothing.
+    static func fillFraction(
+        for window: UsageWindow,
+        isStale: Bool,
+        readout: QuotaReadout = .remaining
+    ) -> Double? {
         guard !isStale, let remaining = window.remainingPercent else { return nil }
-        // Nothing when exhausted, like the menu bar: callers give any fill a
-        // minimum width, which would draw a nub under "Limit reached".
-        guard !window.isExhausted else { return nil }
-        return max(0, min(1, remaining / 100))
+        switch readout {
+        case .remaining:
+            guard !window.isExhausted else { return nil }
+            return max(0, min(1, remaining / 100))
+        case .used:
+            // Full at "Limit reached" even though a sliver may be left: the
+            // bar has to agree with the words beside it.
+            if window.isExhausted { return 1 }
+            guard readout.displayPercent(forRemaining: remaining) > 0 else { return nil }
+            return max(0, min(1, (100 - remaining) / 100))
+        }
+    }
+
+    /// Where the even-pace marker sits along a meter, 0...1. The projection
+    /// states it as percent remaining; a meter that fills as quota is spent
+    /// needs it from the other end.
+    static func paceMarkerPosition(for projection: UsageProjection, readout: QuotaReadout = .remaining) -> Double {
+        readout.position(forRemaining: projection.evenPaceRemainingPercent)
+    }
+
+    /// Whether the pace marker lands on the meter's fill rather than its empty
+    /// track, which decides the colour that contrasts with it. Reading what is
+    /// left, the fill reaches past the marker when there is a reserve; reading
+    /// what is used, when there is a deficit.
+    static func paceMarkerIsOnFill(for projection: UsageProjection, readout: QuotaReadout = .remaining) -> Bool {
+        let isDeficit = if case .deficit = projection.outlook { true } else { false }
+        return switch readout {
+        case .remaining: !isDeficit
+        case .used: isDeficit
+        }
+    }
+
+    /// The marker's tooltip. The number is an extrapolation, not a measurement
+    /// of the future; saying what it is based on is what keeps it from being
+    /// read as a promise.
+    static func paceHelpText(for projection: UsageProjection, readout: QuotaReadout = .remaining) -> String {
+        let pace = readout.displayPercent(forRemaining: projection.evenPaceRemainingPercent)
+        let perHour = String(format: "%.1f", projection.percentPerHour)
+        let atThisPoint = switch readout {
+        case .remaining: "An even burn would leave \(pace)% at this point in the window"
+        case .used: "An even burn would have used \(pace)% by this point in the window"
+        }
+        return """
+        \(atThisPoint) — that is the marker on the bar. \
+        You have averaged \(perHour)% of the window per hour since it opened.
+        """
     }
 
     static let onPaceText = "On pace"

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One quota window: label, meter, remaining %, reset countdown, and — when a
+/// One quota window: label, meter, reading, reset countdown, and — when a
 /// pace has been measured — what that pace means before the reset.
 struct UsageWindowView: View {
     let window: UsageWindow
@@ -8,15 +8,18 @@ struct UsageWindowView: View {
     let now: Date
     /// `nil` when there is nothing to project or the user switched it off.
     var projection: UsageProjection?
+    /// Which way the reading and the meter run; see `QuotaReadout`.
+    var readout: QuotaReadout = .remaining
 
     private var remaining: Double? { window.remainingPercent }
 
-    /// The marker sits where an even burn would have left the meter right now,
-    /// so past the fill means "behind by that much" and inside it means "the
-    /// rest is spare".
+    /// The marker sits where an even burn would have left the meter right now.
+    /// Reading what is left, past the fill means "behind by that much" and
+    /// inside it means "the rest is spare"; reading what is used, the other way
+    /// round.
     private var paceMarker: Double? {
         guard !isStale, let projection else { return nil }
-        return max(0, min(1, projection.evenPaceRemainingPercent / 100))
+        return UsageWindowPresentation.paceMarkerPosition(for: projection, readout: readout)
     }
 
     var body: some View {
@@ -54,11 +57,15 @@ struct UsageWindowView: View {
                 Capsule()
                     .fill(Color.secondary.opacity(0.22))
 
-                // Nothing when exhausted — `fillFraction` — as in the menu bar.
-                if let remaining, !isStale, UsageWindowPresentation.fillFraction(for: window, isStale: isStale) != nil {
+                // Nothing at 0% — `fillFraction` — as in the menu bar. The
+                // colour stays keyed to what is left in either direction: red
+                // means "nearly gone", not "long bar".
+                if let remaining, let fill = UsageWindowPresentation.fillFraction(
+                    for: window, isStale: isStale, readout: readout
+                ) {
                     Capsule()
                         .fill(barColor(remaining))
-                        .frame(width: max(6, geometry.size.width * (remaining / 100)))
+                        .frame(width: max(6, geometry.size.width * fill))
                 }
 
                 if let paceMarker {
@@ -76,12 +83,16 @@ struct UsageWindowView: View {
 
     private var markerWidth: CGFloat { 2.5 }
 
-    /// Chosen for contrast against whatever the marker lands on: a deficit
-    /// marker sits past the fill on the pale track, a reserve marker sits inside
-    /// the saturated fill.
+    /// Chosen for contrast against whatever the marker lands on: white inside
+    /// the saturated fill; on the pale track red for a deficit, which is the
+    /// one worth noticing, and a neutral otherwise.
     private var markerColor: Color {
-        if case .deficit = projection?.outlook { return .red }
-        return Color.white.opacity(0.85)
+        guard let projection else { return .clear }
+        if UsageWindowPresentation.paceMarkerIsOnFill(for: projection, readout: readout) {
+            return Color.white.opacity(0.85)
+        }
+        if case .deficit = projection.outlook { return .red }
+        return Color.primary.opacity(0.55)
     }
 
     private func barColor(_ remaining: Double) -> Color {
@@ -95,7 +106,7 @@ struct UsageWindowView: View {
     // Shared with the queue header's compact bars, so the two cannot end up
     // describing the same snapshot differently — see `UsageWindowPresentation`.
     private var remainingText: String {
-        UsageWindowPresentation.remainingText(for: window)
+        UsageWindowPresentation.remainingText(for: window, readout: readout)
     }
 
     private var resetText: String {
@@ -121,15 +132,7 @@ struct UsageWindowView: View {
         .help(helpText(projection))
     }
 
-    /// The number is an extrapolation, not a measurement of the future. Saying
-    /// what it is based on is what keeps it from being read as a promise.
     private func helpText(_ projection: UsageProjection) -> String {
-        let pace = String(format: "%.0f", projection.evenPaceRemainingPercent)
-        let perHour = String(format: "%.1f", projection.percentPerHour)
-
-        return """
-        An even burn would leave \(pace)% at this point in the window — that is the marker on the bar. \
-        You have averaged \(perHour)% of the window per hour since it opened.
-        """
+        UsageWindowPresentation.paceHelpText(for: projection, readout: readout)
     }
 }

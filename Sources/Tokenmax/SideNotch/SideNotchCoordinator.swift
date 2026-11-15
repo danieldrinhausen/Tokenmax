@@ -98,6 +98,7 @@ final class SideNotchCoordinator: ObservableObject {
             alerting: notifications.alertingSources,
             ready: usage.readySources,
             colors: settings.effectiveSideNotchColors,
+            readout: settings.quotaReadout,
             now: usage.clock.now,
             projection: { usage.projection(for: $0) },
             reminderStatus: { notifications.status(for: $0, kind: $1) }

@@ -370,7 +370,21 @@ labels it. Causes, in order of likelihood:
 Stale data is deliberately conservative: it suppresses pace projection and
 automatic runs, but it never cancels a scheduled reminder.
 
+### The menu bar says 88% — is that used or left?
+
+Left, unless you changed it. Tokenmax reads quota as what remains by default, so a fresh window is
+100% and the number falls as you spend; Claude's and Codex's own usage pages count the other way,
+from 0% up. The Numbers style has no room for the word, so hover the icon: the tooltip spells each
+reading out, "Claude session 88% left". To count like Claude does, set **Settings → General → Usage
+→ Show quota as** to **Used**.
+
+Your reminder, colour-level, opener and auto-run thresholds are unaffected either way. They always
+mean quota left, which is why they read "10% left" in Settings.
+
 ### The numbers disagree with Claude Code's own display
+
+If one says 88% and the other 12%, they agree: one counts what is left, the other what is used.
+See the entry above.
 
 Two sources with different freshness. The usage endpoint can be polled any time;
 the statusline only updates while a session is actually running. In the default

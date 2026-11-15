@@ -177,10 +177,7 @@ private struct SideNotchProviderRing: View {
         .frame(width: diameter, height: diameter)
     }
 
-    private var percentText: String {
-        guard let remaining = presentation.outer.remainingPercent else { return "—" }
-        return "\(UsageWindow.displayPercent(forRemaining: remaining))%"
-    }
+    private var percentText: String { presentation.outer.percentText }
 }
 
 struct SideNotchDetailView: View {
@@ -339,8 +336,7 @@ struct SideNotchDetailView: View {
     }
 
     private func remainingText(_ meter: SideNotchMeterPresentation) -> String {
-        guard let window = meter.window else { return "Unavailable" }
-        return UsageWindowPresentation.remainingText(for: window)
+        meter.readingText
     }
 
     private func resetText(_ meter: SideNotchMeterPresentation) -> String {
@@ -371,12 +367,19 @@ struct SideNotchDetailView: View {
 
     private func paceMarker(for meter: SideNotchMeterPresentation) -> Double? {
         guard !meter.isStale, let projection = meter.projection else { return nil }
-        return max(0, min(1, projection.evenPaceRemainingPercent / 100))
+        return UsageWindowPresentation.paceMarkerPosition(for: projection, readout: meter.readout)
     }
 
+    /// Red for a deficit while it sits on the dark track, where red reads;
+    /// white everywhere else. Reading what is used, a deficit marker lands on
+    /// the fill instead, and red on a coloured fill is the pairing that
+    /// disappears.
     private func markerColor(for meter: SideNotchMeterPresentation) -> Color {
         guard let projection = meter.projection else { return .clear }
-        if case .deficit = projection.outlook { return .red }
+        if case .deficit = projection.outlook,
+           !UsageWindowPresentation.paceMarkerIsOnFill(for: projection, readout: meter.readout) {
+            return .red
+        }
         return Color.white.opacity(0.85)
     }
 }

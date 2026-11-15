@@ -25,6 +25,12 @@ struct MenuBarIconModel: Equatable {
     /// against the clock, so it has to be recomputed on every tick of the label.
     var countdownWindow: UsageWindow?
     var countdownIsStale: Bool
+    /// Which way the meters read. On the model for the same reason as `style`.
+    var readout: QuotaReadout = .remaining
+    /// Each meter written out with its direction — "Claude session 88% left" —
+    /// for the tooltip and VoiceOver. The Numbers style prints a bare "88%",
+    /// which is exactly the figure that gets read the wrong way round.
+    var readings: [String] = []
 
     /// `layout` and `countdownSource` are expected to be the *effective* ones —
     /// see `AppSettings.effectiveMenuBarLayout`. A disabled provider is filtered
@@ -39,7 +45,8 @@ struct MenuBarIconModel: Equatable {
         snapshot: (TokenmaxProvider) -> UsageSnapshot?,
         isStale: (TokenmaxProvider) -> Bool,
         alerting: Set<MenuBarQuotaSource>,
-        ready: Set<MenuBarQuotaSource>
+        ready: Set<MenuBarQuotaSource>,
+        readout: QuotaReadout = .remaining
     ) -> MenuBarIconModel {
         let sources = layout.sources
 
@@ -61,6 +68,18 @@ struct MenuBarIconModel: Equatable {
             )
         }
 
+        let readings = sources.map { source -> String in
+            let state: String
+            if isStale(source.provider) {
+                state = "reading out of date"
+            } else if let window = snapshot(source.provider)?.window(for: source) {
+                state = UsageWindowPresentation.remainingText(for: window, readout: readout)
+            } else {
+                state = "unknown"
+            }
+            return "\(source.displayName) \(state)"
+        }
+
         let shownProviders = Set(sources.map(\.provider))
         let countdownWindow = countdownSource.flatMap { snapshot($0.provider)?.window(for: $0) }
 
@@ -72,7 +91,9 @@ struct MenuBarIconModel: Equatable {
             countdownWindow: countdownWindow,
             // No source is indistinguishable from an unreadable one as far as
             // the label is concerned: either way there is no countdown to show.
-            countdownIsStale: countdownSource.map { isStale($0.provider) } ?? true
+            countdownIsStale: countdownSource.map { isStale($0.provider) } ?? true,
+            readout: readout,
+            readings: readings
         )
     }
 }

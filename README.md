@@ -17,8 +17,9 @@ evaporating.
 - **Cursor, if you use it.** How much of your plan's included usage is left this billing cycle,
   in total and on models picked by name. Off until you switch it on; watched, never driven.
 - **A menu bar icon you configure.** Two or three stacked bars, nested rings that fit all four
-  quotas at once, or the plain percentage left — each position drawing a quota you choose, plus a countdown that can track a
-  different window entirely, and optional colour levels as a window runs low.
+  quotas at once, or the plain percentage — each position drawing a quota you choose, plus a countdown that can track a
+  different window entirely, and optional colour levels as a window runs low. Read as what is left,
+  or as what is used the way Claude's and Codex's own pages count it.
 - **A Side Notch when the menu bar is not enough.** An opt-in Alpha handle lives at the right
   screen edge, expanding into provider rings on hover without taking keyboard focus.
 - **Pace, not just remaining.** A marker showing where an even burn would have left you, whether
@@ -38,6 +39,17 @@ evaporating.
 The menubar shows a set of meters and the time left before a window resets ("1h 16m"). The meters
 carry how much is left; the countdown carries how long there is to spend it.
 
+**Settings → General → Usage → Show quota as** turns every reading the other way round. **Remaining**,
+the default, counts down from 100% and empties the meters as you spend. **Used** counts up from 0%
+and fills them, which is how Claude's and Codex's own usage pages count — so someone used to those
+reads a bare `88%` in the menu bar as 88% gone, when Remaining means 88% still there. Every surface
+follows it: the icon, the popover, the queue header, Side Notch, and the readings in the icon's
+tooltip, which always say "left" or "used" in words. What does *not* follow it is any threshold you
+set — reminders, colour levels, the session opener and auto-run all keep meaning quota left, and
+say "% left" beside the number. A rule that silently changed meaning when you flipped a display
+setting is how a "stop at 10%" would start spending the last 90%. The bar colours stay keyed to what
+is left too: red still means nearly gone, not long bar.
+
 **Settings → General → Menu bar icon** decides what is drawn, in one of two shapes.
 
 **Bars** are two or three stacked capsules. Length is the channel the eye compares most accurately,
@@ -54,8 +66,9 @@ The outer arc is drawn dimmer than the inner one, which is what makes the pair r
 rather than as two unrelated circles; it goes to full strength the moment it has something to
 announce.
 
-**Numbers** write the percentage left instead of drawing it: one window, or two stacked, such as
-`90%` over `40%`. Neither bars nor rings can say the exact figure — length and arc are estimates —
+**Numbers** write the percentage instead of drawing it — left or used, as **Show quota as** says —
+one window, or two stacked, such as `90%` over `40%`. There is no room for the word, so hovering
+the icon spells the readings out. Neither bars nor rings can say the exact figure — length and arc are estimates —
 and for someone who watches the 5h window alone that figure is the whole question. With the time
 remaining switched on it follows after a dot, `90% · 4:10`, so the reading and the deadline do not
 run together. The colours, the highlight and the escalation levels apply exactly as they do to a

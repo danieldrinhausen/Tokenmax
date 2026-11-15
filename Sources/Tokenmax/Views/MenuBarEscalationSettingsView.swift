@@ -90,9 +90,12 @@ struct MenuBarEscalationSettingsView: View {
                     in: MenuBarEscalationTrigger.minimumPercent...MenuBarEscalationTrigger.maximumPercent,
                     step: 5
                 ) {
-                    Text("\(Int(percent))%")
+                    // "left" in words: this threshold is quota remaining
+                    // whichever way the meters read, so it cannot say "15%"
+                    // beside an icon that prints "85%" for the same reading.
+                    Text("\(Int(percent))% left")
                         .font(.system(size: 11, design: .monospaced))
-                        .frame(width: 34, alignment: .trailing)
+                        .frame(width: 62, alignment: .trailing)
                 }
             }
 

@@ -8,10 +8,26 @@ struct SideNotchMeterPresentation: Equatable, Identifiable, Sendable {
     let reminderStatus: ReminderStatus?
     let color: HighlightColor?
     let glow: Bool
+    /// Which way the ring and the text run. Defaulted so a presentation built
+    /// without one reads as every build before the setting did.
+    var readout: QuotaReadout = .remaining
 
     var id: MenuBarQuotaSource { source }
     var remainingPercent: Double? { isStale ? nil : window?.remainingPercent }
-    var fraction: Double? { remainingPercent.map { max(0, min(1, $0 / 100)) } }
+    /// How far the ring or bar is filled, at the resolution the text prints,
+    /// and nil at 0% — a round-capped trim of nothing still draws a dot, which
+    /// beside "0% used" or "Limit reached" would claim a reading that is not
+    /// there.
+    var fraction: Double? {
+        remainingPercent.map { readout.displayFill(forRemaining: $0) }.flatMap { $0 > 0 ? $0 : nil }
+    }
+    /// The ring's centre figure: "88%", or "—" when there is no current reading.
+    var percentText: String {
+        remainingPercent.map { "\(readout.displayPercent(forRemaining: $0))%" } ?? "—"
+    }
+    var readingText: String {
+        window.map { UsageWindowPresentation.remainingText(for: $0, readout: readout) } ?? "Unavailable"
+    }
 
     var shortLabel: String {
         switch source {
@@ -52,7 +68,7 @@ struct SideNotchProviderPresentation: Equatable, Identifiable, Sendable {
         return meters.map { meter in
             let state = meter.isStale
                 ? "reading out of date"
-                : meter.window.map(UsageWindowPresentation.remainingText(for:)) ?? "unknown"
+                : meter.window.map { UsageWindowPresentation.remainingText(for: $0, readout: meter.readout) } ?? "unknown"
             return "\(meter.shortLabel), \(state)"
         }.joined(separator: "; ")
     }
@@ -106,6 +122,7 @@ enum SideNotchPresentation {
         alerting: Set<MenuBarQuotaSource>,
         ready: Set<MenuBarQuotaSource>,
         colors: SideNotchColorSettings,
+        readout: QuotaReadout = .remaining,
         now: Date,
         projection: (UsageWindow) -> UsageProjection?,
         reminderStatus: (TokenmaxProvider, UsageWindowKind) -> ReminderStatus?
@@ -130,12 +147,12 @@ enum SideNotchPresentation {
                 },
                 outer: meter(
                     source: sources[0], snapshot: current, isStale: stale,
-                    alerting: alerting, ready: ready, colors: colors,
+                    alerting: alerting, ready: ready, colors: colors, readout: readout,
                     projection: projection, reminderStatus: reminderStatus
                 ),
                 inner: meter(
                     source: sources[1], snapshot: current, isStale: stale,
-                    alerting: alerting, ready: ready, colors: colors,
+                    alerting: alerting, ready: ready, colors: colors, readout: readout,
                     projection: projection, reminderStatus: reminderStatus
                 )
             )
@@ -162,6 +179,7 @@ enum SideNotchPresentation {
         alerting: Set<MenuBarQuotaSource>,
         ready: Set<MenuBarQuotaSource>,
         colors: SideNotchColorSettings,
+        readout: QuotaReadout,
         projection: (UsageWindow) -> UsageProjection?,
         reminderStatus: (TokenmaxProvider, UsageWindowKind) -> ReminderStatus?
     ) -> SideNotchMeterPresentation {
@@ -203,7 +221,8 @@ enum SideNotchPresentation {
             projection: isStale ? nil : window.flatMap(projection),
             reminderStatus: reminderStatus(source.provider, source.kind),
             color: color,
-            glow: colors.glow && color != nil
+            glow: colors.glow && color != nil,
+            readout: readout
         )
     }
 }

@@ -511,6 +511,10 @@ struct AppSettings: Codable, Sendable, Equatable {
     /// the reset, and whether that leaves a reserve or runs out early.
     var showProjections: Bool = true
 
+    /// Whether every quota surface reads what is left or what is used. Display
+    /// only — see `QuotaReadout` for why no decision follows it.
+    var quotaReadout: QuotaReadout = .remaining
+
     /// The whole task-queue feature: the queue window, the popover's queue
     /// section, the dock badge, and the queue-related banner actions. Turning it
     /// off leaves Tokenmax a pure quota meter.
@@ -770,6 +774,7 @@ struct AppSettings: Codable, Sendable, Equatable {
             sideNotchEnabled: sideNotch.enabled
         )
         showProjections = (try? container.decodeIfPresent(Bool.self, forKey: .showProjections)) ?? d.showProjections
+        quotaReadout = (try? container.decodeIfPresent(QuotaReadout.self, forKey: .quotaReadout)) ?? d.quotaReadout
         queueEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .queueEnabled)) ?? d.queueEnabled
         checkForUpdates = (try? container.decodeIfPresent(Bool.self, forKey: .checkForUpdates)) ?? d.checkForUpdates
         terminalApplication = (try? container.decodeIfPresent(String.self, forKey: .terminalApplication))

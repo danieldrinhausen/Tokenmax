@@ -86,7 +86,7 @@ inner one, which is how a session sits inside a week. Rings are the only shape
 that fits all four quotas, and the only one that costs real menu bar width —
 about 35pt for two rings against 20pt for two bars. A single ring is 16pt, so
 if you watch one provider, rings are the *narrower* choice. Numbers write the
-percentage left as text — **1 number** or **2 numbers**, stacked — for when you
+percentage as text — **1 number** or **2 numbers**, stacked — for when you
 want the exact figure rather than a length to judge; the text beside the icon then
 follows after a dot (`90% · 4:10`).
 
@@ -195,6 +195,11 @@ document is opt-in.
 ---
 
 ## Reading the meters
+
+Everything below describes the default, **Show quota as → Remaining**. Switch it to
+**Used** (Settings → General → Usage) and every number and meter runs the other way:
+`41% used`, a bar that fills as you spend, the pace marker measured from the left.
+The thresholds you set do not flip — they always mean quota left, and say so.
 
 The bar carries **how much is left**. The countdown carries **how long there is
 to spend it**. Those are different questions and the icon answers both because

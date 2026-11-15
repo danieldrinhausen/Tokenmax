@@ -215,7 +215,8 @@ struct TokenmaxApp: App {
                     snapshot: { usage.snapshot(for: $0) },
                     isStale: { usage.isStale(for: $0) },
                     alerting: notificationCoordinator.alertingSources,
-                    ready: usage.readySources
+                    ready: usage.readySources,
+                    readout: settings.quotaReadout
                 ),
                 now: clock.now,
                 // Per provider for a provider's item: the combined item's
@@ -359,9 +360,11 @@ private struct MenuBarLabel: View {
             openWindow(id: TokenmaxWindow.queue)
         }
         .accessibilityLabel(accessibilityName)
+        .accessibilityValue(model.readings.joined(separator: ", "))
         // Best effort: a `MenuBarExtra` label may not surface a tooltip, and
-        // the glyph is what identifies the item either way.
-        .help(accessibilityName)
+        // the glyph is what identifies the item either way. The readings say
+        // "left" or "used" in words, which the icon has no room for.
+        .help(([accessibilityName] + model.readings).joined(separator: "\n"))
         .onReceive(NotificationCenter.default.publisher(for: .tokenmaxAppearanceChanged)) { _ in
             appearanceGeneration &+= 1
         }
@@ -378,7 +381,8 @@ private struct MenuBarLabel: View {
             highlight: highlight,
             glow: glow,
             escalation: escalation,
-            marker: marker
+            marker: marker,
+            readout: model.readout
         ))
     }
 

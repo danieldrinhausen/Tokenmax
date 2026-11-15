@@ -141,6 +141,21 @@ struct PersistenceCompatibilityTests {
         #expect(decoded.effectiveSideNotchColors == settings.sideNotch.customColors)
     }
 
+    @Test("A settings file without a quota readout reads as remaining, and an unknown one costs only that setting")
+    func quotaReadoutIsTolerant() throws {
+        #expect(try decode(AppSettings.self, "{}").quotaReadout == .remaining)
+        let unknown = try decode(AppSettings.self, """
+        { "quotaReadout": "spent", "showProjections": false }
+        """)
+        #expect(unknown.quotaReadout == .remaining)
+        #expect(unknown.showProjections == false)
+
+        var settings = AppSettings()
+        settings.quotaReadout = .used
+        let data = try JSONStore.makeEncoder().encode(settings)
+        #expect(try JSONStore.makeDecoder().decode(AppSettings.self, from: data).quotaReadout == .used)
+    }
+
     /// The Codex overrides must not be re-defaulted by a partial write: a file
     /// carrying only one of the three keeps that one and defaults the rest.
     @Test("A partly-written Codex override block keeps what it has")

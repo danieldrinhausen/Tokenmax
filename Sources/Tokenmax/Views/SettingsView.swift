@@ -248,7 +248,7 @@ struct GeneralSettingsView: View {
                             numbers: $settingsStore.settings.menuBarNumbers,
                             allowed: settingsStore.settings.allowedMenuBarSources
                         )
-                        Text("The percentage left, written out instead of drawn — one window, or two stacked. With the time remaining switched on it follows after a dot: \"90% · 4:10\". The colours work as they do for bars; a reading that cannot be trusted shows \"--\" rather than a number.")
+                        Text("The percentage, written out instead of drawn — one window, or two stacked — left or used as \"Show quota as\" says; hover the icon for the readings in words. With the time remaining switched on it follows after a dot: \"90% · 4:10\". The colours work as they do for bars; a reading that cannot be trusted shows \"--\" rather than a number.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -268,6 +268,7 @@ struct GeneralSettingsView: View {
                     style: settingsStore.settings.menuBarIconStyle,
                     meters: previewMeters,
                     highlight: settingsStore.settings.menuBarHighlightColor,
+                    readout: settingsStore.settings.quotaReadout,
                     separate: showsSeparateMenuBarItems,
                     markers: MenuBarItemDecision.items(
                         showMenuBarItem: true,
@@ -346,7 +347,8 @@ struct GeneralSettingsView: View {
                     MenuBarIconSwatch(
                         style: settingsStore.settings.menuBarIconStyle,
                         meters: escalationPreviewMeters,
-                        escalation: settingsStore.settings.menuBarEscalation
+                        escalation: settingsStore.settings.menuBarEscalation,
+                        readout: settingsStore.settings.quotaReadout
                     )
 
                     Text("A level trips when a window falls to its percentage, or when that window's own reminder fires. The most severe one reached wins. A percentage level outranks the \"good time to spend\" highlight — a window with 15% left is not an opportunity however close its reset is — while a reminder level yields to it, because having been announced says nothing about how much is left. Stale readings are never coloured. The preview above steps through the levels you have set.")
@@ -406,6 +408,17 @@ struct GeneralSettingsView: View {
             SideNotchSettingsView()
 
             Section("Usage") {
+                Picker("Show quota as", selection: $settingsStore.settings.quotaReadout) {
+                    ForEach(QuotaReadout.allCases) { readout in
+                        Text(readout.displayName).tag(readout)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                Text("Remaining counts down from 100% and empties the meters as you spend. Used counts up from 0%, as Claude's and Codex's own usage pages do, and fills them. Every meter, number and the Side Notch follow it; the percentages you set for reminders, colour levels and automation always mean quota left, so a threshold never changes meaning under you.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Toggle("Show projected pace", isOn: $settingsStore.settings.showProjections)
                 Text("Under each meter: whether your spending is ahead of or behind an even burn of the window, and when it runs out if you are ahead. The marker on the bar is where an even burn would have left the meter right now. Switching it off also blanks the menu bar's \"In reserve\" text, which is the same figure.")
                     .font(.caption)
@@ -481,6 +494,7 @@ struct MenuBarIconSwatch: View {
     var glow: Bool = false
     var escalation: MenuBarEscalation?
     var marker: MenuBarIconRenderer.ProviderMarker?
+    var readout: QuotaReadout = .remaining
 
     var body: some View {
         HStack(spacing: 8) {
@@ -500,7 +514,8 @@ struct MenuBarIconSwatch: View {
             highlight: highlight,
             glow: glow,
             escalation: escalation,
-            marker: marker
+            marker: marker,
+            readout: readout
         ))
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
@@ -520,6 +535,7 @@ private struct MenuBarIconPreview: View {
     let style: MenuBarIconStyle
     let meters: [MenuBarIconRenderer.Meter]
     let highlight: HighlightColor
+    var readout: QuotaReadout = .remaining
     var separate = false
     var markers: [MenuBarIconRenderer.ProviderMarker] = [.claude, .codex]
 
@@ -535,12 +551,13 @@ private struct MenuBarIconPreview: View {
                             style: style,
                             meters: [.init(fraction: 39), .init(fraction: 74)],
                             highlight: highlight,
-                            marker: marker
+                            marker: marker,
+                            readout: readout
                         )
                     }
                 }
             } else {
-                MenuBarIconSwatch(style: style, meters: meters, highlight: highlight)
+                MenuBarIconSwatch(style: style, meters: meters, highlight: highlight, readout: readout)
             }
         }
     }
@@ -804,7 +821,7 @@ struct NotificationSettingsView: View {
 
                     Picker("Minimum remaining quota", selection: rule.minimumRemainingPercent) {
                         ForEach([5.0, 10.0, 20.0, 30.0, 50.0], id: \.self) { value in
-                            Text("\(Int(value))%").tag(value)
+                            Text("\(Int(value))% left").tag(value)
                         }
                     }
 

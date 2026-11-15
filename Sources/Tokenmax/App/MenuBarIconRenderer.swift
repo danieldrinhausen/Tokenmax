@@ -1,7 +1,7 @@
 import AppKit
 
-/// Draws the two-meter menubar glyph: top bar is remaining session quota,
-/// bottom bar is remaining weekly quota.
+/// Draws the two-meter menubar glyph: top bar is session quota, bottom bar is
+/// weekly quota — what is left of each, or what is used, per `QuotaReadout`.
 ///
 /// Transparent background, bars matching the other menu bar icons by default,
 /// lit in the user's highlight colour while it is a good moment to spend quota.
@@ -88,7 +88,8 @@ enum MenuBarIconRenderer {
         style: MenuBarIconStyle,
         meterCount: Int,
         marker: ProviderMarker? = nil,
-        meters readings: [Meter] = []
+        meters readings: [Meter] = [],
+        readout: QuotaReadout = .remaining
     ) -> NSSize {
         let meters: NSSize
         switch style {
@@ -100,7 +101,7 @@ enum MenuBarIconRenderer {
             meters = NSSize(width: width, height: barsSize.height)
         case .numbers:
             let font = numberFont(count: meterCount)
-            let texts = readings.isEmpty ? ["100%"] : readings.map { numberText(for: $0) }
+            let texts = readings.isEmpty ? ["100%"] : readings.map { numberText(for: $0, readout: readout) }
             let width = texts.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
             meters = NSSize(width: ceil(width), height: barsSize.height)
         }
@@ -121,7 +122,9 @@ enum MenuBarIconRenderer {
     /// A reading, not a shape: the same values are drawn as a capsule or as an
     /// arc depending on the configured style.
     struct Meter: Hashable, Sendable {
-        /// Percent *remaining*, or nil when unknown.
+        /// Percent *remaining*, or nil when unknown — whichever way the icon
+        /// reads. The escalation ladder judges this value, so it stays in the
+        /// one direction every rule is written in.
         var fraction: Double?
         /// This window's reminder has already fired and the window has not reset
         /// yet, so the meter carries the alert colour.
@@ -190,6 +193,10 @@ enum MenuBarIconRenderer {
         let escalation: MenuBarEscalation?
         /// Two providers' items with the same reading must not share an image.
         let marker: ProviderMarker?
+        /// The same reading drawn the other way round is a different image;
+        /// without it, flipping the setting leaves the old icon up until the
+        /// percentage next changes.
+        let readout: QuotaReadout
     }
 
     /// The status item rasterizes its image more often than it is assigned, so
@@ -214,11 +221,14 @@ enum MenuBarIconRenderer {
         highlight: HighlightColor = .default,
         glow: Bool = false,
         escalation: MenuBarEscalation? = nil,
-        marker: ProviderMarker? = nil
+        marker: ProviderMarker? = nil,
+        readout: QuotaReadout = .remaining
     ) -> NSImage {
         // Eager, bitmap-backed. `NSImage(size:flipped:drawingHandler:)` would
         // re-run the closure on every rasterization instead of once.
-        let image = NSImage(size: size(style: style, meterCount: meters.count, marker: marker, meters: meters))
+        let image = NSImage(size: size(
+            style: style, meterCount: meters.count, marker: marker, meters: meters, readout: readout
+        ))
         image.lockFocus()
 
         // A coloured meter cannot survive templating, and a template is the only
@@ -228,7 +238,7 @@ enum MenuBarIconRenderer {
 
         // The meters are drawn exactly as on an unmarked icon, shifted right —
         // so the combined item, which has no marker, is bit-for-bit unchanged.
-        let canvas = size(style: style, meterCount: meters.count, meters: meters)
+        let canvas = size(style: style, meterCount: meters.count, meters: meters, readout: readout)
         if let marker {
             drawMarker(marker, height: canvas.height, isStale: isStale, templated: templated)
             let shift = NSAffineTransform()
@@ -240,17 +250,17 @@ enum MenuBarIconRenderer {
         case .bars:
             drawBars(
                 meters, in: canvas, isStale: isStale, templated: templated,
-                highlight: highlight, glow: glow, escalation: escalation
+                highlight: highlight, glow: glow, escalation: escalation, readout: readout
             )
         case .rings:
             drawRings(
                 meters, in: canvas, isStale: isStale, templated: templated,
-                highlight: highlight, glow: glow, escalation: escalation
+                highlight: highlight, glow: glow, escalation: escalation, readout: readout
             )
         case .numbers:
             drawNumbers(
                 meters, in: canvas, isStale: isStale, templated: templated,
-                highlight: highlight, glow: glow, escalation: escalation
+                highlight: highlight, glow: glow, escalation: escalation, readout: readout
             )
         }
 
@@ -309,7 +319,8 @@ enum MenuBarIconRenderer {
         templated: Bool,
         highlight: HighlightColor,
         glow: Bool,
-        escalation: MenuBarEscalation?
+        escalation: MenuBarEscalation?,
+        readout: QuotaReadout
     ) {
         let (barHeight, gap) = geometry(meterCount: meters.count)
         let totalHeight = barHeight * CGFloat(meters.count) + gap * CGFloat(max(0, meters.count - 1))
@@ -331,7 +342,8 @@ enum MenuBarIconRenderer {
                 templated: templated,
                 highlight: highlight,
                 glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow),
-                escalation: escalation
+                escalation: escalation,
+                readout: readout
             )
         }
     }
@@ -347,7 +359,8 @@ enum MenuBarIconRenderer {
         templated: Bool,
         highlight: HighlightColor,
         glow: Bool,
-        escalation: MenuBarEscalation?
+        escalation: MenuBarEscalation?,
+        readout: QuotaReadout
     ) {
         for (index, meter) in meters.enumerated() {
             let ring = index / 2
@@ -369,7 +382,8 @@ enum MenuBarIconRenderer {
                 templated: templated,
                 highlight: highlight,
                 glow: isGlowing(isStale: isStale, isReady: meter.isReady, glow: glow),
-                escalation: escalation
+                escalation: escalation,
+                readout: readout
             )
         }
     }
@@ -388,7 +402,8 @@ enum MenuBarIconRenderer {
         templated: Bool,
         highlight: HighlightColor,
         glow: Bool,
-        escalation: MenuBarEscalation?
+        escalation: MenuBarEscalation?,
+        readout: QuotaReadout
     ) {
         let font = numberFont(count: meters.count)
         let rowHeight = canvas.height / CGFloat(max(1, meters.count))
@@ -403,7 +418,7 @@ enum MenuBarIconRenderer {
                 fraction: meter.fraction,
                 escalation: escalation
             )
-            let text = numberText(for: meter) as NSString
+            let text = numberText(for: meter, readout: readout) as NSString
             let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
             let width = text.size(withAttributes: attributes).width
 
@@ -441,9 +456,12 @@ enum MenuBarIconRenderer {
     /// "90%". A stale or unknown reading is "--": the model already withholds a
     /// stale provider's number, and an invented one here would be the same lie
     /// the bars refuse to draw.
-    static func numberText(for meter: Meter) -> String {
+    ///
+    /// No "left" or "used": the menu bar is charged by the pixel. The item's
+    /// tooltip and VoiceOver value spell the direction out instead.
+    static func numberText(for meter: Meter, readout: QuotaReadout = .remaining) -> String {
         guard let fraction = meter.fraction else { return "--" }
-        return "\(UsageWindow.displayPercent(forRemaining: fraction))%"
+        return "\(readout.displayPercent(forRemaining: fraction))%"
     }
 
     /// A glow is only ever drawn on a lit, trusted icon. Templating would
@@ -461,7 +479,8 @@ enum MenuBarIconRenderer {
         highlight: HighlightColor = .default,
         glow: Bool = false,
         escalation: MenuBarEscalation? = nil,
-        marker: ProviderMarker? = nil
+        marker: ProviderMarker? = nil,
+        readout: QuotaReadout = .remaining
     ) -> NSImage {
         let lit = meters.contains(where: \.isReady) && !isStale
 
@@ -480,7 +499,8 @@ enum MenuBarIconRenderer {
             highlight: lit ? highlight : nil,
             glow: isGlowing(isStale: isStale, isReady: lit, glow: glow),
             escalation: escalation,
-            marker: marker
+            marker: marker,
+            readout: readout
         )
 
         if let cached = imageCache[key] { return cached }
@@ -492,7 +512,8 @@ enum MenuBarIconRenderer {
             highlight: highlight,
             glow: glow,
             escalation: escalation,
-            marker: marker
+            marker: marker,
+            readout: readout
         )
         // Three bars, three alert states and now two styles multiply the
         // reachable states, so the cap is well above the old 16 to keep the
@@ -516,7 +537,8 @@ enum MenuBarIconRenderer {
         templated: Bool,
         highlight: HighlightColor,
         glow: Bool,
-        escalation: MenuBarEscalation?
+        escalation: MenuBarEscalation?,
+        readout: QuotaReadout
     ) {
         let fraction = meter.fraction
         let radius = rect.height / 2
@@ -544,10 +566,10 @@ enum MenuBarIconRenderer {
             return
         }
 
-        let clamped = Double(UsageWindow.displayPercent(forRemaining: fraction)) / 100
+        let clamped = readout.displayFill(forRemaining: fraction)
         guard clamped > 0 else { return }
 
-        // Always render at least a nub so "1% left" is visibly distinct from 0.
+        // Always render at least a nub so "1%" is visibly distinct from 0.
         let fillWidth = max(rect.height, rect.width * clamped)
         let fillRect = NSRect(x: rect.minX, y: rect.minY, width: fillWidth, height: rect.height)
         let fill = NSBezierPath(roundedRect: fillRect, xRadius: radius, yRadius: radius)
@@ -586,7 +608,8 @@ enum MenuBarIconRenderer {
         templated: Bool,
         highlight: HighlightColor,
         glow: Bool,
-        escalation: MenuBarEscalation?
+        escalation: MenuBarEscalation?,
+        readout: QuotaReadout
     ) {
         let base = meterColor(
             isStale: isStale,
@@ -621,7 +644,7 @@ enum MenuBarIconRenderer {
             return
         }
 
-        let clamped = Double(UsageWindow.displayPercent(forRemaining: fraction)) / 100
+        let clamped = readout.displayFill(forRemaining: fraction)
         guard clamped > 0 else { return }
 
         let fill = arc(centre: centre, radius: radius, sweep: max(minimumSweep, clamped))
@@ -648,9 +671,10 @@ enum MenuBarIconRenderer {
     }
 
     /// A round-capped arc of `sweep` (0...1) starting at twelve o'clock and
-    /// running clockwise — the direction a meter is read, and the same "starts
-    /// full, empties as you spend" reading the bar gives by filling from the
-    /// left.
+    /// running clockwise — the direction a meter is read, and the same reading
+    /// the bar gives by filling from the left: full and emptying as you spend
+    /// when it reads what is left, empty and filling when it reads what is
+    /// used.
     private static func arc(centre: NSPoint, radius: CGFloat, sweep: CGFloat) -> NSBezierPath {
         let path = NSBezierPath()
         path.lineWidth = Ring.strokeWidth

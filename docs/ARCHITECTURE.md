@@ -62,6 +62,17 @@ expiry and the cloud-credit line use the same pure
 `UsageWindowPresentation` functions as the popover, so the two surfaces cannot
 describe one snapshot differently.
 
+`QuotaReadout` (the "Show quota as" setting) is presentation only, and the
+boundary is deliberate. It reaches `UsageWindowPresentation`, the renderer, the
+icon model and `SideNotchPresentation` — the text, the fill, the pace marker's
+position — and nothing else. Every decision type, the escalation ladder
+included, still receives percent *remaining*: `MenuBarIconRenderer.Meter.fraction`
+stays remaining in both modes because `MenuBarEscalationDecision` judges it. A
+used figure computed for display is `100 − displayPercent(forRemaining:)`, never
+rounded on its own, so "100% used" and "Limit reached" are the same reading.
+The renderer's image cache keys on the readout, or flipping it would leave the
+old icon up until the percentage next changed.
+
 `SettingsWindowController` owns one ordinary AppKit settings window whose
 content is the shared SwiftUI settings view. Every surface posts the same app
 level request, which the controller handles after a contextual menu dismisses;

@@ -7,6 +7,14 @@ versions follow [semver](https://semver.org/).
 
 ### Added
 
+- **Quota can read as used instead of left.** **Settings → General → Usage → Show quota as**:
+  **Used** counts up from 0% and fills the meters as you spend, the way Claude's and Codex's own
+  usage pages count; **Remaining** stays the default and nothing changes for an existing install.
+  The menu bar icon, popover, queue header and Side Notch all follow it, and hovering the icon spells
+  each reading out with "left" or "used" — a bare `88%` in the Numbers style was being read as 88%
+  spent. Display only: reminder, colour-level, opener and auto-run thresholds keep meaning quota
+  left, and now say "% left" beside the number so they stay unambiguous in either mode.
+
 - **The menu bar text can show the reserve instead of the countdown.** Under **Menu bar text →
   Time shown**, **In reserve** replaces the time until reset with how far ahead of an even burn
   the window stands: `+8%` to spare, `−5%` behind. It is the "in reserve" figure from the popover,

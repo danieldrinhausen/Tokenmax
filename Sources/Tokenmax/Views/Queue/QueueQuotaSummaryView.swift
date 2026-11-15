@@ -11,6 +11,8 @@ import SwiftUI
 /// blank space, because "we could not read your quota" and "you have none left"
 /// must never look the same.
 struct QueueQuotaSummaryView: View {
+    @EnvironmentObject private var settingsStore: SettingsStore
+
     let state: UsageState
     let isStale: Bool
     let now: Date
@@ -27,6 +29,8 @@ struct QueueQuotaSummaryView: View {
     /// Shown when the state carries a recovery action worth offering.
     var onRefresh: (() -> Void)?
     var onOpenTerminal: (() -> Void)?
+
+    private var readout: QuotaReadout { settingsStore.settings.quotaReadout }
 
     private var name: String { provider.displayName }
     private var command: String { provider.commandName }
@@ -130,7 +134,7 @@ struct QueueQuotaSummaryView: View {
             bar(window, isStale: isStale)
                 .frame(width: barWidth)
 
-            Text(UsageWindowPresentation.remainingText(for: window))
+            Text(UsageWindowPresentation.remainingText(for: window, readout: readout))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(isStale ? .secondary : .primary)
                 .frame(width: remainingWidth, alignment: .leading)
@@ -149,7 +153,7 @@ struct QueueQuotaSummaryView: View {
     /// One string per row, because four separate labels read as four unrelated
     /// fragments to VoiceOver.
     private func accessibilityLabel(_ window: UsageWindow, isStale: Bool) -> String {
-        var parts = [window.label, UsageWindowPresentation.remainingText(for: window)]
+        var parts = [window.label, UsageWindowPresentation.remainingText(for: window, readout: readout)]
         if isStale {
             parts.append("reading is out of date, countdown unavailable")
         } else {
@@ -164,7 +168,9 @@ struct QueueQuotaSummaryView: View {
                 Capsule()
                     .fill(Color.secondary.opacity(0.22))
 
-                if let fraction = UsageWindowPresentation.fillFraction(for: window, isStale: isStale) {
+                if let fraction = UsageWindowPresentation.fillFraction(
+                    for: window, isStale: isStale, readout: readout
+                ) {
                     Capsule()
                         .fill(barColor(window))
                         .frame(width: max(3, geometry.size.width * fraction))

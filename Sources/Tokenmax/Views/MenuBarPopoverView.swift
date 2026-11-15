@@ -141,6 +141,7 @@ struct MenuBarPopoverView: View {
     /// wonder whether they are two.
     private func burnBanner(_ opportunity: BurnOpportunity) -> some View {
         let highlight = settingsStore.settings.menuBarHighlightColor.color
+        let readout = settingsStore.settings.quotaReadout
 
         return HStack(spacing: 7) {
             Image(systemName: "bolt.fill")
@@ -149,7 +150,7 @@ struct MenuBarPopoverView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Good time to spend quota")
                     .font(.system(size: 11, weight: .semibold))
-                Text("\(UsageWindow.displayPercent(forRemaining: opportunity.remainingPercent))% left, resetting in \(RelativeTime.countdown(opportunity.timeUntilReset(now: clock.now)))")
+                Text("\(readout.displayPercent(forRemaining: opportunity.remainingPercent))% \(readout.suffix), resetting in \(RelativeTime.countdown(opportunity.timeUntilReset(now: clock.now)))")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -291,7 +292,8 @@ struct MenuBarPopoverView: View {
                         window: session,
                         isStale: forceStale,
                         now: clock.now,
-                        projection: projection(for: session, forceStale: forceStale)
+                        projection: projection(for: session, forceStale: forceStale),
+                        readout: settingsStore.settings.quotaReadout
                     )
                     reminderLine(for: .session, provider: provider)
                     if provider == .claudeCode { openerLine }
@@ -303,7 +305,8 @@ struct MenuBarPopoverView: View {
                         window: weekly,
                         isStale: forceStale,
                         now: clock.now,
-                        projection: projection(for: weekly, forceStale: forceStale)
+                        projection: projection(for: weekly, forceStale: forceStale),
+                        readout: settingsStore.settings.quotaReadout
                     )
                     reminderLine(for: .weekly, provider: provider)
                 }
@@ -315,7 +318,8 @@ struct MenuBarPopoverView: View {
                     window: window,
                     isStale: forceStale,
                     now: clock.now,
-                    projection: projection(for: window, forceStale: forceStale)
+                    projection: projection(for: window, forceStale: forceStale),
+                    readout: settingsStore.settings.quotaReadout
                 )
             }
             // One line per title, so the text is its own identity.

@@ -97,12 +97,12 @@ struct QueueAutomationSettingsView: View {
             Section("Limits") {
                 Picker("Minimum session quota", selection: auto.minimumSessionRemainingPercent) {
                     ForEach(QueueAutoRunSettings.sessionThresholdOptions, id: \.self) { value in
-                        Text("\(Int(value))%").tag(value)
+                        Text("\(Int(value))% left").tag(value)
                     }
                 }
                 Picker("Minimum weekly quota", selection: auto.minimumWeeklyRemainingPercent) {
                     ForEach(QueueAutoRunSettings.weeklyThresholdOptions, id: \.self) { value in
-                        Text("\(Int(value))%").tag(value)
+                        Text("\(Int(value))% left").tag(value)
                     }
                 }
                 Picker("Maximum tasks per session", selection: auto.maximumTasksPerWindow) {
@@ -422,11 +422,12 @@ struct QueueAutomationSettingsView: View {
         if let estimate = task.estimatedMinutes {
             lines.append("Estimated \(estimate) min · limit \(task.maximumRuntimeMinutes) min")
         }
+        let readout = settingsStore.settings.quotaReadout
         if let session = usage.state.snapshot?.sessionWindow?.remainingPercent {
-            lines.append("Session quota \(UsageWindow.displayPercent(forRemaining: session))% remaining")
+            lines.append("Session quota \(readout.displayPercent(forRemaining: session))% \(readout.suffix)")
         }
         if let weekly = usage.state.snapshot?.weeklyWindow?.remainingPercent {
-            lines.append("Weekly quota \(UsageWindow.displayPercent(forRemaining: weekly))% remaining")
+            lines.append("Weekly quota \(readout.displayPercent(forRemaining: weekly))% \(readout.suffix)")
         }
         return lines
     }
