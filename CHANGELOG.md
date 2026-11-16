@@ -5,6 +5,8 @@ versions follow [semver](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-11-16
+
 ### Added
 
 - **Quota can read as used instead of left.** **Settings → General → Usage → Show quota as**:
